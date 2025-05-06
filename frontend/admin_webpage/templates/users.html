@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Users</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>Users</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Balance</th>
+                <th>Role</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+                <tr>
+                    <td>{{ user.name }}</td>
+                    <td>{{ user.balance }}</td>
+                    <td>{{ user.role }}</td>
+                </tr>
+            {% endfor %}
+            <tr>
+                <td>
+                    <input type="text" id="newUserName" placeholder="Enter name">
+                </td>
+                <td>
+                    <input type="number" id="newUserBalance" placeholder="Enter balance">
+                </td>
+                <td>
+                    <select id="newUserRole">
+                        <option value="User">User</option>
+                        <option value="Admin">Admin</option>
+                        <option value="Wirt">Wirt</option>
+                    </select>
+                </td>
+                <td>
+                    <button onclick="addUser()">Add User</button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>

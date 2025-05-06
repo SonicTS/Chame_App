@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "Chame_App"
+version = "1.0.0"
+description = "A kassensystem for product and sales management"
+authors = ["Thomas Schöller thomas.schoeller@usepat.com"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+flask = "^2.1"
+sqlalchemy = "^1.4"
+alembic = "^1.7"
+requests = "^2.25"  # example of another dependency
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
