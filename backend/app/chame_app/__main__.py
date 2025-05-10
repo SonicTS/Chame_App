@@ -1,12 +1,14 @@
 
 from sqlalchemy import inspect
+from models.bank_table import Bank
 from models.user_table import User
 from models.ingredient import Ingredient
 from models.product_table import Product
 from models.sales_table import Sale
 from services.admin_webpage import app
-from database import engine, Base, SessionLocal
+from chame_app.database_instance import Database
 
+from chame_app.database import engine, Base, SessionLocal
 
 
 
@@ -64,7 +66,10 @@ def main():
     # Close the session
     db.close()
 
+    
+
     app.run()
+    input("Press Enter to exit...")
 
 if __name__ == "__main__":
     main()

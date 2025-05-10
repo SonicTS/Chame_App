@@ -7,9 +7,11 @@ if %errorlevel% neq 0 (
 )
 
 REM Run PyInstaller to create the executable
-pyinstaller --onefile --add-data "..\..\frontend\admin_webpage\templates;templates" ^
+pyinstaller --onefile --windowed ^
+--add-data "..\..\frontend\admin_webpage\templates;templates" ^
 --add-data "../../frontend/admin_webpage/static;static" ^
-.\chame_app\main.py
+--collect-all chame_app ^
+.\chame_app\__main__.py
 
 REM Notify the user
 echo Build complete. The executable is located in the "dist" folder.

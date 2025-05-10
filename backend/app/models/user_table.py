@@ -13,7 +13,12 @@ class User(Base):
     role = Column(String, default="user")  # Role (e.g., 'admin', 'wrirt')
 
     sales = relationship("Sale", back_populates="user")
-
+    def __init__(self, name: str, balance: float = 0.0, password_hash: str = "", role: str = "user"):
+        self.name = name
+        self.balance = balance
+        self.password_hash = password_hash
+        self.role = role
+        
     def __repr__(self):
         return f"<User(name={self.name}, balance={self.balance}, role={self.role})>"
 

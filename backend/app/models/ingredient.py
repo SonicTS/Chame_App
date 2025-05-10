@@ -13,7 +13,11 @@ class Ingredient(Base):
 
     # Relationship back to Product (via the ProductIngredient table)
     products = relationship("Product", secondary="product_ingredient", back_populates="ingredients")
-
+    def __init__(self, name: str, price_per_unit: float, stock_quantity: int = 0):
+        self.name = name
+        self.price_per_unit = price_per_unit
+        self.stock_quantity = stock_quantity
+        
     def __repr__(self):
         return f"<Ingredient(name={self.name}, price={self.price_per_unit}, stock={self.stock_quantity})>"
 

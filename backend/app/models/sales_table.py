@@ -18,6 +18,12 @@ class Sale(Base):
     # Relationships
     user = relationship("User", back_populates="sales")
     product = relationship("Product", back_populates="sales")
+    def __init__(self, user_id: int, product_id: int, quantity: int, total_price: float, timestamp: str):
+        self.user_id = user_id
+        self.product_id = product_id
+        self.quantity = quantity
+        self.total_price = total_price
+        self.timestamp = timestamp
 
     def __repr__(self):
         return f"<Sale(user={self.user.name}, product={self.product.name}, quantity={self.quantity}, total_price={self.total_price})>"
@@ -25,5 +31,6 @@ class Sale(Base):
 product_ingredient = Table(
     "product_ingredient", Base.metadata,
     Column("product_id", Integer, ForeignKey("products.product_id", ondelete="CASCADE"), primary_key=True),
-    Column("ingredient_id", Integer, ForeignKey("ingredients.ingredient_id", ondelete="CASCADE"), primary_key=True)
+    Column("ingredient_id", Integer, ForeignKey("ingredients.ingredient_id", ondelete="CASCADE"), primary_key=True),
+    Column("ingredient_quantity", Float, default=0) 
 )
