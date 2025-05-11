@@ -3,8 +3,9 @@ import datetime
 from typing import List
 from chame_app.database import engine, SessionLocal
 from models.ingredient import Ingredient
+from models.product_ingredient_table import ProductIngredient
 from models.product_table import Product
-from models.sales_table import Sale, product_ingredient
+from models.sales_table import Sale
 from models.user_table import User
 from models.transaction_table import Transaction
 from models.bank_table import Bank
@@ -102,23 +103,35 @@ class Database:
         
         session = self.get_session()
         try:
-            product = Product(name=name, price_per_unit=price_per_unit, category=category)
+            try:
+                price = int(price_per_unit)
+            except (ValueError, TypeError):
+                raise ValueError(f"Invalid price for product {name}: {price_per_unit}")
+            
+            product = Product(name=name, price_per_unit=price, category=category)
             session.add(product)
             session.flush()  # Ensure product ID is generated
 
-            for ingredient in ingredients:
+            for ingredient_obj, quantity in ingredients:
                 # Check if the ingredient exists in the database
-                existing_ingredient = session.query(Ingredient).filter(Ingredient.id == ingredient[0].id).first()
+                try:
+                    ingredient_quantity = int(quantity)
+                except (ValueError, TypeError):
+                    raise ValueError(f"Invalid quantity for ingredient {ingredient_obj}: {quantity}")
+
+                existing_ingredient = session.query(Ingredient).filter_by(ingredient_id=ingredient_obj.ingredient_id).first()
                 if not existing_ingredient:
-                    raise ValueError(f"Ingredient {ingredient[0].name} not found in the database")
-                
-                # Add the relationship between product and ingredient
-                product.ingredients.append(existing_ingredient)
-                product_ingredient_association = product_ingredient.insert().values(
-                    product_id=product.id,
-                    ingredient_id=existing_ingredient.id,
-                    ingredient_quantity=ingredient[1]
+                    raise ValueError(f"Ingredient {ingredient_obj.name} not found in the database")
+
+                # Create association object
+                association = ProductIngredient(
+                    product=product,
+                    ingredient=existing_ingredient,
+                    ingredient_quantity=ingredient_quantity
                 )
+
+                # Add the association to the product
+                product.product_ingredients.append(association)
             product.update_stock()  # Update the stock of ingredients based on the product
             bank = session.query(Bank).filter_by(account_id=1).first()
             if not bank:
@@ -165,17 +178,19 @@ class Database:
                 raise ValueError("Product not found")
             if product.stock_quantity < quantity:
                 raise ValueError("Insufficient stock for this product")
-            for ingredient in product.ingredients:
-                product_ingredient_association = session.query(product_ingredient).filter(
-                    product_ingredient.c.product_id == product.id,
-                    product_ingredient.c.ingredient_id == ingredient.id
-                ).first()
-                if not product_ingredient_association:
-                    raise ValueError(f"Product {product.name} does not have ingredient {ingredient.name}")
-                if ingredient.stock_quantity < product_ingredient_association.ingredient_quantity * quantity:
+            for assoc in product.product_ingredients:
+                ingredient = assoc.ingredient
+                required_qty = assoc.ingredient_quantity * quantity
+
+                if ingredient.stock_quantity < required_qty:
                     raise ValueError(f"Insufficient stock for ingredient {ingredient.name}")
-                ingredient.stock_quantity -= product_ingredient_association.ingredient_quantity * quantity
-                bank.ingredient_value -= product_ingredient_association.ingredient_quantity * quantity * ingredient.price_per_unit
+
+                # Deduct the used quantity from ingredient stock
+                ingredient.stock_quantity -= required_qty
+
+                # Adjust bank value
+                bank.ingredient_value -= required_qty * ingredient.price_per_unit
+
             product.update_stock()  # Update the stock of ingredients based on the product
             total_cost = product.price * quantity
             user = session.query(User).filter(User.id == user_id).first()
@@ -285,6 +300,43 @@ class Database:
         try:
             products = session.query(Product).all()
             return products
+        except Exception as e:
+            raise e
+        finally:
+            session.close()
+
+    def get_all_ingredients(self) -> List[Ingredient]:
+        """Get all ingredients."""
+        session = self.get_session()
+        try:
+            ingredients = session.query(Ingredient).all()
+            return ingredients
+        except Exception as e:
+            raise e
+        finally:
+            session.close()
+
+    def get_ingredient_by_id(self, ingredient_id: int) -> Ingredient:
+        """Get an ingredient by its ID."""
+        session = self.get_session()
+        try:
+            ingredient = session.query(Ingredient).filter(Ingredient.ingredient_id == ingredient_id).first()
+            if not ingredient:
+                raise ValueError("Ingredient not found")
+            return ingredient
+        except Exception as e:
+            raise e
+        finally:
+            session.close()
+
+    def get_ingredients_by_ids(self, ingredient_ids: List[int]) -> List[Ingredient]:
+        """Get ingredients by their IDs."""
+        session = self.get_session()
+        try:
+            ingredients = session.query(Ingredient).filter(Ingredient.ingredient_id.in_(ingredient_ids)).all()
+            if not ingredients:
+                raise ValueError("No ingredients found")
+            return ingredients
         except Exception as e:
             raise e
         finally:

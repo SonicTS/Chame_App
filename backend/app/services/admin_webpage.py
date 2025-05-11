@@ -7,7 +7,8 @@ from chame_app.database_instance import database
 import os
 
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../frontend/admin_webpage/templates'))
-app = Flask(__name__, template_folder=template_dir)
+static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../frontend/admin_webpage/static'))
+app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
 
 db_session = SessionLocal()
 # Example route: Admin dashboard
@@ -28,11 +29,19 @@ def add_product():
         name = request.form['name']
         category = request.form['category']
         price = request.form['price']
-        stock = request.form['stock']
-        database.add_product(name=name, category=category, price_per_unit=price, stock_quantity=stock)  # Add product to the database
-        return redirect(url_for('products'))  # Redirect to product listing after adding
+        ingredients_ids = request.form.getlist('ingredients[]')
+        ingredients = database.get_ingredients_by_ids(ingredients_ids)
+            
+        quantities = request.form.getlist('quantities[]')
+        ingredient_quantity_pairs = list(zip(ingredients, quantities))
 
-    return render_template('add_product.html')  # A form to add a product
+        # Add the product to the database
+        database.add_product(name=name, ingredients=ingredient_quantity_pairs, price_per_unit=price, category=category)
+        return redirect(url_for('products'))
+
+    # Fetch all ingredients to display in the dropdown
+    ingredients = database.get_all_ingredients()
+    return render_template('add_product.html', ingredients=ingredients)
 
 
 @app.route('/users/add', methods=['POST'])

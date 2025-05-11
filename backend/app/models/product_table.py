@@ -16,19 +16,34 @@ class Product(Base):
 
     sales = relationship("Sale", back_populates="product")
 
-    ingredients = relationship("Ingredient", secondary="product_ingredient", back_populates="products")
+    product_ingredients = relationship("ProductIngredient", back_populates="product", cascade="all, delete-orphan")
 
     def update_stock(self):
         """
-        Update the stock of ingredients based on the quantity of the product sold.
+        Update the stock of the product based on the stock of its ingredients and the quantity required.
         """
-        self.stock_quantity = float('inf')  # Start with a large number
-        for product_ingredient_association in self.product_ingredient:
-            ingredient = product_ingredient_association.ingredient
-            quantity_needed = product_ingredient_association.ingredient_quantity
+        self.stock_quantity = float('inf')  # Assume infinite until limited by ingredients
+
+        for assoc in self.product_ingredients:
+            ingredient = assoc.ingredient
+            quantity_needed = assoc.ingredient_quantity
+
+            if not ingredient:
+                print(f"Ingredient with ID {assoc.ingredient_id} not found.")
+                continue
+
+            if quantity_needed <= 0:
+                print(f"Invalid quantity needed for ingredient {ingredient.name}")
+                continue
+
+            # Calculate how many products can be made from this ingredient
             ingredient_stock = ingredient.stock_quantity
-            required_quantity = ingredient_stock // quantity_needed
-            self.stock_quantity = min(self.stock_quantity, required_quantity)
+            max_product_qty = ingredient_stock // quantity_needed
+
+            self.stock_quantity = min(self.stock_quantity, max_product_qty)
+
+        print(f"Stock updated for product: {self.name} -> {self.stock_quantity}")
+
 
         print(f"Stock updated for product: {self.name}")
         def __init__(self, name: str, category: str, ingredients: List[Ingredient],price_per_unit: float = 0, stock_quantity: int = 0) -> None:

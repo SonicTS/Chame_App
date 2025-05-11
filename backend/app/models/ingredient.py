@@ -12,7 +12,7 @@ class Ingredient(Base):
     stock_quantity = Column(Integer, default=0)
 
     # Relationship back to Product (via the ProductIngredient table)
-    products = relationship("Product", secondary="product_ingredient", back_populates="ingredients")
+    ingredient_products = relationship("ProductIngredient", back_populates="ingredient")
     def __init__(self, name: str, price_per_unit: float, stock_quantity: int = 0):
         self.name = name
         self.price_per_unit = price_per_unit

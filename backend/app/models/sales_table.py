@@ -27,10 +27,3 @@ class Sale(Base):
 
     def __repr__(self):
         return f"<Sale(user={self.user.name}, product={self.product.name}, quantity={self.quantity}, total_price={self.total_price})>"
-
-product_ingredient = Table(
-    "product_ingredient", Base.metadata,
-    Column("product_id", Integer, ForeignKey("products.product_id", ondelete="CASCADE"), primary_key=True),
-    Column("ingredient_id", Integer, ForeignKey("ingredients.ingredient_id", ondelete="CASCADE"), primary_key=True),
-    Column("ingredient_quantity", Float, default=0) 
-)
