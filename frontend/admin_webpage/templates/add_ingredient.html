@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Ingredient</title>
+</head>
+<body>
+    <h1>Add a New Ingredient</h1>
+    <form method="POST" action="/ingredients/add">
+        <label for="name">Ingredient Name:</label>
+        <input type="text" name="name" required><br>
+
+        <label for="price">Price per Unit:</label>
+        <input type="number" name="price" step="0.01" required><br>
+
+        <label for="stock">Stock:</label>
+        <input type="number" name="stock" step="1" min="0">
+
+        <button type="submit">Add Ingredient</button>
+    </form>
+</body>
+</html>

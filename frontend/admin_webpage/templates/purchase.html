@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchase</title>
+</head>
+<body>
+    <h1>Purchase Form</h1>
+    <form action="/purchase" method="POST">
+        <label for="user">Select User:</label>
+        <select id="userSelect">
+            {% for user in users %}
+            <option value="{{ user.user_id }}">{{ user.name }}</option>
+            {% endfor %}
+        </select>
+        <br><br>
+
+
+        <label for="product">Select Product:</label>
+        <select id="productSelect">
+            {% for product in products %}
+            <option value="{{ product.product_id }}">{{ product.name }}</option>
+            {% endfor %}
+        </select>
+        <br><br>
+
+        <label for="quantity">Quantity:</label>
+        <input type="number" id="quantity" name="quantity" min="1" required>
+        <br><br>
+
+        <button type="submit">Submit</button>
+    </form>
+</body>
+</html>

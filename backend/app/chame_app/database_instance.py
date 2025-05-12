@@ -49,12 +49,18 @@ class Database:
     
     def add_ingredient(self, name: str, price_per_unit: float, stock_quantity: int):
         """Add an ingredient to the database."""
-        ingredient = Ingredient(name=name, price_per_unit=price_per_unit, stock_quantity=stock_quantity)
-        if stock_quantity > 0:
+        try:
+            stock = int(stock_quantity)
+            price = float(price_per_unit)
+        except:
+            raise ValueError("Stock not a integer or price not valid")
+        
+        ingredient = Ingredient(name=name, price_per_unit=price, stock_quantity=stock)
+        if stock > 0:
             bank = self.get_session().query(Bank).filter_by(account_id=1).first()
             if not bank:
                 raise ValueError("Bank account not found")
-            bank.ingredient_value += price_per_unit * stock_quantity
+            bank.ingredient_value += price * stock
         session = self.get_session()
         try:
             session.add(ingredient)
@@ -170,6 +176,12 @@ class Database:
         """Make a purchase."""
         session = self.get_session()
         bank = session.query(Bank).filter_by(account_id=1).first()
+        try:
+            quantity = int(quantity)
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid quantity for product {product_id}: {quantity}")
+        if quantity <= 0:
+            raise ValueError("Quantity must be greater than 0")
         if not bank:
             raise ValueError("Bank account not found")
         try:

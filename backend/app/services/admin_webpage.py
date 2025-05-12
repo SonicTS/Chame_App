@@ -67,6 +67,40 @@ def users():
     users = database.get_all_users()
     return render_template('users.html', users=users)
 
+@app.route('/ingredients')
+def ingredients():
+    ingredients = database.get_all_ingredients()
+    return render_template('ingredients.html', ingredients=ingredients)
+
+@app.route('/ingredients/add', methods=['GET', 'POST'])
+def add_ingredient():
+    if request.method == 'POST':
+        name = request.form['name']
+        price_str = request.form['price']
+        stock_str = request.form['stock']
+        try:
+            database.add_ingredient(name=name, price_per_unit=price_str, stock_quantity=stock_str)
+            return redirect(url_for('ingredients'))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    return render_template('add_ingredient.html')
+
+@app.route('/purchase', methods=['GET', 'POST'])
+def purchase():
+    if request.method == 'POST':
+        user_id = request.form.get('userSelect')
+        product_id = request.form.get('productSelect')
+        quantity = request.form['quantity']
+        try:
+            database.make_purchase(user_id=user_id, product_id=product_id, quantity=quantity)
+            return redirect(url_for('index'))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    users = database.get_all_users()
+    products = database.get_all_products()
+    return render_template('purchase.html', users=users, products=products)
+
+
 # Run the Flask application
 if __name__ == '__main__':
     app.run(debug=True)
