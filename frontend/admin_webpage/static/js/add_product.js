@@ -36,3 +36,15 @@ function removeIngredient(button) {
     const row = button.parentElement.parentElement;
     row.remove();
 }
+
+function toggleAdditionalInput() {
+    const categorySelect = document.getElementById("categorySelect");
+    const additionalInput = document.getElementById("toastRoundQuantitySelect");
+
+    if (categorySelect.value === "toast") {
+        additionalInput.style.display = "block"; // Show the additional input
+    } else {
+        additionalInput.style.display = "none"; // Hide the additional input
+    }
+}
+

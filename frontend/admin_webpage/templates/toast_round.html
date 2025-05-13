@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>Toast Round</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="/static/js/toast_round.js"></script>
+    <script>
+        window.users = JSON.parse('{{ users_json | safe }}');
+    </script>
+</head>
+<body>
+    <a href="/">Main Page</a>
+    <h1>Toast Round</h1>
+
+    <!-- Dropdown for selecting toast products -->
+    <label for="toastProduct">Select a Toast Product:</label>
+    <select id="toastProduct">
+        {% for product in toast_products %}
+        <option value="{{ product.product_id }}" data-quantity="{{ product.toast_round_quantity }}">{{ product.name }}</option>
+        {% endfor %}
+    </select>
+
+    <!-- Container for dynamically generated squares -->
+    <div id="squaresContainer"></div>
+
+    <!-- Submit button -->
+    <button id="submitButton">Submit</button>
+    
+    <!-- Toast Round History Section -->
+    <h2>Toast Round History</h2>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Product Name</th>
+                <th>Time</th>
+                <th>Users</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for toast_round in toast_rounds %}
+            <tr>
+                <td>{{ toast_round.sales[0].product.name }}</td>
+                <td>{{ toast_round.date_time }}</td>
+                <td>
+                    {% for sale in toast_round.sales %}
+                        {{ sale.user.name }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Entry</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <a href="/">Main Page</a>
+    <h1>Bank Entry</h1>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Total Balance</th>
+                <th>Available Balance</th>
+                <th>Ingredient Value</th>
+                <th>Product Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>{{ bank_entry.total_balance }}</td>
+                <td>{{ bank_entry.available_balance }}</td>
+                <td>{{ bank_entry.ingredient_value }}</td>
+                <td>{{ bank_entry.product_value }}</td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>

@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+    <a href="/">Main Page</a>
     <h1>Users</h1>
     <table>
         <thead>
@@ -25,22 +26,22 @@
                 </tr>
             {% endfor %}
             <tr>
-                <td>
-                    <input type="text" id="newUserName" placeholder="Enter name">
-                </td>
-                <td>
-                    <input type="number" id="newUserBalance" placeholder="Enter balance">
-                </td>
-                <td>
-                    <select id="newUserRole">
+                <form method="POST" action="/users/add">
+                    <label for="name">User Name:</label>
+                    <input type="text" name="name" required><br>
+
+                    <label for="balance">Balance:</label>
+                    <input type="number" name="balance" step="0.1" required><br>
+
+                    <label for="role">Role:</label>
+                    <select name="role" id="newUserRole" required>
                         <option value="User">User</option>
                         <option value="Admin">Admin</option>
                         <option value="Wirt">Wirt</option>
                     </select>
-                </td>
-                <td>
-                    <button onclick="addUser()">Add User</button>
-                </td>
+
+                    <button type="submit">Add User</button>
+                </form>
             </tr>
         </tbody>
     </table>

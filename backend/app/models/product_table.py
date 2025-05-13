@@ -13,7 +13,7 @@ class Product(Base):
     category = Column(String)  # 'raw ingredient' or 'toast'
     price_per_unit = Column(Float)
     stock_quantity = Column(Integer, default=0)
-
+    toast_round_quantity = Column(Integer, default=0)  # For toast products
     sales = relationship("Sale", back_populates="product")
 
     product_ingredients = relationship("ProductIngredient", back_populates="product", cascade="all, delete-orphan")
@@ -44,8 +44,6 @@ class Product(Base):
 
         print(f"Stock updated for product: {self.name} -> {self.stock_quantity}")
 
-
-        print(f"Stock updated for product: {self.name}")
         def __init__(self, name: str, category: str, ingredients: List[Ingredient],price_per_unit: float = 0, stock_quantity: int = 0) -> None:
             self.name = name
             self.category = category

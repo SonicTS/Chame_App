@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+    <a href="/">Main Page</a>
     <h1>Ingredient</h1>
     <a href="{{ url_for('add_ingredient') }}">Add a New Ingredient</a>
     <table>
@@ -15,6 +16,7 @@
                 <th>Name</th>
                 <th>Price</th>
                 <th>Stock</th>
+                <th>Restock</th>
             </tr>
         </thead>
         <tbody>
@@ -23,6 +25,13 @@
                     <td>{{ ingredient.name }}</td>
                     <td>{{ ingredient.price_per_unit }}</td>
                     <td>{{ ingredient.stock_quantity }}</td>
+                    <td>
+                        <form method="POST" action="/ingredients/restock">
+                            <input type="hidden" name="ingredient_id" value="{{ ingredient.ingredient_id }}">
+                            <input type="number" name="restock_quantity" min="1" placeholder="Enter quantity" required>
+                            <button type="submit">Restock</button>
+                        </form>
+                    </td>
                 </tr>
             {% endfor %}
         </tbody>

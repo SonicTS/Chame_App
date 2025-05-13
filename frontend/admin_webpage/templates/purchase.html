@@ -3,13 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="/static/js/purchase.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <title>Purchase</title>
 </head>
 <body>
+    <a href="/">Main Page</a>
     <h1>Purchase Form</h1>
     <form action="/purchase" method="POST">
         <label for="user">Select User:</label>
-        <select id="userSelect">
+        <select id="userSelect" name="user_id">
             {% for user in users %}
             <option value="{{ user.user_id }}">{{ user.name }}</option>
             {% endfor %}
@@ -18,7 +21,7 @@
 
 
         <label for="product">Select Product:</label>
-        <select id="productSelect">
+        <select id="productSelect" name="product_id">
             {% for product in products %}
             <option value="{{ product.product_id }}">{{ product.name }}</option>
             {% endfor %}
@@ -31,5 +34,38 @@
 
         <button type="submit">Submit</button>
     </form>
+    <h2>Sales</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Sale ID</th>
+                <th>User</th>
+                <th>Product</th>
+                <th>Quantity</th>
+                <th>Total Price</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sale in sales %}
+            <tr>
+                <td>{{ sale.sale_id }}</td>
+                <td>{{ sale.user.name }}</td>
+                <td>{{ sale.product.name }}</td>
+                <td>{{ sale.quantity }}</td>
+                <td>{{ sale.total_price }}</td>
+                <td>{{ sale.timestamp }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Configure Sales Table</h2>
+    <label for="salesConfig">Select Configuration:</label>
+    <select id="salesConfig">
+        <option value="all" {% if config == 'all' %}selected{% endif %}>All</option>
+        <option value="raw" {% if config == 'raw' %}selected{% endif %}>Raw</option>
+        <option value="toast" {% if config == 'toast' %}selected{% endif %}>Toast</option>
+    </select>
 </body>
 </html>

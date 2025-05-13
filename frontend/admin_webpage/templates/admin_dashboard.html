@@ -7,12 +7,15 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+    <a href="/">Main Page</a>
     <h1>Welcome to the Admin Dashboard</h1>
     <ul>
         <li><a href="{{ url_for('products') }}">Manage Products</a></li>
         <li><a href="{{ url_for('users') }}">Manage Users</a></li>
         <li><a href="{{ url_for('ingredients') }}">Manage Ingredients</a></li>
         <li><a href="{{ url_for('purchase') }}">Make Purchase</a></li>
+        <li><a href="{{ url_for('toast_round') }}">Manage Toast Rounds</a></li>
+        <li><a href="{{ url_for('bank') }}">View Bank Entries</a></li>
     </ul>
 </body>
 </html>
