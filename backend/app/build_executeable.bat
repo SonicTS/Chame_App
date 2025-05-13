@@ -7,7 +7,7 @@ if %errorlevel% neq 0 (
 )
 
 REM Run PyInstaller to create the executable
-pyinstaller --onefile --windowed ^
+pyinstaller --onedir --windowed ^
 --add-data "..\..\frontend\admin_webpage\templates;templates" ^
 --add-data "..\..\frontend\admin_webpage\static;static" ^
 --collect-all chame_app ^
