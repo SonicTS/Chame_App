@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <title>Add Product</title>
     <script src="/static/js/add_product.js" defer></script> <!-- Link to the external JavaScript file -->
+    <script src="{{ url_for('static', filename='js/error_popup.js') }}"></script>
 </head>
 <body>
     <a href="/">Main Page</a>
@@ -56,5 +57,16 @@
 
         <button type="submit">Add Product</button>
     </form>
+
+    {% if error_message %}
+    <script>
+        showErrorPopup("{{ error_message|escapejs }}");
+    </script>
+    {% endif %}
+    {% if success_message %}
+    <script>
+        showErrorPopup("{{ success_message|escapejs }}");
+    </script>
+    {% endif %}
 </body>
 </html>

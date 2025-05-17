@@ -5,8 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="{{ url_for('static', filename='js/error_popup.js') }}"></script>
 </head>
 <body>
+    <!-- Error Popup Block for flashed messages -->
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div id="error-popup" style="position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#f44336;color:white;padding:16px;border-radius:8px;z-index:1000;min-width:200px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+            {{ messages[0] }}
+            <button onclick="document.getElementById('error-popup').style.display='none'" style="margin-left:16px;background:transparent;border:none;color:white;font-weight:bold;font-size:16px;cursor:pointer;">&times;</button>
+        </div>
+        <script>
+            setTimeout(function(){
+                var popup = document.getElementById('error-popup');
+                if(popup) popup.style.display = 'none';
+            }, 5000);
+        </script>
+      {% endif %}
+    {% endwith %}
+    {% if error_message %}
+    <script>
+        showErrorPopup("{{ error_message|escapejs }}");
+    </script>
+    {% endif %}
+    {% if success_message %}
+    <script>
+        showErrorPopup("{{ success_message|escapejs }}");
+    </script>
+    {% endif %}
     <a href="/">Main Page</a>
     <h1>Welcome to the Admin Dashboard</h1>
     <ul>

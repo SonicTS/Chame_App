@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="{{ url_for('static', filename='js/error_popup.js') }}"></script>
     <title>Add Ingredient</title>
 </head>
 <body>
@@ -21,5 +22,16 @@
 
         <button type="submit">Add Ingredient</button>
     </form>
+
+    {% if error_message %}
+    <script>
+        showErrorPopup("{{ error_message|escapejs }}");
+    </script>
+    {% endif %}
+    {% if success_message %}
+    <script>
+        showErrorPopup("{{ success_message|escapejs }}");
+    </script>
+    {% endif %}
 </body>
 </html>
