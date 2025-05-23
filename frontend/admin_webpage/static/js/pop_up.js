@@ -1,12 +1,18 @@
-// error_popup.js - Include this in all HTML templates for error popups
-function showErrorPopup(message) {
+// pop_up.js - Centralized popup logic for both error and success popups
+// Usage: showPopup(message, type) where type is 'error' or 'success'
+
+export function showPopup(message, type = 'error') {
+    // Remove any existing popup
+    const existing = document.getElementById('popup-message');
+    if (existing) existing.remove();
+
     let popup = document.createElement('div');
-    popup.id = 'error-popup';
+    popup.id = 'popup-message';
     popup.style.position = 'fixed';
     popup.style.top = '20px';
     popup.style.left = '50%';
     popup.style.transform = 'translateX(-50%)';
-    popup.style.background = '#f44336';
+    popup.style.background = type === 'success' ? '#4CAF50' : '#f44336';
     popup.style.color = 'white';
     popup.style.padding = '16px';
     popup.style.borderRadius = '8px';
@@ -19,4 +25,12 @@ function showErrorPopup(message) {
     setTimeout(function(){
         if(popup) popup.style.display = 'none';
     }, 5000);
+}
+
+// Convenience wrappers
+export function showErrorPopup(message) {
+    showPopup(message, 'error');
+}
+export function showSuccessPopup(message) {
+    showPopup(message, 'success');
 }

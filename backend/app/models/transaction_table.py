@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, Float, String, ForeignKey
+from sqlalchemy.orm import relationship
 from chame_app.database import Base
 
 class Transaction(Base):
@@ -7,8 +8,9 @@ class Transaction(Base):
     transaction_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id"))
     amount = Column(Float)
-    type = Column(String)  # 'deposit', 'withdrawal'
+    type = Column(String)  # 'deposit', 'withdraw'
     timestamp = Column(String)  # For simplicity, this can be a string (you can use datetime for a more complex setup)
+    user = relationship("User", backref="transactions")
     def __init__(self, user_id: int, amount: float, type: str, timestamp: str):
         self.user_id = user_id
         self.amount = amount

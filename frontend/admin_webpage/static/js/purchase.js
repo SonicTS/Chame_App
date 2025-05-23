@@ -1,3 +1,17 @@
+// Import popup functions for use in this file
+import { showErrorPopup, showSuccessPopup } from './pop_up.js';
+
+function getQueryParam(name) {
+    const url = new URL(window.location.href);
+    return url.searchParams.get(name) || '';
+}
+
+function removeQueryParam(name) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete(name);
+    window.history.replaceState({}, document.title, url.pathname + url.search);
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     const salesConfig = document.getElementById('salesConfig');
     if (salesConfig) {
@@ -18,43 +32,31 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Global AJAX error handler for popups
-function showErrorPopup(message) {
-    let popup = document.createElement('div');
-    popup.id = 'ajax-error-popup';
-    popup.style.position = 'fixed';
-    popup.style.top = '20px';
-    popup.style.left = '50%';
-    popup.style.transform = 'translateX(-50%)';
-    popup.style.background = '#f44336';
-    popup.style.color = 'white';
-    popup.style.padding = '16px';
-    popup.style.borderRadius = '8px';
-    popup.style.zIndex = '10000';
-    popup.style.minWidth = '200px';
-    popup.style.textAlign = 'center';
-    popup.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
-    popup.innerHTML = message + '<button onclick="this.parentElement.style.display=\'none\'" style="margin-left:16px;background:transparent;border:none;color:white;font-weight:bold;font-size:16px;cursor:pointer;">&times;</button>';
-    document.body.appendChild(popup);
-    setTimeout(function(){
-        if(popup) popup.style.display = 'none';
-    }, 5000);
-}
+$(document).ready(function() {
+    if (window._errorMsg) showErrorPopup(window._errorMsg);
+    if (window._successMsg) showSuccessPopup(window._successMsg);
 
-// If using fetch for AJAX, wrap it to show popup on error
-const originalFetch = window.fetch;
-window.fetch = function() {
-    return originalFetch.apply(this, arguments).then(function(response) {
-        if (!response.ok) {
-            response.json().then(function(data) {
-                showErrorPopup(data.error || 'An error occurred.');
-            }).catch(function() {
-                showErrorPopup('An error occurred.');
-            });
-        }
-        return response;
-    }).catch(function(error) {
-        showErrorPopup('A network error occurred.');
-        throw error;
-    });
-};
+    const urlSuccess = getQueryParam('success');
+    if (urlSuccess) {
+        showSuccessPopup(urlSuccess);
+        removeQueryParam('success');
+    }
+
+    // Example: If you have a submit handler, use this pattern
+    function handleFormSubmit(event) {
+        event.preventDefault();
+        // ...collect form data as needed...
+        $.post('/purchase', $(event.target).serialize(), function(response) {
+            if (response.includes('window._errorMsg') || response.includes('window._successMsg')) {
+                document.open();
+                document.write(response);
+                document.close();
+            } else {
+                showSuccessPopup('Purchase completed successfully!');
+            }
+        }).fail(function() {
+            showErrorPopup('Error submitting purchase.');
+        });
+    }
+    // ...attach handleFormSubmit to your form if not already...
+});

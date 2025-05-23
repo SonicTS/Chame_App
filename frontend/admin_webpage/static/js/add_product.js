@@ -1,91 +1,95 @@
-function addIngredient() {
-    const ingredientSelect = document.getElementById("ingredientSelect");
-    const quantityInput = document.getElementById("ingredientQuantity");
-    const selectedIngredient = ingredientSelect.options[ingredientSelect.selectedIndex];
-    const quantity = quantityInput.value;
+// Import popup functions for use in this file
+import { showErrorPopup, showSuccessPopup } from './pop_up.js';
 
-    console.debug("Selected ingredient:", selectedIngredient.text, "Value:", selectedIngredient.value);
-    console.debug("Entered quantity:", quantity);
+function getQueryParam(name) {
+    const url = new URL(window.location.href);
+    return url.searchParams.get(name) || '';
+}
 
-    if (!quantity || quantity <= 0) {
-        alert("Please enter a valid quantity.");
-        console.warn("Invalid quantity entered:", quantity);
-        return;
+function removeQueryParam(name) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete(name);
+    window.history.replaceState({}, document.title, url.pathname + url.search);
+}
+
+$(document).ready(function() {
+    // --- POPUP LOGIC ---
+    window.toggleAdditionalInput = toggleAdditionalInput;
+    if (window._errorMsg) showErrorPopup(window._errorMsg);
+    if (window._successMsg) showSuccessPopup(window._successMsg);
+    const urlSuccess = getQueryParam('success');
+    if (urlSuccess) {
+        showSuccessPopup(urlSuccess);
+        removeQueryParam('success');
     }
 
-    const ingredientList = document.getElementById("ingredientList");
-    const row = document.createElement("tr");
-    row.innerHTML = `
-        <td>${selectedIngredient.text}</td>
-        <td>${quantity}</td>
-        <td><button type="button" onclick="removeIngredient(this)">Remove</button></td>
-        <input type="hidden" name="ingredients[]" value="${selectedIngredient.value}">
-        <input type="hidden" name="quantities[]" value="${quantity}">
-    `;
-    ingredientList.appendChild(row);
-
-    console.info("Added ingredient:", selectedIngredient.text, "with quantity:", quantity);
-
-    // Reset the input fields
-    ingredientSelect.selectedIndex = 0;
-    quantityInput.value = "";
-    console.debug("Reset ingredient select and quantity input fields.");
-}
-
-function removeIngredient(button) {
-    const row = button.parentElement.parentElement;
-    row.remove();
-}
-
-function toggleAdditionalInput() {
-    const categorySelect = document.getElementById("categorySelect");
-    const additionalInput = document.getElementById("toastRoundQuantitySelect");
-
-    if (categorySelect.value === "toast") {
-        additionalInput.style.display = "block"; // Show the additional input
-    } else {
-        additionalInput.style.display = "none"; // Hide the additional input
-    }
-}
-
-// Global AJAX error handler for popups
-function showErrorPopup(message) {
-    let popup = document.createElement('div');
-    popup.id = 'ajax-error-popup';
-    popup.style.position = 'fixed';
-    popup.style.top = '20px';
-    popup.style.left = '50%';
-    popup.style.transform = 'translateX(-50%)';
-    popup.style.background = '#f44336';
-    popup.style.color = 'white';
-    popup.style.padding = '16px';
-    popup.style.borderRadius = '8px';
-    popup.style.zIndex = '10000';
-    popup.style.minWidth = '200px';
-    popup.style.textAlign = 'center';
-    popup.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
-    popup.innerHTML = message + '<button onclick="this.parentElement.style.display=\'none\'" style="margin-left:16px;background:transparent;border:none;color:white;font-weight:bold;font-size:16px;cursor:pointer;">&times;</button>';
-    document.body.appendChild(popup);
-    setTimeout(function(){
-        if(popup) popup.style.display = 'none';
-    }, 5000);
-}
-
-// If using fetch for AJAX, wrap it to show popup on error
-const originalFetch = window.fetch;
-window.fetch = function() {
-    return originalFetch.apply(this, arguments).then(function(response) {
-        if (!response.ok) {
-            response.json().then(function(data) {
-                showErrorPopup(data.error || 'An error occurred.');
-            }).catch(function() {
-                showErrorPopup('An error occurred.');
-            });
+    // --- CATEGORY TOGGLE LOGIC ---
+    function toggleAdditionalInput() {
+        const category = $('#categorySelect').val();
+        if (category === 'toast') {
+            $('#toasterSpaceQuantitySelect').show();
+        } else {
+            $('#toasterSpaceQuantitySelect').hide();
         }
-        return response;
-    }).catch(function(error) {
-        showErrorPopup('A network error occurred.');
-        throw error;
+    }
+    $('#categorySelect').on('change', toggleAdditionalInput);
+    toggleAdditionalInput(); // Initial call
+
+    // --- INGREDIENT TABLE LOGIC ---
+    let selectedIngredients = [];
+
+    function updateIngredientTable() {
+        const tbody = $('#ingredientList');
+        tbody.empty();
+        selectedIngredients.forEach((item, idx) => {
+            const row = $('<tr>');
+            row.append($('<td>').text(item.name));
+            row.append($('<td>').text(item.quantity));
+            const removeBtn = $('<button type="button">Remove</button>').on('click', function() {
+                selectedIngredients.splice(idx, 1);
+                updateIngredientTable();
+            });
+            row.append($('<td>').append(removeBtn));
+            tbody.append(row);
+        });
+        // Remove any old hidden inputs
+        $('input[name="ingredients[]"]').remove();
+        $('input[name="quantities[]"]').remove();
+        // Add hidden inputs for form submission
+        selectedIngredients.forEach(item => {
+            $('<input>').attr({type: 'hidden', name: 'ingredients[]', value: item.id}).appendTo('form');
+            $('<input>').attr({type: 'hidden', name: 'quantities[]', value: item.quantity}).appendTo('form');
+        });
+    }
+
+    window.addIngredient = function() {
+        const select = $('#ingredientSelect');
+        const id = select.val();
+        const name = select.find('option:selected').text();
+        const quantity = parseInt($('#ingredientQuantity').val(), 10);
+        if (!id || !quantity || quantity < 1) {
+            showErrorPopup('Please select an ingredient and enter a valid quantity.');
+            return;
+        }
+        // Prevent duplicate ingredient
+        if (selectedIngredients.some(item => item.id === id)) {
+            showErrorPopup('Ingredient already added.');
+            return;
+        }
+        selectedIngredients.push({id, name, quantity});
+        updateIngredientTable();
+        $('#ingredientQuantity').val('');
+    };
+
+    // If the form is reloaded with errors, try to restore selected ingredients from hidden inputs
+    $('input[name="ingredients[]"]').each(function(idx) {
+        const id = $(this).val();
+        const name = $('#ingredientSelect option[value="' + id + '"]').text();
+        const quantity = $('input[name="quantities[]"]').eq(idx).val();
+        if (id && name && quantity) {
+            selectedIngredients.push({id, name, quantity: parseInt(quantity, 10)});
+        }
     });
-}
+    updateIngredientTable();
+});
 

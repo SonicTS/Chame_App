@@ -8,13 +8,17 @@ class Ingredient(Base):
 
     ingredient_id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
+    price_per_package = Column(Float)  # Purchasing price per package
+    number_of_units = Column(Integer)  # Number of units in a package
     price_per_unit = Column(Float)  # Purchasing price per unit
     stock_quantity = Column(Integer, default=0)
 
     # Relationship back to Product (via the ProductIngredient table)
     ingredient_products = relationship("ProductIngredient", back_populates="ingredient")
-    def __init__(self, name: str, price_per_unit: float, stock_quantity: int = 0):
+    def __init__(self, name, price_per_package=None, number_of_units=None, price_per_unit=None, stock_quantity=0):
         self.name = name
+        self.price_per_package = price_per_package
+        self.number_of_units = number_of_units
         self.price_per_unit = price_per_unit
         self.stock_quantity = stock_quantity
         

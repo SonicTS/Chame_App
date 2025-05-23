@@ -12,10 +12,13 @@ class Product(Base):
     name = Column(String, index=True)
     category = Column(String)  # 'raw ingredient' or 'toast'
     price_per_unit = Column(Float)
+    cost_per_unit = Column(Float)  # Cost price per unit	
+    profit_per_unit = Column(Float)  # Profit per unit
     stock_quantity = Column(Integer, default=0)
-    toast_round_quantity = Column(Integer, default=0)  # For toast products
+    toaster_space = Column(Integer, default=0)  # For toast products
     sales = relationship("Sale", back_populates="product")
 
+    product_toast_rounds = relationship("ProductToastround", back_populates="product")
     product_ingredients = relationship("ProductIngredient", back_populates="product", cascade="all, delete-orphan")
 
     def update_stock(self):
@@ -44,11 +47,14 @@ class Product(Base):
 
         print(f"Stock updated for product: {self.name} -> {self.stock_quantity}")
 
-        def __init__(self, name: str, category: str, ingredients: List[Ingredient],price_per_unit: float = 0, stock_quantity: int = 0) -> None:
+        def __init__(self, name: str, category: str, price_per_unit: float = 0, cost_per_unit: float = 0, profit_per_unit: float = 0, stock_quantity: int = 0, toaster_space: int = 0):
             self.name = name
             self.category = category
             self.price_per_unit = price_per_unit
-            self.stock_quantity = 0
+            self.cost_per_unit = cost_per_unit
+            self.profit_per_unit = profit_per_unit
+            self.stock_quantity = stock_quantity
+            self.toaster_space = toaster_space
 
     def __repr__(self):
         return f"<Product(name={self.name}, category={self.category}, price={self.price_per_unit}, stock={self.stock_quantity}, ingredients={self.ingredients})>"

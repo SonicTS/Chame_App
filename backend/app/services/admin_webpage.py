@@ -79,12 +79,12 @@ def add_product():
             category = request.form['category']
             price = request.form['price']
             ingredients_ids = request.form.getlist('ingredients[]')
-            toast_round_quantity = request.form.get('toast_round_quantity')
+            toaster_space = request.form.get('toaster_space')
             ingredients = database.get_ingredients_by_ids(ingredients_ids)
             quantities = request.form.getlist('quantities[]')
             ingredient_quantity_pairs = list(zip(ingredients, quantities))
             try:
-                database.add_product(name=name, ingredients=ingredient_quantity_pairs, price_per_unit=price, category=category, toast_round_quantity=toast_round_quantity)
+                database.add_product(name=name, ingredients=ingredient_quantity_pairs, price_per_unit=price, category=category, toaster_space=toaster_space)
                 return redirect(url_for('products'))
             except Exception as e:
                 logging.error(f"Error adding product: {e}", exc_info=e)
@@ -114,12 +114,100 @@ def add_user():
         logging.error(f"Error in add_user: {e}", exc_info=e)
         users = database.get_all_users()
         return render_template(USERS_TEMPLATE, users=users, error_message=str(e))
+    
+@app.route('/users/withdraw', methods=['POST'])
+def withdraw():
+    user_id = request.form['user_id']
+    amount = request.form['amount']
+
+    if not user_id or not amount:
+        users = database.get_all_users()
+        logging.error("Invalid input in withdraw")
+        return render_template(USERS_TEMPLATE, users=users, error_message="Invalid input")
+
+    try:
+        database.withdraw_cash(user_id=user_id, amount=amount)
+        return redirect(url_for('users'))
+    except Exception as e:
+        logging.error(f"Error in withdraw: {e}", exc_info=e)
+        users = database.get_all_users()
+        transactions = database.get_filtered_transaction(user_id="all", tx_type="all")  # Replace with actual query result
+        tx_list = []
+        for tx in transactions:
+            tx_list.append({
+                "date": tx.timestamp,  # or tx.date if that's your field
+                "user_name": tx.user.name if tx.user else "",  # assumes you set up the relationship
+                "type": tx.type,
+                "amount": tx.amount
+            })
+        return render_template(USERS_TEMPLATE, users=users, transactions=tx_list, error_message=str(e))
+    
+
+    
+@app.route('/users/deposit', methods=['POST'])
+def deposit():
+    user_id = request.form['user_id']
+    amount = request.form['amount']
+
+    if not user_id or not amount:
+        users = database.get_all_users()
+        logging.error("Invalid input in withdraw")
+        return render_template(USERS_TEMPLATE, users=users, error_message="Invalid input")
+
+    try:
+        database.deposit_cash(user_id=user_id, amount=amount)
+        return redirect(url_for('users'))
+    except Exception as e:
+        logging.error(f"Error in withdraw: {e}", exc_info=e)
+        users = database.get_all_users()
+        transactions = database.get_filtered_transaction(user_id="all", tx_type="all")  # Replace with actual query result
+        tx_list = []
+        for tx in transactions:
+            tx_list.append({
+                "date": tx.timestamp,  # or tx.date if that's your field
+                "user_name": tx.user.name if tx.user else "",  # assumes you set up the relationship
+                "type": tx.type,
+                "amount": tx.amount
+            })
+        return render_template(USERS_TEMPLATE, users=users, transactions=tx_list, error_message=str(e))
+    
+@app.route('/users/transactions')
+def users_transactions():
+    user_id = request.args.get('user_id', 'all')
+    tx_type = request.args.get('type', 'all')
+    # TODO: Query the database for transactions filtered by user_id and tx_type
+    # Example: transactions = database.get_transactions(user_id=user_id, tx_type=tx_type)
+    # The result should be a list of dicts with keys: date, user_name, type, amount
+    transactions = database.get_filtered_transaction(user_id=user_id, tx_type=tx_type)  # Replace with actual query result
+    tx_list = []
+    for tx in transactions:
+        tx_list.append({
+            "date": tx.timestamp,  # or tx.date if that's your field
+            "user_name": tx.user.name if tx.user else "",  # assumes you set up the relationship
+            "type": tx.type,
+            "amount": tx.amount
+        })
+
+    return app.response_class(
+        response=pyjson.dumps(tx_list),
+        status=200,
+        mimetype='application/json'
+    )
 
 @app.route('/users')
 def users():
     try:
         users = database.get_all_users()
-        return render_template(USERS_TEMPLATE, users=users)
+        transactions = database.get_filtered_transaction(user_id="all", tx_type="all")  # Replace with actual query result
+        tx_list = []
+        for tx in transactions:
+            tx_list.append({
+                "date": tx.timestamp,  # or tx.date if that's your field
+                "user_name": tx.user.name if tx.user else "",  # assumes you set up the relationship
+                "type": tx.type,
+                "amount": tx.amount
+            })
+        return render_template(USERS_TEMPLATE, users=users, transactions=tx_list)
     except Exception as e:
         logging.error(f"Error in users: {e}", exc_info=e)
         return render_template(USERS_TEMPLATE, users=[], error_message=str(e))
@@ -140,8 +228,9 @@ def add_ingredient():
             name = request.form['name']
             price_str = request.form['price']
             stock_str = request.form['stock']
+            number_ingredients = request.form['number_ingredients']
             try:
-                database.add_ingredient(name=name, price_per_unit=price_str, stock_quantity=stock_str)
+                database.add_ingredient(name=name, price_per_package=price_str, stock_quantity=stock_str, number_ingredients=number_ingredients)
                 return redirect(url_for('ingredients'))
             except Exception as e:
                 logging.error(f"Error adding ingredient: {e}", exc_info=e)
@@ -182,26 +271,31 @@ def toast_round():
     try:
         if request.method == 'POST':
             try:
-                product_id = request.form.get('product_id')
+                product_ids = request.form.getlist('product_ids[]')
                 user_selections = request.form.getlist('user_selections[]')
-                for user_id in user_selections:
-                    print(f"User {user_id} selected for product {product_id}")
-                database.add_toast_round(product_id=product_id, user_selection=user_selections)
+                if not product_ids or not user_selections:
+                    raise ValueError("Product IDs and user selections cannot be empty.")
+                if len(product_ids) != len(user_selections):
+                    raise ValueError("Mismatch between product IDs and user selections.")
+                product_user_pairs = list(zip(product_ids, user_selections))
+                database.add_toast_round(product_user_list=product_user_pairs)
             except Exception as e:
                 logging.error(f"Error in toast_round POST: {e}", exc_info=e)
                 toasts = database.get_all_toast_products()
                 users = database.get_all_users()
-                users_json = json.dumps([{"user_id": user.user_id, "name": user.name} for user in users])
+                users_json = pyjson.dumps([{"user_id": user.user_id, "name": user.name} for user in users])
+                toasts_json = pyjson.dumps([{"product_id": t.product_id, "name": t.name, "toaster_space": getattr(t, 'toaster_space', 1)} for t in toasts])
                 toast_rounds = database.get_all_toast_rounds()
-                return render_template(TOAST_ROUND_TEMPLATE, toast_products=toasts, users=users, users_json=users_json, toast_rounds=toast_rounds, error_message=str(e))
+                return render_template(TOAST_ROUND_TEMPLATE, toast_rounds=toast_rounds, users_json=users_json, products_json=toasts_json, error_message=str(e))
         toasts = database.get_all_toast_products()
         users = database.get_all_users()
-        users_json = json.dumps([{"user_id": user.user_id, "name": user.name} for user in users])
+        users_json = pyjson.dumps([{"user_id": user.user_id, "name": user.name} for user in users])
+        toasts_json = pyjson.dumps([{"product_id": t.product_id, "name": t.name, "toaster_space": getattr(t, 'toaster_space', 1)} for t in toasts])
         toast_rounds = database.get_all_toast_rounds()
-        return render_template(TOAST_ROUND_TEMPLATE, toast_products=toasts, users=users, users_json=users_json, toast_rounds=toast_rounds)
+        return render_template(TOAST_ROUND_TEMPLATE, toast_rounds=toast_rounds, users_json=users_json, products_json=toasts_json)
     except Exception as e:
         logging.error(f"Error in toast_round: {e}", exc_info=e)
-        return render_template(TOAST_ROUND_TEMPLATE, toast_products=[], users=[], users_json='[]', toast_rounds=[], error_message=str(e))
+        return render_template(TOAST_ROUND_TEMPLATE, toast_rounds=[], users_json='[]', products_json='[]', error_message=str(e))
 
 @app.route('/ingredients/restock', methods=['POST'])
 def restock_ingredient():
@@ -214,16 +308,61 @@ def restock_ingredient():
     except Exception as e:
         logging.error(f"Error in restock_ingredient: {e}", exc_info=e)
         ingredients = database.get_all_ingredients(eager_load=True)
-        return render_template(INGREDIENTS_TEMPLATE, ingredients=ingredients, error_message=str(e))
+        return render_template(INGREDIENTS_TEMPLATE, ingredients=ingredients, transactions=None, error_message=str(e))
 
 @app.route('/bank', methods=['GET'])
 def bank():
     try:
+        transactions = database.get_bank_transaction()  # Replace with actual query result
+        tx_list = []
+        for tx in transactions:
+            tx_list.append({
+                "date": tx.timestamp,  # or tx.date if that's your field
+                "type": tx.type,
+                "amount": tx.amount,
+                "description": tx.description
+            })
         bank = database.get_bank()
-        return render_template(BANK_TEMPLATE, bank_entry=bank)
+        return render_template(BANK_TEMPLATE, bank_entry=bank, transactions=tx_list)
     except Exception as e:
         logging.error(f"Error in bank: {e}", exc_info=e)
-        return render_template(BANK_TEMPLATE, bank_entry=None, error_message=str(e))
+        return render_template(BANK_TEMPLATE, bank_entry=None, transactions=None, error_message=str(e))
+    
+@app.route('/bank/withdraw', methods=['POST'])
+def bank_withdraw():
+    amount = request.form['amount']
+    description = request.form['description']
+    if not amount:
+        bank = database.get_bank()
+        logging.error("Invalid input in bank withdraw")
+        transactions = database.get_bank_transaction()  # Replace with actual query result
+        tx_list = []
+        for tx in transactions:
+            tx_list.append({
+                "date": tx.timestamp,  # or tx.date if that's your field
+                "type": tx.type,
+                "amount": tx.amount,
+                "description": tx.description
+            })
+        return render_template(BANK_TEMPLATE, bank_entry=bank, transactions=tx_list, error_message="Invalid input")
+    try:
+        database.withdraw_cash_from_bank(amount=amount, description=description)
+        return redirect(url_for('bank'))
+    except Exception as e:
+        logging.error(f"Error in bank withdraw: {e}", exc_info=e)
+        bank = database.get_bank()
+        transactions = database.get_bank_transaction()  # Replace with actual query result
+        tx_list = []
+        for tx in transactions:
+            tx_list.append({
+                "date": tx.timestamp,  # or tx.date if that's your field
+                "type": tx.type,
+                "amount": tx.amount,
+                "description": tx.description
+            })
+        return render_template(BANK_TEMPLATE, bank_entry=bank, transactions=tx_list, error_message=str(e))
+
+
 
 # Run the Flask application
 if __name__ == '__main__':

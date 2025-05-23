@@ -6,26 +6,21 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <title>Toast Round</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="/static/js/toast_round.js"></script>
-    <script src="{{ url_for('static', filename='js/error_popup.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/toast_round.js') }}"></script>
     <script>
-        window.users = JSON.parse('{{ users_json | safe }}');
+        window.products = JSON.parse('{{ products_json | escapejs | safe if products_json is defined else "[]" }}');
+        window.users = JSON.parse('{{ users_json | escapejs | safe if users_json is defined else "[]" }}');
     </script>
 </head>
 <body>
     <a href="/">Main Page</a>
     <h1>Toast Round</h1>
 
-    <!-- Dropdown for selecting toast products -->
-    <label for="toastProduct">Select a Toast Product:</label>
-    <select id="toastProduct">
-        {% for product in toast_products %}
-        <option value="{{ product.product_id }}" data-quantity="{{ product.toast_round_quantity }}">{{ product.name }}</option>
-        {% endfor %}
-    </select>
-
-    <!-- Container for dynamically generated squares -->
-    <div id="squaresContainer"></div>
+    <!-- Container for dynamically generated user/product rows -->
+    <div id="entriesContainer">
+        <div id="globalSelectors"></div>
+        <div id="squaresContainer"></div>
+    </div>
 
     <!-- Submit button -->
     <button id="submitButton">Submit</button>
@@ -35,35 +30,27 @@
     <table border="1">
         <thead>
             <tr>
-                <th>Product Name</th>
+                <th>Toast-Consumer</th>
                 <th>Time</th>
-                <th>Users</th>
             </tr>
         </thead>
         <tbody>
             {% for toast_round in toast_rounds %}
             <tr>
-                <td>{{ toast_round.sales[0].product.name }}</td>
-                <td>{{ toast_round.date_time }}</td>
                 <td>
                     {% for sale in toast_round.sales %}
-                        {{ sale.user.name }}{% if not loop.last %}, {% endif %}
+                        [{{ sale.user.name }}: {{ sale.product.name }}{% if not loop.last %}, {% endif %}]
                     {% endfor %}
                 </td>
+                <td>{{ toast_round.date_time }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-    
-    {% if error_message %}
+
     <script>
-        showErrorPopup("{{ error_message|escapejs }}");
+        window._errorMsg = "{{ error_message|escapejs if error_message else '' }}";
+        window._successMsg = "{{ success_message|escapejs if success_message else '' }}";
     </script>
-    {% endif %}
-    {% if success_message %}
-    <script>
-        showErrorPopup("{{ success_message|escapejs }}");
-    </script>
-    {% endif %}
 </body>
 </html>

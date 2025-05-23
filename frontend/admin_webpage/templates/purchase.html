@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="/static/js/purchase.js"></script>
-    <script src="{{ url_for('static', filename='js/error_popup.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/pop_up.js') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <title>Purchase</title>
 </head>
@@ -70,14 +70,15 @@
     </select>
 
     {% if error_message %}
-    <script>
-        showErrorPopup("{{ error_message|escapejs }}");
-    </script>
+    <script>window._errorMsg = "{{ error_message|escapejs }}";</script>
     {% endif %}
     {% if success_message %}
-    <script>
-        showErrorPopup("{{ success_message|escapejs }}");
-    </script>
+    <script>window._successMsg = "{{ success_message|escapejs }}";</script>
     {% endif %}
+    <script type="module">
+        import { showErrorPopup, showSuccessPopup } from "{{ url_for('static', filename='js/pop_up.js') }}";
+        if (window._errorMsg) showErrorPopup(window._errorMsg);
+        if (window._successMsg) showSuccessPopup(window._successMsg);
+    </script>
 </body>
 </html>

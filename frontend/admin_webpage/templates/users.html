@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Users</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script src="{{ url_for('static', filename='js/error_popup.js') }}"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script type="module" src="{{ url_for('static', filename='js/pop_up.js') }}"></script>
 </head>
 <body>
     <a href="/">Main Page</a>
@@ -16,6 +17,8 @@
                 <th>Name</th>
                 <th>Balance</th>
                 <th>Role</th>
+                <th>Deposit</th>
+                <th>Withdraw</th>
             </tr>
         </thead>
         <tbody>
@@ -24,6 +27,20 @@
                     <td>{{ user.name }}</td>
                     <td>{{ user.balance }}</td>
                     <td>{{ user.role }}</td>
+                    <td>
+                        <form method="POST" action="/users/deposit" style="display:inline-flex; gap:4px; align-items:center;">
+                            <input type="hidden" name="user_id" value="{{ user.user_id }}">
+                            <input type="number" name="amount" step="0.1" min="0.1" required style="width:70px;">
+                            <button type="submit">Deposit</button>
+                        </form>
+                    </td>
+                    <td>
+                        <form method="POST" action="/users/withdraw" style="display:inline-flex; gap:4px; align-items:center;">
+                            <input type="hidden" name="user_id" value="{{ user.user_id }}">
+                            <input type="number" name="amount" step="0.1" min="0.1" required style="width:70px;">
+                            <button type="submit">Withdraw</button>
+                        </form>
+                    </td>
                 </tr>
             {% endfor %}
             <tr>
@@ -46,15 +63,54 @@
             </tr>
         </tbody>
     </table>
+    <!-- Transaction Filter Controls -->
+    <div style="margin-top:2em;">
+        <label for="transactionUserSelect">User:</label>
+        <select id="transactionUserSelect">
+            <option value="all">All</option>
+            {% for user in users %}
+                <option value="{{ user.user_id }}">{{ user.name }}</option>
+            {% endfor %}
+        </select>
+        <label for="transactionTypeSelect">Type:</label>
+        <select id="transactionTypeSelect">
+            <option value="all">All</option>
+            <option value="deposit">Deposit</option>
+            <option value="withdraw">Withdraw</option>
+        </select>
+    </div>
+    <!-- Transaction Table -->
+    <table id="transactionTable" style="margin-top:1em; width:100%;">
+        <thead>
+            <tr>
+                <th>User</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody id="transactionTableBody">
+            {% for tx in transactions %}
+            <tr>
+                <td>{{ tx.user_name }}</td>
+                <td>{{ tx.type }}</td>
+                <td>{{ tx.amount }}</td>
+                <td>{{ tx.date }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <script type="module" src="{{ url_for('static', filename='js/transactions.js') }}"></script>
     {% if error_message %}
-    <script>
-        showErrorPopup("{{ error_message|escapejs }}");
-    </script>
+    <script>window._errorMsg = "{{ error_message|escapejs }}";</script>
     {% endif %}
     {% if success_message %}
-    <script>
-        showErrorPopup("{{ success_message|escapejs }}");
-    </script>
+    <script>window._successMsg = "{{ success_message|escapejs }}";</script>
     {% endif %}
+    <script type="module">
+        import { showErrorPopup, showSuccessPopup } from "{{ url_for('static', filename='js/pop_up.js') }}";
+        if (window._errorMsg) showErrorPopup(window._errorMsg);
+        if (window._successMsg) showSuccessPopup(window._successMsg);
+    </script>
 </body>
 </html>

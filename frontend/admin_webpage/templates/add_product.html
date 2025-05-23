@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <title>Add Product</title>
-    <script src="/static/js/add_product.js" defer></script> <!-- Link to the external JavaScript file -->
-    <script src="{{ url_for('static', filename='js/error_popup.js') }}"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script type="module" src="{{ url_for('static', filename='js/add_product.js') }}"></script>
 </head>
 <body>
     <a href="/">Main Page</a>
@@ -16,15 +16,15 @@
         <input type="text" name="name" required><br>
 
         <label for="category">Category:</label>
-        <select name="category" id="categorySelect" required onchange="toggleAdditionalInput()">
+        <select name="category" id="categorySelect" required>
             <option value="raw">Raw</option>
             <option value="toast">Toast</option>
         </select><br>
 
         <!-- Additional input field, hidden by default -->
-        <div id="toastRoundQuantitySelect" style="display: none;">
-            <label for="toastRoundQuantity">Toast Runden Anzahl:</label>
-            <input type="number" id="toastRoundQuantity" name="toast_round_quantity" step="1" min="1"><br>
+        <div id="toasterSpaceQuantitySelect" style="display: none;">
+            <label for="toaster_space">Toaster Platz:</label>
+            <input type="number" id="toaster_space" name="toaster_space" step="1" min="1"><br>
         </div>
 
         <label for="price">Price per Unit:</label>
@@ -59,14 +59,15 @@
     </form>
 
     {% if error_message %}
-    <script>
-        showErrorPopup("{{ error_message|escapejs }}");
-    </script>
+    <script>window._errorMsg = "{{ error_message|escapejs }}";</script>
     {% endif %}
     {% if success_message %}
-    <script>
-        showErrorPopup("{{ success_message|escapejs }}");
-    </script>
+    <script>window._successMsg = "{{ success_message|escapejs }}";</script>
     {% endif %}
+    <script type="module">
+        import { showErrorPopup, showSuccessPopup } from "{{ url_for('static', filename='js/pop_up.js') }}";
+        if (window._errorMsg) showErrorPopup(window._errorMsg);
+        if (window._successMsg) showSuccessPopup(window._successMsg);
+    </script>
 </body>
 </html>
