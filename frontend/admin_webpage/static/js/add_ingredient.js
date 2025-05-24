@@ -21,6 +21,19 @@ $(document).ready(function() {
         removeQueryParam('success');
     }
 
+    // Price per unit calculation
+    function updatePricePerUnit() {
+        const price = parseFloat($('#price').val());
+        const num = parseFloat($('#number_ingredients').val());
+        let perUnit = 0;
+        if (!isNaN(price) && !isNaN(num) && num > 0) {
+            perUnit = price / num;
+        }
+        $('#price_per_unit').val(perUnit.toFixed(2));
+    }
+    $('#price, #number_ingredients').on('input', updatePricePerUnit);
+    updatePricePerUnit(); // initial
+
     // Example: If you have a submit handler, use this pattern
     function handleFormSubmit(event) {
         event.preventDefault();

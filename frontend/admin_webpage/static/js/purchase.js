@@ -33,6 +33,19 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 $(document).ready(function() {
+    $('#userSelect').select2({width: 'resolve', dropdownAutoWidth: true});
+    $('#productSelect').select2({width: 'resolve', dropdownAutoWidth: true});
+    // Ensure the select fields themselves expand to fill available width
+    $('#userSelect').css('width', '500px');
+    $('#productSelect').css('width', '250px');
+    // Focus the search field when opening any Select2 dropdown
+    $(document).off('select2:open').on('select2:open', function() {
+        setTimeout(function() {
+            let searchField = document.querySelector('.select2-container--open .select2-search__field');
+            if (searchField) searchField.focus();
+        }, 0);
+    });
+
     if (window._errorMsg) showErrorPopup(window._errorMsg);
     if (window._successMsg) showSuccessPopup(window._successMsg);
 

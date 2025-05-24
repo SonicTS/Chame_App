@@ -107,9 +107,31 @@ $(document).ready(function() {
         $('.userSelect').val(val).trigger('change');
     });
 
+    // Initialize Select2 for all selects (including dynamically created ones)
+    function applySelect2() {
+        $('#globalUserSelect, #globalProductSelect').select2({width: '200px'});
+        $('.userSelect, .productSelect').select2({width: '200px'});
+        // Focus the search field when opening any Select2 dropdown
+        $(document).off('select2:open').on('select2:open', function() {
+            setTimeout(function() {
+                let searchField = document.querySelector('.select2-container--open .select2-search__field');
+                if (searchField) searchField.focus();
+            }, 0);
+        });
+    }
+
     // Initial render
     renderRows([]);
+    applySelect2();
 
+    // Re-apply Select2 after rows are re-rendered
+    function renderRowsWithSelect2(selectedProducts) {
+        renderRows(selectedProducts);
+        applySelect2();
+    }
+
+    // Patch event handlers to use renderRowsWithSelect2 if needed
+    // Replace all renderRows([]) calls with renderRowsWithSelect2([]) if you want to keep Select2 after re-render
     // On product change, update occupied states and show error if not enough space
     $('#squaresContainer').on('change', '.productSelect', function() {
         updateOccupiedStates();

@@ -13,6 +13,16 @@ function removeQueryParam(name) {
 }
 
 $(document).ready(function() {
+    // Initialize Select2 for searchable ingredient select
+    $('#ingredientSelect').select2({width: 'resolve'});
+    // Focus the search field when opening any Select2 dropdown
+    $(document).off('select2:open').on('select2:open', function() {
+        setTimeout(function() {
+            let searchField = document.querySelector('.select2-container--open .select2-search__field');
+            if (searchField) searchField.focus();
+        }, 0);
+    });
+
     // --- POPUP LOGIC ---
     window.toggleAdditionalInput = toggleAdditionalInput;
     if (window._errorMsg) showErrorPopup(window._errorMsg);
@@ -38,6 +48,22 @@ $(document).ready(function() {
     // --- INGREDIENT TABLE LOGIC ---
     let selectedIngredients = [];
 
+    function calculateCurrentCost() {
+        let total = 0;
+        selectedIngredients.forEach(item => {
+            // Get cost per unit from the ingredientSelect options
+            const option = $('#ingredientSelect option[value="' + item.id + '"]');
+            const costPerUnit = parseFloat(option.data('cost')) || 0;
+            total += costPerUnit * item.quantity;
+        });
+        return total;
+    }
+
+    function updateCurrentCostDisplay() {
+        const total = calculateCurrentCost();
+        $('#currentCost').text('Current Cost: ' + total.toFixed(2));
+    }
+
     function updateIngredientTable() {
         const tbody = $('#ingredientList');
         tbody.empty();
@@ -48,6 +74,7 @@ $(document).ready(function() {
             const removeBtn = $('<button type="button">Remove</button>').on('click', function() {
                 selectedIngredients.splice(idx, 1);
                 updateIngredientTable();
+                updateCurrentCostDisplay();
             });
             row.append($('<td>').append(removeBtn));
             tbody.append(row);
@@ -60,6 +87,7 @@ $(document).ready(function() {
             $('<input>').attr({type: 'hidden', name: 'ingredients[]', value: item.id}).appendTo('form');
             $('<input>').attr({type: 'hidden', name: 'quantities[]', value: item.quantity}).appendTo('form');
         });
+        updateCurrentCostDisplay();
     }
 
     window.addIngredient = function() {
@@ -79,6 +107,7 @@ $(document).ready(function() {
         selectedIngredients.push({id, name, quantity});
         updateIngredientTable();
         $('#ingredientQuantity').val('');
+        updateCurrentCostDisplay();
     };
 
     // If the form is reloaded with errors, try to restore selected ingredients from hidden inputs

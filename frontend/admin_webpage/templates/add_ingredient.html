@@ -9,20 +9,26 @@
 <body>
     <a href="/">Main Page</a>
     <h1>Add a New Ingredient</h1>
-    <form method="POST" action="/ingredients/add">
-        <label for="name">Ingredient Name:</label>
-        <input type="text" name="name" required><br>
+    <form method="POST" action="/ingredients/add" style="display: flex; align-items: flex-end; gap: 2em;">
+        <div style="display: flex; flex-direction: column; gap: 0.5em;">
+            <label for="name">Ingredient Name:</label>
+            <input type="text" name="name" required>
 
-        <label for="price">Price per Package:</label>
-        <input type="number" name="price" step="0.01" required><br>
+            <label for="price">Price per Package:</label>
+            <input type="number" name="price" id="price" step="0.01" required>
 
-        <label for="number_ingredients">Ingredients in Package:</label>
-        <input type="number" name="number_ingredients" step="1" required><br>
-        
-        <label for="stock">Stock:</label>
-        <input type="number" name="stock" step="1" min="0">
+            <label for="number_ingredients">Ingredients in Package:</label>
+            <input type="number" name="number_ingredients" id="number_ingredients" step="1" required>
 
-        <button type="submit">Add Ingredient</button>
+            <label for="stock">Stock:</label>
+            <input type="number" name="stock" step="1" min="0">
+
+            <button type="submit">Add Ingredient</button>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 2.2em;">
+            <label for="price_per_unit"><b>Price per Unit:</b></label>
+            <input type="text" id="price_per_unit" value="0.00" readonly style="background:#eee; width:120px; font-weight:bold; border:none; color:#333; margin-top:0.2em;" tabindex="-1">
+        </div>
     </form>
 
     {% if error_message %}
@@ -36,5 +42,7 @@
         if (window._errorMsg) showErrorPopup(window._errorMsg);
         if (window._successMsg) showSuccessPopup(window._successMsg);
     </script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script type="module" src="{{ url_for('static', filename='js/add_ingredient.js') }}"></script>
 </body>
 </html>

@@ -67,12 +67,15 @@ class Database:
             if session is None:
                 session = self.get_session()
                 close_session = True
+            if self.exists_ingredient_with_name(name, session):
+                raise ValueError(f"Ingredient with name '{name}' already exists")
             stock = int(stock_quantity)
             price = float(price_per_package)
             number_ingredients = int(number_ingredients)
             if number_ingredients <= 0:
                 raise ValueError("Number of ingredients must be greater than 0")
             price_per_unit = price / number_ingredients
+            stock = stock * number_ingredients
             ingredient = Ingredient(name=name, price_per_package=price, number_of_units=number_ingredients, price_per_unit=price_per_unit, stock_quantity=stock)
             if stock > 0:
                 bank = self.get_bank(session)
@@ -99,6 +102,7 @@ class Database:
             ingredient = self.get_ingredient_by_id(ingredient_id, session)
             ingredient_name = ingredient.name
             quantity = int(quantity)
+            quantity = quantity * ingredient.number_of_units
             ingredient.stock_quantity += quantity
             bank = self.get_bank(session)
             bank.ingredient_value += ingredient.price_per_unit * quantity
@@ -126,6 +130,8 @@ class Database:
             if session is None:
                 session = self.get_session()
                 close_session = True
+            if self.exists_product_with_name(name, session):
+                raise ValueError(f"Product with name '{name}' already exists")
             if len(ingredients) == 0:
                 raise ValueError("Product must have at least one ingredient")
             if len(ingredients) > 1 and category == "raw":
@@ -647,6 +653,36 @@ class Database:
             return transactions
         except Exception as e:
             raise RuntimeError(f"get_bank_transaction failed: {e}") from e
+        finally:
+            if close_session:
+                session.close()
+
+    def exists_ingredient_with_name(self, name: str, session=None) -> bool:
+        """Check if an ingredient exists by name."""
+        close_session = False
+        if session is None:
+            session = self.get_session()
+            close_session = True
+        try:
+            ingredient = session.query(Ingredient).filter(Ingredient.name == name).first()
+            return ingredient is not None
+        except Exception as e:
+            raise RuntimeError(f"exists_ingredient_with_name failed for name={name}: {e}") from e
+        finally:
+            if close_session:
+                session.close()
+
+    def exists_product_with_name(self, name: str, session=None) -> bool:
+        """Check if a product exists by name."""
+        close_session = False
+        if session is None:
+            session = self.get_session()
+            close_session = True
+        try:
+            product = session.query(Product).filter(Product.name == name).first()
+            return product is not None
+        except Exception as e:
+            raise RuntimeError(f"exists_product_with_name failed for name={name}: {e}") from e
         finally:
             if close_session:
                 session.close()

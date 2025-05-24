@@ -28,3 +28,18 @@ a {
 a:hover {
     text-decoration: underline;
 }
+
+select#userSelect, select#productSelect {
+    min-width: 200px;
+    width: 200px;
+}
+
+.select2-container {
+    min-width: 200px !important;
+    width: 200px !important;
+}
+
+select {
+    min-width: 200px;
+    width: 200px;
+}

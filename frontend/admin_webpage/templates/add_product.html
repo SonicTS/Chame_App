@@ -7,6 +7,8 @@
     <title>Add Product</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script type="module" src="{{ url_for('static', filename='js/add_product.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 </head>
 <body>
     <a href="/">Main Page</a>
@@ -34,12 +36,16 @@
         <label for="ingredientSelect">Ingredient:</label>
         <select id="ingredientSelect">
             {% for ingredient in ingredients %}
-            <option value="{{ ingredient.ingredient_id }}">{{ ingredient.name }}</option>
+            <option value="{{ ingredient.ingredient_id }}" data-cost="{{ ingredient.price_per_unit }}">{{ ingredient.name }}</option>
             {% endfor %}
         </select>
+        <!-- Display current cost of ingredients -->
+        
         <label for="ingredientQuantity">Quantity:</label>
         <input type="number" id="ingredientQuantity" step="1" min="1">
         <button type="button" onclick="addIngredient()">Add Ingredient</button>
+        <br>
+        <span id="currentCost" style="margin-left: 10px; font-weight: bold;">Current Cost: 0.00</span>
 
         <h3>Selected Ingredients</h3>
         <table border="1">

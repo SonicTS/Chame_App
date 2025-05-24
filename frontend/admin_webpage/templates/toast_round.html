@@ -7,6 +7,8 @@
     <title>Toast Round</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script type="module" src="{{ url_for('static', filename='js/toast_round.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <script>
         window.products = JSON.parse('{{ products_json | escapejs | safe if products_json is defined else "[]" }}');
         window.users = JSON.parse('{{ users_json | escapejs | safe if users_json is defined else "[]" }}');
