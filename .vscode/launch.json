@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter Android",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "debug",  // Use "release" for release builds
+      "deviceId": "SM A528B",   // Target Android device
+      "program": "lib/main.dart"  // Entry point for Flutter app
+    }
+  ]
+}

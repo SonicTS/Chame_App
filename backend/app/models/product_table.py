@@ -2,7 +2,7 @@ from typing import List
 from models.ingredient import Ingredient
 from sqlalchemy import Column, Integer, String, Float, Table, ForeignKey
 from sqlalchemy.orm import relationship
-from chame_app.database import Base, engine, SessionLocal
+from chame_app.database import Base
 
 
 class Product(Base):
@@ -47,15 +47,38 @@ class Product(Base):
 
         print(f"Stock updated for product: {self.name} -> {self.stock_quantity}")
 
-        def __init__(self, name: str, category: str, price_per_unit: float = 0, cost_per_unit: float = 0, profit_per_unit: float = 0, stock_quantity: int = 0, toaster_space: int = 0):
-            self.name = name
-            self.category = category
-            self.price_per_unit = price_per_unit
-            self.cost_per_unit = cost_per_unit
-            self.profit_per_unit = profit_per_unit
-            self.stock_quantity = stock_quantity
-            self.toaster_space = toaster_space
+    def __init__(self, name: str, category: str, price_per_unit: float = 0, cost_per_unit: float = 0, profit_per_unit: float = 0, stock_quantity: int = 0, toaster_space: int = 0):
+        self.name = name
+        self.category = category
+        self.price_per_unit = price_per_unit
+        self.cost_per_unit = cost_per_unit
+        self.profit_per_unit = profit_per_unit
+        self.stock_quantity = stock_quantity
+        self.toaster_space = toaster_space
 
     def __repr__(self):
         return f"<Product(name={self.name}, category={self.category}, price={self.price_per_unit}, stock={self.stock_quantity}, ingredients={self.ingredients})>"
+
+    def to_dict(self, include_ingredients=False, include_sales=False, include_toast_rounds=False, include_product_ingredients=False, include_product_toast_rounds=False):
+        data = {
+            "product_id": self.product_id,
+            "name": self.name,
+            "category": self.category,
+            "price_per_unit": self.price_per_unit,
+            "cost_per_unit": self.cost_per_unit,
+            "profit_per_unit": self.profit_per_unit,
+            "stock_quantity": self.stock_quantity,
+            "toaster_space": self.toaster_space,
+        }
+        if include_ingredients:
+            data["ingredients"] = [pi.ingredient.to_dict() for pi in self.product_ingredients]
+        if include_product_ingredients:
+            data["product_ingredients"] = [pi.to_dict() for pi in self.product_ingredients]
+        if include_sales:
+            data["sales"] = [sale.to_dict() for sale in self.sales]
+        if include_toast_rounds:
+            data["toast_rounds"] = [ptr.toast_round.to_dict() for ptr in self.product_toast_rounds]
+        if include_product_toast_rounds:
+            data["product_toast_rounds"] = [ptr.to_dict() for ptr in self.product_toast_rounds]
+        return data
 

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "29385410538",
+    "project_id": "chamekasse",
+    "storage_bucket": "chamekasse.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:29385410538:android:b3a0190c181f9706551493",
+        "android_client_info": {
+          "package_name": "com.chame.kasse"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDYq9xIQY4s6DdHDWYXAAPK_ETub8Gp3oA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

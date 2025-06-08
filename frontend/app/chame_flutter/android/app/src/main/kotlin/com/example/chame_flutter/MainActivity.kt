@@ -1,0 +1,402 @@
+package com.chame.kasse
+
+import androidx.annotation.NonNull
+import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
+import com.chaquo.python.Python
+import com.chaquo.python.android.AndroidPlatform
+
+class MainActivity : FlutterActivity() {
+
+    private val CHANNEL = "samples.flutter.dev/chame/python"
+
+    override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+
+        // Start Python once per process
+        if (!Python.isStarted()) {
+            Python.start(AndroidPlatform(this))
+        }
+        val py = Python.getInstance()
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            CHANNEL
+        ).setMethodCallHandler { call, result ->
+
+            when (call.method) {
+                "ping" -> {
+                    // ── Module ────────────────────────────────────────────────
+                    val module = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module services.admin_api not found", null
+                        )
+
+                    try {
+                        module.callAttr("create_database")
+                        val pyResult = module.callAttr("get_bank")
+                        result.success("pong from Python $pyResult")
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+
+                    
+                }
+                "get_all_ingredients" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val pyResult = pyModule.callAttr("get_all_ingredients")
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "add_ingredient" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val name = call.argument<String>("name")
+                        val pricePerPackage = call.argument<Number>("price_per_package")
+                        val stockQuantity = call.argument<Number>("stock_quantity")
+                        val numberIngredients = call.argument<Number>("number_ingredients")
+                        if (name == null || pricePerPackage == null || stockQuantity == null || numberIngredients == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for add_ingredient", null)
+                            return@setMethodCallHandler
+                        }
+                        val pyResult = pyModule.callAttr(
+                            "add_ingredient",
+                            name,
+                            pricePerPackage.toDouble(),
+                            stockQuantity.toInt(),
+                            numberIngredients.toInt()
+                        )
+                        result.success(null) // Success, no error message
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "add_user" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val name = call.argument<String>("name")
+                        val balance = call.argument<Number>("balance")
+                        val role = call.argument<String>("role")
+                        if (name == null || balance == null || role == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for add_user", null)
+                            return@setMethodCallHandler
+                        }
+                        val pyResult = pyModule.callAttr(
+                            "add_user",
+                            name,
+                            balance.toDouble(),
+                            role
+                        )
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "withdraw" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val userId = call.argument<Number>("user_id")
+                        val amount = call.argument<Number>("amount")
+                        if (userId == null || amount == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for withdraw", null)
+                            return@setMethodCallHandler
+                        }
+                        pyModule.callAttr("withdraw", userId.toInt(), amount.toDouble())
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "deposit" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val userId = call.argument<Number>("user_id")
+                        val amount = call.argument<Number>("amount")
+                        if (userId == null || amount == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for deposit", null)
+                            return@setMethodCallHandler
+                        }
+                        pyModule.callAttr("deposit", userId.toInt(), amount.toDouble())
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "add_product" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val name = call.argument<String>("name")
+                        val category = call.argument<String>("category")
+                        val price = call.argument<Number>("price")
+                        val ingredientsIds = call.argument<List<Number>>("ingredients_ids")
+                        val quantities = call.argument<List<Number>>("quantities")
+                        val toasterSpace = call.argument<Number>("toaster_space")
+                        if (name == null || category == null || price == null || ingredientsIds == null || quantities == null || toasterSpace == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for add_product", null)
+                            return@setMethodCallHandler
+                        }
+                        pyModule.callAttr(
+                            "add_product",
+                            name,
+                            category,
+                            price.toDouble(),
+                            ingredientsIds.map { it.toInt() }.toTypedArray(),
+                            quantities.map { it.toDouble() }.toTypedArray(),
+                            toasterSpace.toInt()
+                        )
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "restock_ingredient" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val ingredientId = call.argument<Number>("ingredient_id")
+                        val quantity = call.argument<Number>("quantity")
+                        if (ingredientId == null || quantity == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for restock_ingredient", null)
+                            return@setMethodCallHandler
+                        }
+                        pyModule.callAttr("restock_ingredient", ingredientId.toInt(), quantity.toInt())
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "make_purchase" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val userId = call.argument<Number>("user_id")
+                        val productId = call.argument<Number>("product_id")
+                        val quantity = call.argument<Number>("quantity")
+                        if (userId == null || productId == null || quantity == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for make_purchase", null)
+                            return@setMethodCallHandler
+                        }
+                        pyModule.callAttr("make_purchase", userId.toInt(), productId.toInt(), quantity.toInt())
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "add_toast_round" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val productIds = call.argument<List<Number>>("product_ids")
+                        val userSelections = call.argument<List<Number>>("user_selections")
+                        if (productIds == null || userSelections == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for add_toast_round", null)
+                            return@setMethodCallHandler
+                        }
+                        pyModule.callAttr(
+                            "add_toast_round",
+                            productIds.map { it.toInt() }.toTypedArray(),
+                            userSelections.map { it.toInt() }.toTypedArray()
+                        )
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "bank_withdraw" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val amount = call.argument<Number>("amount")
+                        val description = call.argument<String>("description")
+                        if (amount == null || description == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for bank_withdraw", null)
+                            return@setMethodCallHandler
+                        }
+                        pyModule.callAttr("bank_withdraw", amount.toDouble(), description)
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "get_all_users" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val pyResult = pyModule.callAttr("get_all_users")
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "get_all_products" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val pyResult = pyModule.callAttr("get_all_products")
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "get_all_sales" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val pyResult = pyModule.callAttr("get_all_sales")
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "get_all_toast_products" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val pyResult = pyModule.callAttr("get_all_toast_products")
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "get_all_toast_rounds" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val pyResult = pyModule.callAttr("get_all_toast_rounds")
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "get_filtered_transaction" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val userId = call.argument<Any>("user_id")
+                        val txType = call.argument<String>("tx_type")
+                        val pyResult = if (userId != null && txType != null) {
+                            pyModule.callAttr("get_filtered_transaction", userId, txType)
+                        } else {
+                            pyModule.callAttr("get_filtered_transaction")
+                        }
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "get_bank" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val pyResult = pyModule.callAttr("get_bank")
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "get_bank_transaction" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val pyResult = pyModule.callAttr("get_bank_transaction")
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+}

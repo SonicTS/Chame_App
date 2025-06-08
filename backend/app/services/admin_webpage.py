@@ -2,7 +2,6 @@ from flask import Flask, json, render_template, request, redirect, url_for
 from models.user_table import User
 from models.product_table import Product
 from models.sales_table import Sale
-from chame_app.database import SessionLocal
 from chame_app.database_instance import database
 import os
 import logging

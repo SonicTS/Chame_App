@@ -1,7 +1,7 @@
 from sqlalchemy import Table, Column, Integer, String, Float, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column, Integer
-from chame_app.database import Base, engine, SessionLocal
+from chame_app.database import Base
 
 class Ingredient(Base):
     __tablename__ = "ingredients"
@@ -25,27 +25,42 @@ class Ingredient(Base):
     def __repr__(self):
         return f"<Ingredient(name={self.name}, price={self.price_per_unit}, stock={self.stock_quantity})>"
 
+    def to_dict(self, include_products=False):
+        data = {
+            "ingredient_id": self.ingredient_id,
+            "name": self.name,
+            "price_per_package": self.price_per_package,
+            "number_of_units": self.number_of_units,
+            "price_per_unit": self.price_per_unit,
+            "stock_quantity": self.stock_quantity,
+        }
+        if include_products:
+            # Avoid circular imports; import here if needed
+            data["products"] = [ip.product.to_dict() for ip in self.ingredient_products]
+        return data
+
 
 def main():
-    Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
+    #Base.metadata.create_all(bind=engine)
+    pass
+    # db = SessionLocal()
 
-    # Create some ingredients
-    bread = Ingredient(name="Bread", price_per_unit=0.5, stock_quantity=100)
-    cheese = Ingredient(name="Cheese", price_per_unit=1.2, stock_quantity=50)
-    speed = Ingredient(name="Speed", price_per_unit=0.2, stock_quantity=200)
+    # # Create some ingredients
+    # bread = Ingredient(name="Bread", price_per_unit=0.5, stock_quantity=100)
+    # cheese = Ingredient(name="Cheese", price_per_unit=1.2, stock_quantity=50)
+    # speed = Ingredient(name="Speed", price_per_unit=0.2, stock_quantity=200)
 
-    # Add ingredients to the session
-    db.add(bread)
-    db.add(cheese)
-    db.add(speed)
+    # # Add ingredients to the session
+    # db.add(bread)
+    # db.add(cheese)
+    # db.add(speed)
 
 
-    # Commit to the database
-    db.commit()
+    # # Commit to the database
+    # db.commit()
 
-    # Close the session
-    db.close()
+    # # Close the session
+    # db.close()
 
 if __name__ == "__main__":
     main()

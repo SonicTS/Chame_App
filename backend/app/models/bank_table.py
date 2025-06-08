@@ -18,6 +18,16 @@ class Bank(Base):
                f"available_balance={self.available_balance}, ingredient_value={self.ingredient_value}, " \
                f"product_value={self.product_value})>"
 
+    def to_dict(self):
+        return {
+            "account_id": self.account_id,
+            "total_balance": self.total_balance,
+            "available_balance": self.available_balance,
+            "restocking_cost": self.restocking_cost,
+            "profit_balance": self.profit_balance,
+            "ingredient_value": self.ingredient_value,
+        }
+
 class BankTransaction(Base):
     __tablename__ = "bank_transactions"
 
@@ -29,3 +39,12 @@ class BankTransaction(Base):
 
     def __repr__(self):
         return f"<BankTransaction(id={self.transaction_id}, amount={self.amount}, type={self.type}, timestamp={self.timestamp}, description={self.description})>"
+
+    def to_dict(self):
+        return {
+            "transaction_id": self.transaction_id,
+            "amount": self.amount,
+            "type": self.type,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "description": self.description,
+        }

@@ -1,6 +1,6 @@
 from models.user_table import User
 from models.product_table import Product
-from chame_app.database import SessionLocal
+#from chame_app.database import SessionLocal
 import threading
 import tkinter as tk
 import webbrowser
@@ -166,23 +166,21 @@ def create_gui():
 
 
 def main():
+    pass
+    # db = SessionLocal()
 
-    db = SessionLocal()
-
-    # Check if an admin user already exists
-    if not db.query(User).filter_by(role="admin").first():
-        # Add an admin user
-        admin_user = User(name="admin", balance=0, password_hash="12345678", role="admin")
-        db.add(admin_user)
-        db.commit()
-        print("Admin user created.")
-    else:
-        print("Admin user already exists.")
-    for product in db.query(Product).all():
-        product.update_stock()
-    db.commit()
-    # Close the session
-    db.close()
+    # # Check if an admin user already exists
+    # if not db.query(User).filter_by(role="admin").first():
+    #     # Add an admin user
+    #     admin_user = User(name="admin", balance=0, password_hash="12345678", role="admin")
+    #     db.add(admin_user)
+    #     db.commit()
+    #     print("Admin user created.")
+    # else:
+    #     print("Admin user already exists.")
+    # db.commit()
+    # # Close the session
+    # db.close()
     
 
 # Ensure the GUI is only created in the main process

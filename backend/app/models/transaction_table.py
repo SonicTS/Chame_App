@@ -19,3 +19,15 @@ class Transaction(Base):
         
     def __repr__(self):
         return f"<Transaction(user_id={self.user_id}, amount={self.amount}, type={self.type})>"
+    
+    def to_dict(self, include_user=False):
+        data = {
+            "transaction_id": self.transaction_id,
+            "user_id": self.user_id,
+            "amount": self.amount,
+            "type": self.type,
+            "timestamp": self.timestamp,
+        }
+        if include_user and self.user:
+            data["user"] = self.user.to_dict()
+        return data

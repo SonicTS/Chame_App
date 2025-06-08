@@ -1,6 +1,7 @@
+from __future__ import annotations
 import datetime
 from typing import List, Optional
-from chame_app.database import engine, SessionLocal
+from chame_app.database import get_session
 from models.ingredient import Ingredient
 from models.product_ingredient_table import ProductIngredient
 from models.product_table import Product
@@ -13,28 +14,27 @@ from models.bank_table import Bank, BankTransaction
 from chame_app.database import Base
 from sqlalchemy.orm import joinedload
 
-Base.metadata.create_all(bind=engine)
 
 BANK_NOT_FOUND_MSG = "Bank account not found"
 USER_NOT_FOUND_MSG = "User not found"
 
 class Database:
     def __init__(self):
-        self.engine = engine
-        self.SessionLocal = SessionLocal
-        session = self.SessionLocal()
-        bank = session.query(Bank).filter_by(account_id=1).first()
+        self.session = get_session()
+        bank = self.session.query(Bank).filter_by(account_id=1).first()
         if not bank:
             bank = Bank(total_balance=0.0, available_balance=0.0, ingredient_value=0.0, restocking_cost=0.0, profit_balance=0.0)
-            session.add(bank)
-            session.commit()
-            session.refresh(bank)
-        session.close()
+            self.session.add(bank)
+            self.session.commit()
+            self.session.refresh(bank)
+        for product in self.session.query(Product).all():
+            product.update_stock()
+        self.session.close()
 
     def get_session(self):
         """Create a new session."""
         try:
-            return self.SessionLocal()
+            return self.session
         except Exception as e:
             raise RuntimeError(f"get_session failed: {e}") from e
 
@@ -68,15 +68,20 @@ class Database:
                 session = self.get_session()
                 close_session = True
             if self.exists_ingredient_with_name(name, session):
+                print(f"DEBUG: Ingredient with name '{name}' already exists")
                 raise ValueError(f"Ingredient with name '{name}' already exists")
             stock = int(stock_quantity)
             price = float(price_per_package)
             number_ingredients = int(number_ingredients)
+            print(f"DEBUG: Adding ingredient {name} with price={price}, stock={stock}, number_ingredients={number_ingredients}")
             if number_ingredients <= 0:
+                print("DEBUG: Number of ingredients must be greater than 0")
                 raise ValueError("Number of ingredients must be greater than 0")
             price_per_unit = price / number_ingredients
             stock = stock * number_ingredients
+            print(f"DEBUG: Calculated price_per_unit={price_per_unit} for ingredient {name}")
             ingredient = Ingredient(name=name, price_per_package=price, number_of_units=number_ingredients, price_per_unit=price_per_unit, stock_quantity=stock)
+            print(f"DEBUG: Created ingredient {ingredient}")
             if stock > 0:
                 bank = self.get_bank(session)
                 bank.ingredient_value += price_per_unit * stock
@@ -415,14 +420,16 @@ class Database:
             if close_session:
                 session.close()
 
-    def get_all_users(self, session=None) -> List[User]:
-        """Get all users."""
+    def get_all_users(self, session=None) -> 'List[User]':
+        """Get all users with eager loading of sales."""
         close_session = False
         if session is None:
             session = self.get_session()
             close_session = True
         try:
-            users = session.query(User).all()
+            users = session.query(User).options(
+                joinedload(User.sales)
+            ).all()
             return users
         except Exception as e:
             raise RuntimeError(f"get_all_users failed: {e}") from e
@@ -430,15 +437,17 @@ class Database:
             if close_session:
                 session.close()
 
-    def get_all_products(self, session=None) -> List[Product]:
-        """Get all products with ingredients eager loaded."""
+    def get_all_products(self, session=None) -> 'List[Product]':
+        """Get all products with ingredients and sales eager loaded."""
         close_session = False
         if session is None:
             session = self.get_session()
             close_session = True
         try:
             products = session.query(Product).options(
-                joinedload(Product.product_ingredients).joinedload(ProductIngredient.ingredient)
+                joinedload(Product.product_ingredients).joinedload(ProductIngredient.ingredient),
+                joinedload(Product.sales),
+                joinedload(Product.product_toast_rounds).joinedload(ProductToastround.toast_round)
             ).all()
             return products
         except Exception as e:
@@ -447,7 +456,7 @@ class Database:
             if close_session:
                 session.close()
 
-    def get_all_ingredients(self, eager_load=False, session=None) -> List[Ingredient]:
+    def get_all_ingredients(self, eager_load=False, session=None) -> 'List[Ingredient]':
         """Get all ingredients, with optional eager loading of products."""
         close_session = False
         if session is None:
@@ -465,7 +474,7 @@ class Database:
             if close_session:
                 session.close()
 
-    def get_ingredient_by_id(self, ingredient_id: int, session=None) -> Ingredient:
+    def get_ingredient_by_id(self, ingredient_id: int, session=None) -> 'Ingredient':
         """Get an ingredient by its ID."""
         close_session = False
         if session is None:
@@ -482,7 +491,7 @@ class Database:
             if close_session:
                 session.close()
 
-    def get_ingredients_by_ids(self, ingredient_ids: List[int], session=None) -> List[Ingredient]:
+    def get_ingredients_by_ids(self, ingredient_ids: List[int], session=None) -> 'List[Ingredient]':
         """Get ingredients by their IDs."""
         close_session = False
         if session is None:
@@ -499,7 +508,7 @@ class Database:
             if close_session:
                 session.close()
 
-    def get_user_by_id(self, user_id: int, session=None) -> User:
+    def get_user_by_id(self, user_id: int, session=None) -> 'User':
         """Get a user by its ID."""
         close_session = False
         if session is None:
@@ -516,7 +525,7 @@ class Database:
             if close_session:
                 session.close()
 
-    def get_product_by_id(self, product_id: int, session=None) -> Product:
+    def get_product_by_id(self, product_id: int, session=None) -> 'Product':
         """Get a product by its ID."""
         close_session = False
         if session is None:
@@ -533,7 +542,7 @@ class Database:
             if close_session:
                 session.close()
 
-    def get_all_products_by_category(self, category: str, session=None) -> List[Product]:
+    def get_all_products_by_category(self, category: str, session=None) -> 'List[Product]':
         """Get all products by category, with ingredients eager loaded."""
         close_session = False
         if session is None:
@@ -550,14 +559,18 @@ class Database:
             if close_session:
                 session.close()
 
-    def get_all_toast_products(self, session=None) -> List[Product]:
-        """Get all toast products."""
+    def get_all_toast_products(self, session=None) -> 'List[Product]':
+        """Get all toast products with ingredients, sales, and toast round relationships eager loaded."""
         close_session = False
         if session is None:
             session = self.get_session()
             close_session = True
         try:
-            products = self.get_all_products_by_category("toast", session)
+            products = session.query(Product).options(
+                joinedload(Product.product_ingredients).joinedload(ProductIngredient.ingredient),
+                joinedload(Product.sales),
+                joinedload(Product.product_toast_rounds).joinedload(ProductToastround.toast_round)
+            ).filter(Product.category == "toast").all()
             return products
         except Exception as e:
             raise RuntimeError(f"get_all_toast_products failed: {e}") from e
@@ -565,8 +578,8 @@ class Database:
             if close_session:
                 session.close()
 
-    def get_all_toast_rounds(self, session=None) -> List[ToastRound]:
-        """Get all toast rounds with sales, user, and product eager loaded."""
+    def get_all_toast_rounds(self, session=None) -> 'List[ToastRound]':
+        """Get all toast rounds with sales, user, product, and toast_round_products eager loaded."""
         close_session = False
         if session is None:
             session = self.get_session()
@@ -574,7 +587,8 @@ class Database:
         try:
             toast_rounds = session.query(ToastRound).options(
                 joinedload(ToastRound.sales).joinedload(Sale.user),
-                joinedload(ToastRound.sales).joinedload(Sale.product)
+                joinedload(ToastRound.sales).joinedload(Sale.product),
+                joinedload(ToastRound.toast_round_products).joinedload(ProductToastround.product)
             ).all()
             return toast_rounds
         except Exception as e:
@@ -583,8 +597,8 @@ class Database:
             if close_session:
                 session.close()
 
-    def get_all_sales(self, session=None) -> List[Sale]:
-        """Get all sales with eager loading."""
+    def get_all_sales(self, session=None) -> 'List[Sale]':
+        """Get all sales with eager loading of user, product, and toast_round."""
         close_session = False
         if session is None:
             session = self.get_session()
@@ -592,7 +606,8 @@ class Database:
         try:
             sales = session.query(Sale).options(
                 joinedload(Sale.user),
-                joinedload(Sale.product)
+                joinedload(Sale.product),
+                joinedload(Sale.toast_round)
             ).all()
             return sales
         except Exception as e:
@@ -601,7 +616,7 @@ class Database:
             if close_session:
                 session.close()
 
-    def get_sales_with_category(self, category: str, session=None) -> List[Sale]:
+    def get_sales_with_category(self, category: str, session=None) -> 'List[Sale]':
         """Get sales with a specific category."""
         close_session = False
         if session is None:
@@ -619,7 +634,7 @@ class Database:
             if close_session:
                 session.close()
 
-    def get_filtered_transaction(self, user_id: int, tx_type: str, session=None) -> List[Transaction]:
+    def get_filtered_transaction(self, user_id: int, tx_type: str, session=None) -> 'List[Transaction]':
         """Get filtered transactions."""
         close_session = False
         if session is None:
@@ -642,7 +657,7 @@ class Database:
             if close_session:
                 session.close()
 
-    def get_bank_transaction(self, session=None) -> List[BankTransaction]:
+    def get_bank_transaction(self, session=None) -> 'List[BankTransaction]':
         """Get filtered transactions."""
         close_session = False
         if session is None:
@@ -688,4 +703,4 @@ class Database:
                 session.close()
 
 
-database = Database()
+#database = Database()

@@ -28,3 +28,21 @@ class Sale(Base):
 
     def __repr__(self):
         return f"<Sale(user={self.user.name}, product={self.product.name}, quantity={self.quantity}, total_price={self.total_price}, toast_round={self.toast_round.id if self.toast_round else 'None'})>"
+
+    def to_dict(self, include_user=False, include_product=False, include_toast_round=False):
+        data = {
+            "sale_id": self.sale_id,
+            "user_id": self.user_id,
+            "product_id": self.product_id,
+            "quantity": self.quantity,
+            "total_price": self.total_price,
+            "timestamp": self.timestamp,
+            "toast_round_id": self.toast_round_id,
+        }
+        if include_user and self.user:
+            data["user"] = self.user.to_dict()
+        if include_product and self.product:
+            data["product"] = self.product.to_dict()
+        if include_toast_round and self.toast_round:
+            data["toast_round"] = self.toast_round.to_dict()
+        return data
