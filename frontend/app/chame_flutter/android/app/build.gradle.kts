@@ -87,7 +87,7 @@ android {
 chaquopy {
     sourceSets {
         getByName("main") {
-            srcDir("../../../Chame_App/backend/app")
+            srcDir("../../../../../backend/app")
         }
     }
     defaultConfig {

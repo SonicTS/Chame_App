@@ -7,7 +7,7 @@
       "type": "dart",
       "flutterMode": "debug",  // Use "release" for release builds
       "deviceId": "SM A528B",   // Target Android device
-      "program": "lib/main.dart"  // Entry point for Flutter app
+      "program": "frontend/app/chame_flutter/lib/main.dart"  // Entry point for Flutter app
     }
   ]
 }
