@@ -11,7 +11,7 @@ class Ingredient(Base):
     price_per_package = Column(Float)  # Purchasing price per package
     number_of_units = Column(Integer)  # Number of units in a package
     price_per_unit = Column(Float)  # Purchasing price per unit
-    stock_quantity = Column(Integer, default=0)
+    stock_quantity = Column(Float, default=0)
 
     # Relationship back to Product (via the ProductIngredient table)
     ingredient_products = relationship("ProductIngredient", back_populates="ingredient")
@@ -26,13 +26,15 @@ class Ingredient(Base):
         return f"<Ingredient(name={self.name}, price={self.price_per_unit}, stock={self.stock_quantity})>"
 
     def to_dict(self, include_products=False):
+        def _round(val):
+            return round(val, 2) if isinstance(val, float) and val is not None else val
         data = {
             "ingredient_id": self.ingredient_id,
             "name": self.name,
-            "price_per_package": self.price_per_package,
+            "price_per_package": _round(self.price_per_package),
             "number_of_units": self.number_of_units,
-            "price_per_unit": self.price_per_unit,
-            "stock_quantity": self.stock_quantity,
+            "price_per_unit": _round(self.price_per_unit),
+            "stock_quantity": _round(self.stock_quantity),
         }
         if include_products:
             # Avoid circular imports; import here if needed

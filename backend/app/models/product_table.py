@@ -60,13 +60,15 @@ class Product(Base):
         return f"<Product(name={self.name}, category={self.category}, price={self.price_per_unit}, stock={self.stock_quantity}, ingredients={self.ingredients})>"
 
     def to_dict(self, include_ingredients=False, include_sales=False, include_toast_rounds=False, include_product_ingredients=False, include_product_toast_rounds=False):
+        def _round(val):
+            return round(val, 2) if isinstance(val, float) and val is not None else val
         data = {
             "product_id": self.product_id,
             "name": self.name,
             "category": self.category,
-            "price_per_unit": self.price_per_unit,
-            "cost_per_unit": self.cost_per_unit,
-            "profit_per_unit": self.profit_per_unit,
+            "price_per_unit": _round(self.price_per_unit),
+            "cost_per_unit": _round(self.cost_per_unit),
+            "profit_per_unit": _round(self.profit_per_unit),
             "stock_quantity": self.stock_quantity,
             "toaster_space": self.toaster_space,
         }

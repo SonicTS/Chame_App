@@ -129,7 +129,7 @@ class Database:
                     session.close()
             raise RuntimeError(f"stock_ingredient failed for ingredient={ingredient_name}, quantity={quantity}: {e}") from e
 
-    def add_product(self, name: str, ingredients: List[tuple[Ingredient, int]], price_per_unit: float = 0.0, category: str = "raw", toaster_space: Optional[int] = None, session=None):
+    def add_product(self, name: str, ingredients: List[tuple[Ingredient, float]], price_per_unit: float = 0.0, category: str = "raw", toaster_space: Optional[int] = None, session=None):
         close_session = False
         try:
             if session is None:
@@ -140,6 +140,7 @@ class Database:
             if len(ingredients) == 0:
                 raise ValueError("Product must have at least one ingredient")
             if len(ingredients) > 1 and category == "raw":
+                print(f"DEBUG: ingredients: {ingredients}")
                 raise ValueError("Raw products can only have one ingredient")
             price = float(price_per_unit)
             if toaster_space:
@@ -150,7 +151,7 @@ class Database:
                 toaster_space = 0
             cost_per_unit = 0.0
             for ingredient_obj, quantity in ingredients:
-                ingredient_quantity = int(quantity)
+                ingredient_quantity = float(quantity)
                 if ingredient_quantity <= 0:
                     raise ValueError(f"Ingredient quantity must be greater than 0 (ingredient={ingredient_obj.name})")
                 cost_per_unit += ingredient_obj.price_per_unit * ingredient_quantity
@@ -160,7 +161,7 @@ class Database:
             session.add(product)
             session.flush()
             for ingredient_obj, quantity in ingredients:
-                ingredient_quantity = int(quantity)
+                ingredient_quantity = float(quantity)
                 existing_ingredient = self.get_ingredient_by_id(ingredient_obj.ingredient_id, session)
                 association = ProductIngredient(product=product, ingredient=existing_ingredient, ingredient_quantity=ingredient_quantity)
                 session.add(association)

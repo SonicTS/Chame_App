@@ -21,10 +21,12 @@ class Transaction(Base):
         return f"<Transaction(user_id={self.user_id}, amount={self.amount}, type={self.type})>"
     
     def to_dict(self, include_user=False):
+        def _round(val):
+            return round(val, 2) if isinstance(val, float) and val is not None else val
         data = {
             "transaction_id": self.transaction_id,
             "user_id": self.user_id,
-            "amount": self.amount,
+            "amount": _round(self.amount),
             "type": self.type,
             "timestamp": self.timestamp,
         }

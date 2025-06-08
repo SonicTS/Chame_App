@@ -30,12 +30,14 @@ class Sale(Base):
         return f"<Sale(user={self.user.name}, product={self.product.name}, quantity={self.quantity}, total_price={self.total_price}, toast_round={self.toast_round.id if self.toast_round else 'None'})>"
 
     def to_dict(self, include_user=False, include_product=False, include_toast_round=False):
+        def _round(val):
+            return round(val, 2) if isinstance(val, float) and val is not None else val
         data = {
             "sale_id": self.sale_id,
             "user_id": self.user_id,
             "product_id": self.product_id,
             "quantity": self.quantity,
-            "total_price": self.total_price,
+            "total_price": _round(self.total_price),
             "timestamp": self.timestamp,
             "toast_round_id": self.toast_round_id,
         }

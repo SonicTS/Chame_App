@@ -19,13 +19,15 @@ class Bank(Base):
                f"product_value={self.product_value})>"
 
     def to_dict(self):
+        def _round(val):
+            return round(val, 2) if isinstance(val, float) and val is not None else val
         return {
             "account_id": self.account_id,
-            "total_balance": self.total_balance,
-            "available_balance": self.available_balance,
-            "restocking_cost": self.restocking_cost,
-            "profit_balance": self.profit_balance,
-            "ingredient_value": self.ingredient_value,
+            "total_balance": _round(self.total_balance),
+            "available_balance": _round(self.available_balance),
+            "restocking_cost": _round(self.restocking_cost),
+            "profit_balance": _round(self.profit_balance),
+            "ingredient_value": _round(self.ingredient_value),
         }
 
 class BankTransaction(Base):
@@ -41,9 +43,11 @@ class BankTransaction(Base):
         return f"<BankTransaction(id={self.transaction_id}, amount={self.amount}, type={self.type}, timestamp={self.timestamp}, description={self.description})>"
 
     def to_dict(self):
+        def _round(val):
+            return round(val, 2) if isinstance(val, float) and val is not None else val
         return {
             "transaction_id": self.transaction_id,
-            "amount": self.amount,
+            "amount": _round(self.amount),
             "type": self.type,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "description": self.description,

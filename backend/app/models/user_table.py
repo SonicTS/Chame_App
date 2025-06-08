@@ -23,10 +23,12 @@ class User(Base):
         return f"<User(name={self.name}, balance={self.balance}, role={self.role})>"
 
     def to_dict(self, include_sales=False):
+        def _round(val):
+            return round(val, 2) if isinstance(val, float) and val is not None else val
         data = {
             "user_id": self.user_id,
             "name": self.name,
-            "balance": self.balance,
+            "balance": _round(self.balance),
             "role": self.role,
         }
         if include_sales:
