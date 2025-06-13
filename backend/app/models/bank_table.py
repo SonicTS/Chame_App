@@ -8,14 +8,24 @@ class Bank(Base):
     # Enforce a single row by using a constant user_id
     account_id = Column(Integer, primary_key=True, default=1)  # Single row enforced with default 1
     total_balance = Column(Float, default=0.0)
-    available_balance = Column(Float, default=0.0)
-    restocking_cost = Column(Float, default=0.0)
-    profit_balance = Column(Float, default=0.0)
-    ingredient_value = Column(Float, default=0.0)
+    customer_funds = Column(Float, default=0.0)
+    revenue_funds = Column(Float, default=0.0)
+    costs_reserved = Column(Float, default=0.0)
+    profit_retained = Column(Float, default=0.0)
 
+    revenue_total = Column(Float, default=0.0)
+    costs_total = Column(Float, default=0.0)
+    profit_total = Column(Float, default=0.0)
+    
+    product_value = Column(Float, default=0.0)
+    ingredient_value = Column(Float, default=0.0)
+ 
     def __repr__(self):
-        return f"<Bank(user_id={self.user_id}, total_balance={self.total_balance}, " \
-               f"available_balance={self.available_balance}, ingredient_value={self.ingredient_value}, " \
+        return f"<Bank(account_id={self.account_id}, total_balance={self.total_balance}, " \
+               f"customer_funds={self.customer_funds}, revenue_funds={self.revenue_funds}, " \
+               f"costs_reserved={self.costs_reserved}, profit_retained={self.profit_retained}, " \
+               f"revenue_total={self.revenue_total}, costs_total={self.costs_total}, " \
+               f"profit_total={self.profit_total}, ingredient_value={self.ingredient_value}, " \
                f"product_value={self.product_value})>"
 
     def to_dict(self):
@@ -24,9 +34,14 @@ class Bank(Base):
         return {
             "account_id": self.account_id,
             "total_balance": _round(self.total_balance),
-            "available_balance": _round(self.available_balance),
-            "restocking_cost": _round(self.restocking_cost),
-            "profit_balance": _round(self.profit_balance),
+            "customer_funds": _round(self.customer_funds),
+            "revenue_funds": _round(self.revenue_funds),
+            "costs_reserved": _round(self.costs_reserved),
+            "profit_retained": _round(self.profit_retained),
+            "revenue_total": _round(self.revenue_total),
+            "costs_total": _round(self.costs_total),
+            "profit_total": _round(self.profit_total),
+            "product_value": _round(self.product_value),
             "ingredient_value": _round(self.ingredient_value),
         }
 

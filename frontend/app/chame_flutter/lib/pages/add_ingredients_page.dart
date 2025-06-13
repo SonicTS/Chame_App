@@ -19,7 +19,8 @@ Future<String?> addIngredientViaPyBridge({
 }
 
 class AddIngredientsPage extends StatefulWidget {
-  const AddIngredientsPage({super.key});
+  final String? sourceRoute;
+  const AddIngredientsPage({super.key, this.sourceRoute});
 
   @override
   State<AddIngredientsPage> createState() => _AddIngredientsPageState();
@@ -30,7 +31,6 @@ class _AddIngredientsPageState extends State<AddIngredientsPage> {
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
   final _numberIngredientsController = TextEditingController();
-  final _stockController = TextEditingController();
   double _pricePerUnit = 0.0;
   bool _isSubmitting = false;
 
@@ -54,7 +54,6 @@ class _AddIngredientsPageState extends State<AddIngredientsPage> {
     _nameController.dispose();
     _priceController.dispose();
     _numberIngredientsController.dispose();
-    _stockController.dispose();
     super.dispose();
   }
 
@@ -65,7 +64,7 @@ class _AddIngredientsPageState extends State<AddIngredientsPage> {
       name: _nameController.text.trim(),
       price: double.parse(_priceController.text),
       numberIngredients: int.parse(_numberIngredientsController.text),
-      stock: int.tryParse(_stockController.text) ?? 0,
+      stock: 0, // removed stock input, always pass 0
     );
     setState(() => _isSubmitting = false);
     if (error != null) {
@@ -85,7 +84,11 @@ class _AddIngredientsPageState extends State<AddIngredientsPage> {
           content: const Text('Ingredient added successfully!'),
           actions: [TextButton(onPressed: () {
             Navigator.pop(ctx);
-            Navigator.pop(context, true); // Pop and signal reload
+            if (widget.sourceRoute != null) {
+              Navigator.popUntil(context, ModalRoute.withName(widget.sourceRoute!));
+            } else {
+              Navigator.pop(context, true); // Pop and signal reload
+            }
           }, child: const Text('OK'))],
         ),
       );
@@ -93,7 +96,6 @@ class _AddIngredientsPageState extends State<AddIngredientsPage> {
       _nameController.clear();
       _priceController.clear();
       _numberIngredientsController.clear();
-      _stockController.clear();
       setState(() => _pricePerUnit = 0.0);
     }
   }
@@ -102,80 +104,83 @@ class _AddIngredientsPageState extends State<AddIngredientsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Add Ingredient')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Center(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Ingredient Name'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight,
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _priceController,
-                  decoration: const InputDecoration(labelText: 'Price per Package'),
-                  keyboardType: TextInputType.numberWithOptions(decimal: true),
-                  validator: (v) {
-                    final val = double.tryParse(v ?? '');
-                    if (val == null || val < 0) return 'Enter valid price';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _numberIngredientsController,
-                  decoration: const InputDecoration(labelText: 'Ingredients in Package'),
-                  keyboardType: TextInputType.number,
-                  validator: (v) {
-                    final val = int.tryParse(v ?? '');
-                    if (val == null || val <= 0) return 'Enter valid number';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _stockController,
-                  decoration: const InputDecoration(labelText: 'Stock'),
-                  keyboardType: TextInputType.number,
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return null;
-                    final val = int.tryParse(v);
-                    if (val == null || val < 0) return 'Enter valid stock';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submit,
-                  child: _isSubmitting
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Add Ingredient'),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('Price per Unit:', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 8),
-                    Container(
-                      margin: const EdgeInsets.only(top: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(_pricePerUnit.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold)),
+                child: Center(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextFormField(
+                          controller: _nameController,
+                          decoration: const InputDecoration(labelText: 'Ingredient Name'),
+                          validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _priceController,
+                          decoration: const InputDecoration(labelText: 'Price per Package'),
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          validator: (v) {
+                            final val = double.tryParse(v ?? '');
+                            if (val == null || val < 0) return 'Enter valid price';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _numberIngredientsController,
+                          decoration: const InputDecoration(labelText: 'Ingredients in Package'),
+                          keyboardType: TextInputType.number,
+                          validator: (v) {
+                            final val = int.tryParse(v ?? '');
+                            if (val == null || val <= 0) return 'Enter valid number';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: _isSubmitting ? null : _submit,
+                          child: _isSubmitting
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Text('Add Ingredient'),
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text('Price per Unit:', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(width: 8),
+                            Container(
+                              margin: const EdgeInsets.only(top: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[200],
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                _pricePerUnit.toStringAsFixed(2),
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );

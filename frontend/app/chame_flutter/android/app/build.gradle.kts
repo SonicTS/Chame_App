@@ -94,6 +94,8 @@ chaquopy {
         pip {
             // A requirement specifier, with or without a version number:
             install("sqlalchemy")
+            install("passlib")
+            install("argon2-cffi")
         }
     }
 }

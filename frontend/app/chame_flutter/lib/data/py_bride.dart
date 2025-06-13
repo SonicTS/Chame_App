@@ -1,5 +1,6 @@
 // lib/data/py_bridge.dart
 import 'dart:convert';
+import 'dart:ffi';
 import 'package:flutter/services.dart';
 
 class PyBridge {
@@ -22,6 +23,45 @@ class PyBridge {
       rethrow;
     }
   }
+
+  Future<void> changePassword({
+    required String user_id,
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('change_password', {
+        'user_id': int.parse(user_id),
+        'old_password': oldPassword,
+        'new_password': newPassword,
+      });
+    } catch (e, stack) {
+      print('Error in changePassword: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>?> login({
+    required String username,
+    required String password,
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('login', {
+        'user': username,
+        'password': password,
+      });
+      if (result == null || result == 'null') return null;
+      return jsonDecode(result as String) as Map<String, dynamic>;
+    } catch (e, stack) {
+      print('Error in login: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      if (e is PlatformException && e.message != null) {
+        throw Exception(e.message);
+      }
+      throw Exception('Login failed: $e');
+    }
+  }
+
+
 
   Future<String?> addIngredient({
     required String name,
@@ -49,12 +89,14 @@ class PyBridge {
     required String name,
     required double balance,
     required String role,
+    required String? password,
   }) async {
     try {
       await _chan.invokeMethod('add_user', {
         'name': name,
         'balance': balance,
         'role': role,
+        'password': password,
       });
       return null;
     } catch (e) {
@@ -289,6 +331,18 @@ class PyBridge {
     } catch (e, stack) {
       print('Error in getBankTransaction: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
       rethrow;
+    }
+  }
+
+  Future<String?> restockIngredients(List<Map<String, dynamic>> restocks) async {
+    // restocks: [{ 'name': ..., 'restock': ... }, ...]
+    try {
+      await _chan.invokeMethod('restock_ingredients', {
+        'restocks': jsonEncode(restocks),
+      });
+      return null;
+    } catch (e) {
+      return e.toString();
     }
   }
 }

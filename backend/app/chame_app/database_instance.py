@@ -23,10 +23,15 @@ class Database:
         self.session = get_session()
         bank = self.session.query(Bank).filter_by(account_id=1).first()
         if not bank:
-            bank = Bank(total_balance=0.0, available_balance=0.0, ingredient_value=0.0, restocking_cost=0.0, profit_balance=0.0)
+            bank = Bank()
             self.session.add(bank)
             self.session.commit()
             self.session.refresh(bank)
+        if not self.session.query(User).filter_by(role="admin").first():
+            admin_user = User(name="admin", balance=0, password_hash="password", role="admin")
+            self.session.add(admin_user)
+            self.session.commit()
+            self.session.refresh(admin_user)
         for product in self.session.query(Product).all():
             product.update_stock()
         self.session.close()
@@ -37,19 +42,40 @@ class Database:
             return self.session
         except Exception as e:
             raise RuntimeError(f"get_session failed: {e}") from e
+        
+    def get_user_by_username(self, username: str, session=None) -> Optional[User]:
+        """Get a user by username."""
+        close_session = False
+        if session is None:
+            session = self.get_session()
+            close_session = True
+        try:
+            user = session.query(User).options(
+                joinedload(User.sales)
+            ).filter(User.name == username).first()
+            if not user:
+                raise ValueError(f"{USER_NOT_FOUND_MSG} (username={username})")
+            return user
+        except Exception as e:
+            raise RuntimeError(f"get_user_by_username failed for username={username}: {e}") from e
+        finally:
+            if close_session:
+                session.close()
 
-    def change_password(self, user_id: int, new_password: str, session=None):
+    def change_password(self, user_id: int, old_password: str, new_password: str, session=None):
         close_session = False
         user_name = "404"
         try:
             if session is None:
                 session = self.get_session()
                 close_session = True
-            user = session.query(User).filter(User.id == user_id).first()
+            user = self.get_user_by_id(user_id, session)
             if not user:
                 raise ValueError(f"{USER_NOT_FOUND_MSG} (user_id={user_id})")
-            user_name = user.name
-            user.password_hash = new_password
+            if user.verify_password(old_password):
+                user.password_hash = user.hash_password(new_password)
+            else:
+                raise ValueError("Old password is incorrect")
             if close_session:
                 session.commit()
                 session.refresh(user)
@@ -85,6 +111,7 @@ class Database:
             if stock > 0:
                 bank = self.get_bank(session)
                 bank.ingredient_value += price_per_unit * stock
+                bank.costs_total += price_per_unit * stock
             session.add(ingredient)
             if close_session:
                 session.commit()
@@ -97,7 +124,54 @@ class Database:
                     session.close()
             raise RuntimeError(f"add_ingredient failed for ingredient={name}: {e}") from e
 
-    def stock_ingredient(self, ingredient_id: int, quantity: int, session=None):
+    def restock_ingredients(self, _list: List[dict[int, int]], session=None):
+        close_session = False
+        try:
+            if session is None:
+                session = self.get_session()
+                close_session = True
+            if not _list or not isinstance(_list, list):
+                raise ValueError("Invalid input: _list must be a non-empty list")
+            total_cost = 0.0
+            for item in _list:
+                print(f"DEBUG: Restocking item: {item}")
+                if not isinstance(item, dict) or 'id' not in item or 'restock' not in item:
+                    raise ValueError("Invalid input: each item must be a dictionary with 'id' and 'restock' keys")
+                ingredient_id = item['id']
+                quantity = item['restock']
+                total_cost += self.stock_ingredient(ingredient_id, quantity, session=session)
+            
+            bank = self.get_bank(session)
+            if bank.total_balance < total_cost:
+                raise ValueError(f"Insufficient balance {bank.total_balance}")
+            bank.total_balance -= total_cost
+            if bank.revenue_funds < total_cost:
+                print("DEBUG: Not enough revenue funds, draining customer_funds")
+                bank.revenue_funds -= total_cost
+                bank.profit_retained = 0
+                bank.costs_reserved = 0
+            elif bank.costs_reserved < total_cost:
+                # Assuming first draining cost_reserves, then profit_retained
+                bank.profit_retained -= (total_cost - bank.costs_reserved)
+                bank.costs_reserved = 0
+                bank.revenue_funds -= total_cost
+            else:
+                bank.costs_reserved -= total_cost
+                bank.revenue_funds -= total_cost
+            bank.profit_total = bank.revenue_total - bank.costs_total
+            transaction = BankTransaction(amount=total_cost, type="withdraw", description="restock ingredients")
+            session.add(transaction)
+            if close_session:
+                session.commit()
+                session.close()
+        except Exception as e:
+            if session:
+                session.rollback()
+                if close_session:
+                    session.close()
+            raise RuntimeError(f"restock_ingredients failed: {e}") from e
+
+    def stock_ingredient(self, ingredient_id: int, quantity: int, session=None) -> float:
         close_session = False
         ingredient_name = "404"
         try:
@@ -110,6 +184,7 @@ class Database:
             quantity = quantity * ingredient.number_of_units
             ingredient.stock_quantity += quantity
             bank = self.get_bank(session)
+            bank.costs_total += ingredient.price_per_unit * quantity
             bank.ingredient_value += ingredient.price_per_unit * quantity
             for product_assoc in ingredient.ingredient_products:
                 product = product_assoc.product
@@ -122,6 +197,7 @@ class Database:
                 session.commit()
                 session.refresh(ingredient)
                 session.close()
+            return ingredient.price_per_unit * quantity
         except Exception as e:
             if session:
                 session.rollback()
@@ -151,7 +227,7 @@ class Database:
                 toaster_space = 0
             cost_per_unit = 0.0
             for ingredient_obj, quantity in ingredients:
-                ingredient_quantity = float(quantity)
+                ingredient_quantity = extend_float_precision(float(quantity))
                 if ingredient_quantity <= 0:
                     raise ValueError(f"Ingredient quantity must be greater than 0 (ingredient={ingredient_obj.name})")
                 cost_per_unit += ingredient_obj.price_per_unit * ingredient_quantity
@@ -161,7 +237,7 @@ class Database:
             session.add(product)
             session.flush()
             for ingredient_obj, quantity in ingredients:
-                ingredient_quantity = float(quantity)
+                ingredient_quantity = extend_float_precision(float(quantity))
                 existing_ingredient = self.get_ingredient_by_id(ingredient_obj.ingredient_id, session)
                 association = ProductIngredient(product=product, ingredient=existing_ingredient, ingredient_quantity=ingredient_quantity)
                 session.add(association)
@@ -186,9 +262,10 @@ class Database:
             if username == "bank":
                 raise ValueError("Username 'bank' is reserved and cannot be used")
             balance = float(balance)
-            user = User(name=username, balance=balance, password_hash=password, role=role)
+            user = User(name=username, balance=balance, password_hash=password, role=role.lower())
             bank = self.get_bank(session)
             bank.total_balance += balance
+            bank.customer_funds += balance
             session.add(user)
             session.flush()
             if balance > 0:
@@ -250,9 +327,17 @@ class Database:
                 raise ValueError(f"Insufficient balance: {user.balance}")
             purchase = Sale(user_id=user_id, product_id=product_id, quantity=quantity, total_price=total_cost, timestamp=datetime.datetime.now(), toast_round_id=toast_round_id)
             user.balance -= total_cost
-            bank.available_balance += total_cost
-            bank.restocking_cost += total_cost - product.profit_per_unit * quantity
-            bank.profit_balance += product.profit_per_unit * quantity
+            bank.customer_funds -= total_cost
+            bank.revenue_total += total_cost
+            if bank.revenue_funds < 0 and total_cost > abs(bank.revenue_funds):
+                if product.cost_per_unit * quantity >= bank.revenue_funds + total_cost:
+                    bank.costs_reserved = bank.revenue_funds + total_cost
+                    bank.profit_total = 0
+                else:
+                    bank.costs_reserved = product.cost_per_unit * quantity
+                    bank.profit_retained = bank.revenue_funds + total_cost - bank.costs_reserved
+            bank.revenue_funds += total_cost
+            bank.profit_total = bank.revenue_total - bank.costs_total
             session.add(purchase)
             if close_session:
                 session.commit()
@@ -279,6 +364,7 @@ class Database:
             amount = float(amount)
             user.balance += amount
             bank.total_balance += amount
+            bank.customer_funds += amount
             transaction = Transaction(user_id=user_id, amount=amount, type="deposit", timestamp=datetime.datetime.now())
             session.add(transaction)
             if close_session:
@@ -309,6 +395,7 @@ class Database:
                 raise ValueError(f"Insufficient balance {user.balance}")
             user.balance -= amount
             bank.total_balance -= amount
+            bank.customer_funds -= amount
             transaction = Transaction(user_id=user_id, amount=amount, type="withdraw", timestamp=datetime.datetime.now())
             session.add(transaction)
             if close_session:
@@ -332,15 +419,24 @@ class Database:
             amount = float(amount)
             if amount <= 0:
                 raise ValueError("Amount must be greater than 0 ")
-            if bank.available_balance < amount:
-                raise ValueError(f"Insufficient balance {bank.available_balance}")
+            if bank.total_balance < amount:
+                raise ValueError(f"Insufficient balance {bank.total_balance}")
             bank.total_balance -= amount
-            bank.available_balance -= amount
-            if bank.restocking_cost < amount:
-                bank.profit_balance -= (amount - bank.restocking_cost)
-                bank.restocking_cost = 0
+            if bank.revenue_funds < amount:
+                print("DEBUG: Not enough revenue funds, draining customer_funds")
+                bank.revenue_funds -= amount
+                bank.profit_retained = 0
+                bank.costs_reserved = 0
+            elif bank.costs_reserved < amount:
+                # Assuming first draining cost_reserves, then profit_retained
+                bank.profit_retained -= (amount - bank.costs_reserved)
+                bank.costs_reserved = 0
+                bank.revenue_funds -= amount
             else:
-                bank.restocking_cost -= amount
+                bank.costs_reserved -= amount
+                bank.revenue_funds -= amount
+            bank.costs_total += amount
+            bank.profit_total = bank.revenue_total - bank.costs_total
             transaction = BankTransaction(amount=amount, type="withdraw", description=description)
             session.add(transaction)
             if close_session:
@@ -702,6 +798,22 @@ class Database:
         finally:
             if close_session:
                 session.close()
+
+def extend_float_precision(value: float, precision: int = 16) -> float:
+    """
+    Extends the last digit of a float's decimal part to the specified precision.
+    E.g., 0.33 -> 0.3333333333333333
+    """
+    s = str(value)
+    if '.' not in s:
+        return value
+    int_part, dec_part = s.split('.')
+    if len(dec_part) <= 1:
+        return value
+    last_digit = dec_part[-1]
+    extended_dec = dec_part + last_digit * (precision - len(dec_part))
+    extended_str = f"{int_part}.{extended_dec[:precision]}"
+    return float(extended_str)
 
 
 #database = Database()

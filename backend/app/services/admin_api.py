@@ -4,6 +4,7 @@
 from models.ingredient import Ingredient
 from chame_app.database_instance import Database
 import logging
+from typing import Dict, List
 
 database = None
 
@@ -16,11 +17,37 @@ def create_database():
         logging.warning("Database instance already exists.")
     return database
 
+def login(username, password):
+    if not username or not password:
+        raise ValueError("Username and password cannot be empty")
+    user = database.get_user_by_username(username)
+    if user and user.verify_password(password):
+        return user.to_dict(True)
+    else:
+        raise ValueError("Invalid username or password")
+
+def change_password(user_id, old_password, new_password):
+    if not user_id or not old_password or not new_password:
+        raise ValueError("Invalid input")
+    return database.change_password(user_id, old_password, new_password)
+
+
+
 # User management
-def add_user(name, balance, role):
+def add_user(name, balance, role, password=""):
+    print("DEBUG: add_user called with:", name, balance, role, password)
     if not name or balance is None or not role:
         raise ValueError("Invalid input")
-    return database.add_user(username=name, password="", balance=balance, role=role)
+    if role.lower() in ["admin", "wirt"] and password:
+        if role.lower() == "admin" and len(password) < 8:
+            raise ValueError("Admin password must be at least 8 characters long")
+        if role.lower() == "wirt" and len(password) < 4:    
+            raise ValueError("Wirt password must be at least 4 characters long")
+    elif role.lower() in ["admin", "wirt"] and not password:
+        raise ValueError("Wirt or admin role requires a password")
+    if role.lower() not in ["user", "admin", "wirt"]:
+        raise ValueError("Role must be 'user', 'admin', or 'wirt'")
+    return database.add_user(username=name, password=password, balance=balance, role=role.lower())
 
 def withdraw(user_id, amount):
     if not user_id or not amount:
@@ -43,10 +70,19 @@ def add_product(name, category, price, ingredients_ids, quantities, toaster_spac
 # Ingredient management
 def add_ingredient(name, price_per_package, stock_quantity, number_ingredients):
     print("DEBUG: add_ingredient called with:", name, price_per_package, stock_quantity, number_ingredients)
-    if not name or not price_per_package or not stock_quantity or not number_ingredients:
+    if not name or not price_per_package or not number_ingredients:
         print("DEBUG: Invalid input for add_ingredient")
         raise ValueError("Invalid input")
+    if not isinstance(stock_quantity, int) or stock_quantity < 0:
+        stock_quantity = 0  # Default to 0 if invalid
     return database.add_ingredient(name=name, price_per_package=price_per_package, stock_quantity=stock_quantity, number_ingredients=number_ingredients)
+
+def restock_ingredients(_list: List[Dict[int, int]]):
+    if not _list or not isinstance(_list, list):
+        raise ValueError("Invalid input")
+    print("DEBUG: restock_ingredients called with:", _list)
+    return database.restock_ingredients(_list=_list)
+
 
 def restock_ingredient(ingredient_id, quantity):
     if not ingredient_id or not quantity:
@@ -83,8 +119,8 @@ def get_all_products():
 
 def get_all_ingredients():
     result = [ingredient.to_dict(True) for ingredient in database.get_all_ingredients(eager_load=True)]
-    print("DEBUG get_all_ingredients result:", result)
-    print("DEBUG types:", [type(x) for x in result])
+    # print("DEBUG get_all_ingredients result:", result)
+    # print("DEBUG types:", [type(x) for x in result])
     if len(result) == 0:
         print("DEBUG: No ingredients found in the database.")
         return None

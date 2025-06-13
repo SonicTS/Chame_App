@@ -139,184 +139,196 @@ class _ToastRoundPageState extends State<ToastRoundPage> {
 
   // ────────────────────────── build ──────────────────────────
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Toast Round')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Toast Round', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-              FutureBuilder<List<Map<String, dynamic>>>(
-                future: _usersFuture,
-                builder: (ctx, userSnap) {
-                  if (userSnap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                  final users = userSnap.data ?? [];
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(title: const Text('Toast Round')),
+    body: SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.all(16),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Toast Round', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                  FutureBuilder<List<Map<String, dynamic>>>(
+                    future: _usersFuture,
+                    builder: (ctx, userSnap) {
+                      if (userSnap.connectionState == ConnectionState.waiting)
+                        return const Center(child: CircularProgressIndicator());
+                      final users = userSnap.data ?? [];
 
-                  return FutureBuilder<List<Map<String, dynamic>>>(
-                    future: _productsFuture,
-                    builder: (ctx, prodSnap) {
-                      if (prodSnap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                      final products = prodSnap.data ?? [];
+                      return FutureBuilder<List<Map<String, dynamic>>>(
+                        future: _productsFuture,
+                        builder: (ctx, prodSnap) {
+                          if (prodSnap.connectionState == ConnectionState.waiting)
+                            return const Center(child: CircularProgressIndicator());
+                          final products = prodSnap.data ?? [];
 
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // ── global selectors ──
-                          Row(
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              SizedBox(
-                                width: 180,
-                                child: _dropdownUser(
-                                  label: 'Global User',
-                                  users: users,
-                                  selectedId: _globalUserId,
-                                  onChanged: (id) => _applyGlobalUserSelection(id),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              SizedBox(
-                                width: 180,
-                                child: _dropdownProduct(
-                                  label: 'Global Product',
-                                  products: products,
-                                  selectedId: _globalProductId,
-                                  onChanged: (id) => _applyGlobalProductSelection(id, products),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-
-                          // ── 6 editable rows ──
-                          ...List.generate(6, (i) {
-                            final occupied = _isOccupiedSlot(_selectedProductIds[i]);
-                            return SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
+                              // ── global selectors ──
+                              Row(
                                 children: [
-                                  const Text('User:'), const SizedBox(width: 8),
                                   SizedBox(
-                                    width: 160,
-                                    child: occupied
-                                        ? _occupiedLabel()
-                                        : _dropdownUser(
-                                            label: 'User',
-                                            users: users,
-                                            selectedId: _selectedUserIds[i],
-                                            onChanged: (id) => setState(() => _selectedUserIds[i] = id),
-                                          ),
+                                    width: 180,
+                                    child: _dropdownUser(
+                                      label: 'Global User',
+                                      users: users,
+                                      selectedId: _globalUserId,
+                                      onChanged: (id) => _applyGlobalUserSelection(id),
+                                    ),
                                   ),
                                   const SizedBox(width: 16),
-                                  const Text('Product:'), const SizedBox(width: 8),
                                   SizedBox(
-                                    width: 160,
-                                    child: occupied
-                                        ? _occupiedLabel()
-                                        : _dropdownProduct(
-                                            label: 'Product',
-                                            products: products,
-                                            selectedId: _selectedProductIds[i],
-                                            onChanged: (newPid) {
-                                              setState(() {
-                                                // 1. Update the product selection for this row
-                                                _selectedProductIds[i] = newPid;
-                                                // 2. Clear all OCCUPIED slots and user assignments
-                                                for (var j = 0; j < 6; j++) {
-                                                  if (_selectedProductIds[j] == _OCCUPIED) _selectedProductIds[j] = null;
-                                                  if (_selectedUserIds[j] == null || _isOccupiedSlot(_selectedProductIds[j])) _selectedUserIds[j] = null;
-                                                }
-                                                // 3. Re-apply all product blocks in order
-                                                int idx = 0;
-                                                while (idx < 6) {
-                                                  final pid = _selectedProductIds[idx];
-                                                  if (pid != null && pid != _OCCUPIED) {
-                                                    final len = _getToasterSpace(pid, products);
-                                                    // If not enough space, clear this selection
-                                                    if (idx + len > 6) {
-                                                      _selectedProductIds[idx] = null;
-                                                      _selectedUserIds[idx] = null;
-                                                      idx++;
-                                                      continue;
-                                                    }
-                                                    // Mark followers as OCCUPIED
-                                                    for (var k = 1; k < len; k++) {
-                                                      _selectedProductIds[idx + k] = _OCCUPIED;
-                                                      _selectedUserIds[idx + k] = null;
-                                                    }
-                                                    idx += len;
-                                                  } else {
-                                                    idx++;
-                                                  }
-                                                }
-                                              });
-                                            },
-                                          ),
+                                    width: 180,
+                                    child: _dropdownProduct(
+                                      label: 'Global Product',
+                                      products: products,
+                                      selectedId: _globalProductId,
+                                      onChanged: (id) => _applyGlobalProductSelection(id, products),
+                                    ),
                                   ),
                                 ],
                               ),
-                            );
-                          }),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: _isSubmitting ? null : _submit,
-                            child: _isSubmitting
-                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                                : const Text('Submit'),
-                          ),
-                          const SizedBox(height: 24),
+                              const SizedBox(height: 16),
 
-                          // ── history table ──
-                          const Text('Toast Round History', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                          SizedBox(
-                            height: 300,
-                            child: FutureBuilder<List<Map<String, dynamic>>>(
-                              future: _toastRoundsFuture,
-                              builder: (ctx, snap) {
-                                if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                                final rounds = snap.data ?? [];
-                                if (rounds.isEmpty) return const Text('No toast rounds found.');
+                              // ── 6 editable rows ──
+                              ...List.generate(6, (i) {
+                                final occupied = _isOccupiedSlot(_selectedProductIds[i]);
                                 return SingleChildScrollView(
                                   scrollDirection: Axis.horizontal,
-                                  child: DataTable(
-                                    columns: const [
-                                      DataColumn(label: Text('Toast-Consumer')),
-                                      DataColumn(label: Text('Time')),
+                                  child: Row(
+                                    children: [
+                                      const Text('User:'), const SizedBox(width: 8),
+                                      SizedBox(
+                                        width: 160,
+                                        child: occupied
+                                            ? _occupiedLabel()
+                                            : _dropdownUser(
+                                                label: 'User',
+                                                users: users,
+                                                selectedId: _selectedUserIds[i],
+                                                onChanged: (id) => setState(() => _selectedUserIds[i] = id),
+                                              ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      const Text('Product:'), const SizedBox(width: 8),
+                                      SizedBox(
+                                        width: 160,
+                                        child: occupied
+                                            ? _occupiedLabel()
+                                            : _dropdownProduct(
+                                                label: 'Product',
+                                                products: products,
+                                                selectedId: _selectedProductIds[i],
+                                                onChanged: (newPid) {
+                                                  setState(() {
+                                                    // 1. Update the product selection for this row
+                                                    _selectedProductIds[i] = newPid;
+                                                    // 2. Clear all OCCUPIED slots and user assignments
+                                                    for (var j = 0; j < 6; j++) {
+                                                      if (_selectedProductIds[j] == _OCCUPIED) _selectedProductIds[j] = null;
+                                                      if (_selectedUserIds[j] == null || _isOccupiedSlot(_selectedProductIds[j])) _selectedUserIds[j] = null;
+                                                    }
+                                                    // 3. Re-apply all product blocks in order
+                                                    int idx = 0;
+                                                    while (idx < 6) {
+                                                      final pid = _selectedProductIds[idx];
+                                                      if (pid != null && pid != _OCCUPIED) {
+                                                        final len = _getToasterSpace(pid, products);
+                                                        // If not enough space, clear this selection
+                                                        if (idx + len > 6) {
+                                                          _selectedProductIds[idx] = null;
+                                                          _selectedUserIds[idx] = null;
+                                                          idx++;
+                                                          continue;
+                                                        }
+                                                        // Mark followers as OCCUPIED
+                                                        for (var k = 1; k < len; k++) {
+                                                          _selectedProductIds[idx + k] = _OCCUPIED;
+                                                          _selectedUserIds[idx + k] = null;
+                                                        }
+                                                        idx += len;
+                                                      } else {
+                                                        idx++;
+                                                      }
+                                                    }
+                                                  });
+                                                },
+                                              ),
+                                      ),
                                     ],
-                                    rows: rounds.map((round) {
-                                      final sales = (round['sales'] as List?) ?? [];
-                                      final summary = sales.map((s) {
-                                        // Debug: show raw structure if missing
-                                        final userField = s['user'];
-                                        final productField = s['product'];
-                                        final user = userField is Map && userField['name'] != null ? userField['name'] : userField?.toString() ?? '';
-                                        final product = productField is Map && productField['name'] != null ? productField['name'] : productField?.toString() ?? '';
-                                        return '[$user: $product]';
-                                      }).join(', ');
-                                      return DataRow(cells: [
-                                        DataCell(Text(summary)),
-                                        DataCell(Text(round['date_time']?.toString() ?? '')),
-                                      ]);
-                                    }).toList(),
                                   ),
                                 );
-                              },
-                            ),
-                          ),
-                        ],
+                              }),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: _isSubmitting ? null : _submit,
+                                child: _isSubmitting
+                                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                    : const Text('Submit'),
+                              ),
+                              const SizedBox(height: 24),
+
+                              // ── history table ──
+                              const Text('Toast Round History', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                              SizedBox(
+                                height: 300,
+                                child: FutureBuilder<List<Map<String, dynamic>>>(
+                                  future: _toastRoundsFuture,
+                                  builder: (ctx, snap) {
+                                    if (snap.connectionState == ConnectionState.waiting)
+                                      return const Center(child: CircularProgressIndicator());
+                                    final rounds = snap.data ?? [];
+                                    if (rounds.isEmpty) return const Text('No toast rounds found.');
+                                    return SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: DataTable(
+                                        columns: const [
+                                          DataColumn(label: Text('Toast-Consumer')),
+                                          DataColumn(label: Text('Time')),
+                                        ],
+                                        rows: rounds.map((round) {
+                                          final sales = (round['sales'] as List?) ?? [];
+                                          final summary = sales.map((s) {
+                                            // Debug: show raw structure if missing
+                                            final userField = s['user'];
+                                            final productField = s['product'];
+                                            final user = userField is Map && userField['name'] != null ? userField['name'] : userField?.toString() ?? '';
+                                            final product = productField is Map && productField['name'] != null ? productField['name'] : productField?.toString() ?? '';
+                                            return '[$user: $product]';
+                                          }).join(', ');
+                                          return DataRow(cells: [
+                                            DataCell(Text(summary)),
+                                            DataCell(Text(round['date_time']?.toString() ?? '')),
+                                          ]);
+                                        }).toList(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       );
                     },
-                  );
-                },
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
-    );
-  }
+    ),
+  );
+}
+
 
   // ────────────────────────── tiny widget helpers ──────────────────────────
   Widget _occupiedLabel() =>

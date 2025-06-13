@@ -95,6 +95,10 @@ class MainActivity : FlutterActivity() {
                         val name = call.argument<String>("name")
                         val balance = call.argument<Number>("balance")
                         val role = call.argument<String>("role")
+                        var password = call.argument<String>("password")
+                        if (password == null) {
+                            password = "" // Set a default password if none provided
+                        }
                         if (name == null || balance == null || role == null) {
                             result.error("ARGUMENT_ERROR", "Missing argument for add_user", null)
                             return@setMethodCallHandler
@@ -103,7 +107,8 @@ class MainActivity : FlutterActivity() {
                             "add_user",
                             name,
                             balance.toDouble(),
-                            role
+                            role,
+                            password
                         )
                         result.success(null)
                     } catch (e: Exception) {
@@ -395,8 +400,72 @@ class MainActivity : FlutterActivity() {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
                     }
                 }
+                "restock_ingredients" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val restocksJson = call.argument<String>("restocks")
+                        if (restocksJson == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for restock_ingredients", null)
+                            return@setMethodCallHandler
+                        }
+                        val json = py.getModule("json")
+                        val restocksList = json.callAttr("loads", restocksJson)
+                        // Each item: {"id": ..., "restock": ...}
+                        pyModule.callAttr("restock_ingredients", restocksList)
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "login" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val user = call.argument<String>("user")
+                        val password = call.argument<String>("password")
+                        if (user == null || password == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for login", null)
+                            return@setMethodCallHandler
+                        }
+                        val pyResult = pyModule.callAttr("login", user, password)
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "change_password" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val user_id = call.argument<Integer>("user_id")
+                        val oldPassword = call.argument<String>("old_password")
+                        val newPassword = call.argument<String>("new_password")
+                        if (oldPassword == null || newPassword == null || user_id == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for change_password", null)
+                            return@setMethodCallHandler
+                        }
+                        pyModule.callAttr("change_password", user_id, oldPassword, newPassword)
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
                 else -> result.notImplemented()
             }
+            
         }
     }
 }

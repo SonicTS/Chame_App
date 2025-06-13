@@ -140,145 +140,157 @@ class _AddProductPageState extends State<AddProductPage> {
       appBar: AppBar(title: const Text('Add Product')),
       body: _ingredients.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextFormField(
-                      controller: _nameController,
-                      decoration: const InputDecoration(labelText: 'Product Name'),
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        const Text('Category:'),
-                        const SizedBox(width: 12),
-                        DropdownButton<String>(
-                          value: _category,
-                          items: const [
-                            DropdownMenuItem(value: 'raw', child: Text('Raw')),
-                            DropdownMenuItem(value: 'toast', child: Text('Toast')),
-                          ],
-                          onChanged: (val) {
-                            setState(() {
-                              _category = val!;
-                            });
-                          },
-                        ),
-                        if (_category == 'toast') ...[
-                          const SizedBox(width: 24),
-                          SizedBox(
-                            width: 120,
-                            child: TextFormField(
-                              decoration: const InputDecoration(labelText: 'Toaster Space'),
-                              keyboardType: TextInputType.number,
-                              onChanged: (v) => _toasterSpace = int.tryParse(v),
+          : SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(24.0),
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextFormField(
+                              controller: _nameController,
+                              decoration: const InputDecoration(labelText: 'Product Name'),
+                              validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                const Text('Category:'),
+                                const SizedBox(width: 12),
+                                DropdownButton<String>(
+                                  value: _category,
+                                  items: const [
+                                    DropdownMenuItem(value: 'raw', child: Text('Raw')),
+                                    DropdownMenuItem(value: 'toast', child: Text('Toast')),
+                                  ],
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _category = val!;
+                                    });
+                                  },
+                                ),
+                                if (_category == 'toast') ...[
+                                  const SizedBox(width: 24),
+                                  SizedBox(
+                                    width: 120,
+                                    child: TextFormField(
+                                      decoration: const InputDecoration(labelText: 'Toaster Space'),
+                                      keyboardType: TextInputType.number,
+                                      onChanged: (v) => _toasterSpace = int.tryParse(v),
+                                      validator: (v) {
+                                        if (_category == 'toast') {
+                                          final val = int.tryParse(v ?? '');
+                                          if (val == null || val < 1) return 'Enter valid space';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _priceController,
+                              decoration: const InputDecoration(labelText: 'Price per Unit'),
+                              keyboardType: TextInputType.numberWithOptions(decimal: true),
                               validator: (v) {
-                                if (_category == 'toast') {
-                                  final val = int.tryParse(v ?? '');
-                                  if (val == null || val < 1) return 'Enter valid space';
-                                }
+                                final val = double.tryParse(v ?? '');
+                                if (val == null || val < 0) return 'Enter valid price';
                                 return null;
                               },
                             ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _priceController,
-                      decoration: const InputDecoration(labelText: 'Price per Unit'),
-                      keyboardType: TextInputType.numberWithOptions(decimal: true),
-                      validator: (v) {
-                        final val = double.tryParse(v ?? '');
-                        if (val == null || val < 0) return 'Enter valid price';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    const Text('Select Ingredients', style: TextStyle(fontWeight: FontWeight.bold)),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 220,
-                            child: DropdownSearch<Map<String, dynamic>>(
-                              items: (String? filter, _) {
-                                final filtered = filter == null || filter.isEmpty
-                                    ? _ingredients
-                                    : _ingredients.where((i) => (i['name'] ?? '').toLowerCase().contains(filter.toLowerCase())).toList();
-                                return Future.value(filtered);
-                              },
-                              selectedItem: _ingredients.firstWhereOrNull((i) => i['ingredient_id'] == _ingredientId),
-                              itemAsString: (i) => i['name'] ?? '',
-                              compareFn: (a, b) => a['ingredient_id'] == b['ingredient_id'],
-                              onChanged: (val) => setState(() => _ingredientId = val?['ingredient_id'] as int?),
-                              popupProps: const PopupProps.menu(
-                                showSearchBox: true,
-                              ),
-                              decoratorProps: const DropDownDecoratorProps(
-                                decoration: InputDecoration(labelText: 'Ingredient'),
+                            const SizedBox(height: 20),
+                            const Text('Select Ingredients', style: TextStyle(fontWeight: FontWeight.bold)),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 220,
+                                    child: DropdownSearch<Map<String, dynamic>>(
+                                      items: (String? filter, _) {
+                                        final filtered = filter == null || filter.isEmpty
+                                            ? _ingredients
+                                            : _ingredients.where((i) => (i['name'] ?? '').toLowerCase().contains(filter.toLowerCase())).toList();
+                                        return Future.value(filtered);
+                                      },
+                                      selectedItem: _ingredients.firstWhereOrNull((i) => i['ingredient_id'] == _ingredientId),
+                                      itemAsString: (i) => i['name'] ?? '',
+                                      compareFn: (a, b) => a['ingredient_id'] == b['ingredient_id'],
+                                      onChanged: (val) => setState(() => _ingredientId = val?['ingredient_id'] as int?),
+                                      popupProps: const PopupProps.menu(
+                                        showSearchBox: true,
+                                      ),
+                                      decoratorProps: const DropDownDecoratorProps(
+                                        decoration: InputDecoration(labelText: 'Ingredient'),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  SizedBox(
+                                    width: 80,
+                                    child: TextFormField(
+                                      decoration: const InputDecoration(labelText: 'Quantity'),
+                                      keyboardType: TextInputType.number,
+                                      onChanged: (v) => _ingredientQty = double.tryParse(v),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  ElevatedButton(
+                                    onPressed: _addIngredient,
+                                    child: const Text('Add Ingredient'),
+                                  ),
+                                  const SizedBox(width: 24),
+                                  Text('Current Cost: ${_currentCost.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                ],
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          SizedBox(
-                            width: 80,
-                            child: TextFormField(
-                              decoration: const InputDecoration(labelText: 'Quantity'),
-                              keyboardType: TextInputType.number,
-                              onChanged: (v) => _ingredientQty = double.tryParse(v),
+                            const SizedBox(height: 12),
+                            const Text('Selected Ingredients', style: TextStyle(fontWeight: FontWeight.bold)),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: DataTable(
+                                columns: const [
+                                  DataColumn(label: Text('Ingredient')),
+                                  DataColumn(label: Text('Quantity')),
+                                  DataColumn(label: Text('Action')),
+                                ],
+                                rows: _selectedIngredients.map((i) {
+                                  return DataRow(cells: [
+                                    DataCell(Text(i.name)),
+                                    DataCell(Text(i.quantity.toString())),
+                                    DataCell(IconButton(
+                                      icon: const Icon(Icons.delete),
+                                      onPressed: () => _removeIngredient(i.ingredientId),
+                                    )),
+                                  ]);
+                                }).toList(),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          ElevatedButton(
-                            onPressed: _addIngredient,
-                            child: const Text('Add Ingredient'),
-                          ),
-                          const SizedBox(width: 24),
-                          Text('Current Cost: ${_currentCost.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                        ],
+                            const SizedBox(height: 24),
+                            Center(
+                              child: ElevatedButton(
+                                onPressed: _isSubmitting ? null : _submit,
+                                child: _isSubmitting
+                                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                    : const Text('Add Product'),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    const Text('Selected Ingredients', style: TextStyle(fontWeight: FontWeight.bold)),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: DataTable(
-                        columns: const [
-                          DataColumn(label: Text('Ingredient')),
-                          DataColumn(label: Text('Quantity')),
-                          DataColumn(label: Text('Action')),
-                        ],
-                        rows: _selectedIngredients.map((i) {
-                          return DataRow(cells: [
-                            DataCell(Text(i.name)),
-                            DataCell(Text(i.quantity.toString())),
-                            DataCell(IconButton(
-                              icon: const Icon(Icons.delete),
-                              onPressed: () => _removeIngredient(i.ingredientId),
-                            )),
-                          ]);
-                        }).toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Center(
-                      child: ElevatedButton(
-                        onPressed: _isSubmitting ? null : _submit,
-                        child: _isSubmitting
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Text('Add Product'),
-                      ),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
     );

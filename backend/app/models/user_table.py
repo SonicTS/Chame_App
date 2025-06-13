@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Float
 from chame_app.database import Base
 from sqlalchemy.orm import relationship
 from models.sales_table import Sale
+from passlib.context import CryptContext
 
 class User(Base):
     __tablename__ = "users"  # Name of the table in the database
@@ -11,12 +12,19 @@ class User(Base):
     balance = Column(Float, default=0)  # User balance
     password_hash = Column(String)  # Store the hashed password
     role = Column(String, default="user")  # Role (e.g., 'admin', 'wrirt')
+    pwd_ctx = CryptContext(
+        schemes=["argon2"],
+        deprecated="auto",
+        argon2__memory_cost=2**16,   # 64 MiB
+        argon2__time_cost=3,         # 3 iterations
+        argon2__parallelism=1,       # single-threaded
+    )
 
     sales = relationship("Sale", back_populates="user")
     def __init__(self, name: str, balance: float = 0.0, password_hash: str = "", role: str = "user"):
         self.name = name
         self.balance = balance
-        self.password_hash = password_hash
+        self.password_hash = self.hash_password(password_hash)
         self.role = role
         
     def __repr__(self):
@@ -34,6 +42,20 @@ class User(Base):
         if include_sales:
             data["sales"] = [sale.to_dict() for sale in self.sales]
         return data
+    
+    def hash_password(self, plain_password: str) -> str:
+        """
+        Returns an encoded hash, embedding salt & parameters:
+        $argon2id$v=19$m=65536,t=3,p=1$<base64salt>$<base64hash>
+        """
+        return self.pwd_ctx.hash(plain_password)
+    
+    def verify_password(self, plain_password: str) -> bool:
+        """Returns True if the password matches the given hash."""
+        if self.role.lower == 'User':
+            # Normal users should not be able to login
+            return False
+        return self.pwd_ctx.verify(plain_password, self.password_hash)
 
 
 
