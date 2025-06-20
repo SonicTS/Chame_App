@@ -67,14 +67,16 @@ class PyBridge {
     required String name,
     required double price,
     required int numberIngredients,
+    required double pfand,
     required int stock,
   }) async {
-    print('Adding ingredient: name=$name, price=$price, numberIngredients=$numberIngredients, stock=$stock');
+    print('Adding ingredient: name=$name, price=$price, numberIngredients=$numberIngredients, pfand=$pfand, stock=$stock');
     try {
       await _chan.invokeMethod('add_ingredient', {
         'name': name,
         'price_per_package': price,
         'number_ingredients': numberIngredients,
+        'pfand': pfand,
         'stock_quantity': stock,
       });
       print('Ingredient added successfully');
@@ -343,6 +345,21 @@ class PyBridge {
       return null;
     } catch (e) {
       return e.toString();
+    }
+  }
+
+  Future<void> submitPfandReturn(
+    int userId,
+    List<Map<String, dynamic>> products,
+  ) async {
+    try {
+      await _chan.invokeMethod('submit_pfand_return', {
+        'user_id': userId,
+        'products': jsonEncode(products),
+      });
+    } catch (e) {
+      print('Error in submitPfandReturn: \x1b[31m$e\x1b[0m');
+      rethrow;
     }
   }
 }

@@ -70,6 +70,7 @@ class MainActivity : FlutterActivity() {
                         val pricePerPackage = call.argument<Number>("price_per_package")
                         val stockQuantity = call.argument<Number>("stock_quantity")
                         val numberIngredients = call.argument<Number>("number_ingredients")
+                        val pfand = call.argument<Number>("pfand") ?: 0 // Default to 0 if not provided
                         if (name == null || pricePerPackage == null || stockQuantity == null || numberIngredients == null) {
                             result.error("ARGUMENT_ERROR", "Missing argument for add_ingredient", null)
                             return@setMethodCallHandler
@@ -79,7 +80,8 @@ class MainActivity : FlutterActivity() {
                             name,
                             pricePerPackage.toDouble(),
                             stockQuantity.toInt(),
-                            numberIngredients.toInt()
+                            numberIngredients.toInt(),
+                            pfand.toDouble()
                         )
                         result.success(null) // Success, no error message
                     } catch (e: Exception) {
@@ -457,6 +459,26 @@ class MainActivity : FlutterActivity() {
                             return@setMethodCallHandler
                         }
                         pyModule.callAttr("change_password", user_id, oldPassword, newPassword)
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "submit_pfand_return" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val userId = call.argument<Number>("user_id")
+                        val product_json = call.argument<Number>("products")
+                        if (userId == null || product_json == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for submit_pfand_return", null)
+                            return@setMethodCallHandler
+                        }
+                        val json = py.getModule("json")
+                        val productList = json.callAttr("loads", product_json)
+                        pyModule.callAttr("submit_pfand_return", userId.toInt(), productList)
                         result.success(null)
                     } catch (e: Exception) {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)

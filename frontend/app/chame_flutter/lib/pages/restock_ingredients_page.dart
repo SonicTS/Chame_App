@@ -46,6 +46,13 @@ class _RestockIngredientsPageState extends State<RestockIngredientsPage> {
     });
   }
 
+  void _onPriceChanged(int realIndex, String val) {
+    setState(() {
+      ingredients[realIndex]['price'] = val;
+    });
+  }
+
+
   void removeIngredient(int index) {
     setState(() {
       removedIngredientNames.add(ingredients[index]['name']);
@@ -91,6 +98,7 @@ class _RestockIngredientsPageState extends State<RestockIngredientsPage> {
     final restockData = visibleIngredients.map((i) => {
       'id': i['ingredient_id'],
       'restock': int.tryParse(i['restock'].toString()) ?? 0,
+      'price': i['price'] != null ? double.tryParse(i['price'].toString()) : null,
     }).toList();
     try {
       final error = await PyBridge().restockIngredients(restockData);
@@ -151,6 +159,16 @@ class _RestockIngredientsPageState extends State<RestockIngredientsPage> {
                                         ),
                                         keyboardType: TextInputType.number,
                                         onChanged: (val) => _onRestockChanged(realIndex, val),
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      width: 80,
+                                      child: TextField(
+                                        decoration: const InputDecoration(
+                                          labelText: 'Price',
+                                        ),
+                                        keyboardType: TextInputType.number,
+                                        onChanged: (val) => _onPriceChanged(realIndex, val),
                                       ),
                                     ),
                                     IconButton(

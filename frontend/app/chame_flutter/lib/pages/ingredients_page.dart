@@ -90,6 +90,7 @@ class _IngredientsPageState extends State<IngredientsPage> {
                             DataColumn(label: Text('Ingredients in package')),
                             DataColumn(label: Text('Price per unit')),
                             DataColumn(label: Text('Stock')),
+                            DataColumn(label: Text('Pfand')),
                           ],
                           rows: filteredIngredients.map((ingredient) {
                             return DataRow(cells: [
@@ -98,6 +99,7 @@ class _IngredientsPageState extends State<IngredientsPage> {
                               DataCell(Text(ingredient['number_of_units']?.toString() ?? '')),
                               DataCell(Text(ingredient['price_per_unit']?.toString() ?? '')),
                               DataCell(Text(ingredient['stock_quantity']?.toString() ?? '')),
+                              DataCell(Text(ingredient['pfand']?.toString() ?? '')),
                             ]);
                           }).toList(),
                         ),

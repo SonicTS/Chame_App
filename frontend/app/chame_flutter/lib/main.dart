@@ -13,6 +13,7 @@ import 'pages/users_page.dart';
 import 'pages/bank_page.dart';
 import 'data/py_bride.dart';
 import 'pages/restock_ingredients_page.dart';
+import 'pages/return_pfand.dart';
 
 
 class AuthGate extends StatelessWidget {
@@ -74,6 +75,7 @@ class ChameApp extends StatelessWidget {
             '/add_product': (_) => AddProductPage(),
             '/restock_ingredients': (_) => RestockIngredientsPage(),
             '/settings': (_) => SettingsPage(),
+            '/return_pfand': (_) => ReturnPfandPage(),
             // ...other routes
           },
         );
@@ -133,6 +135,10 @@ class HomePage extends StatelessWidget {
                       ElevatedButton(
                         onPressed: () => Navigator.pushNamed(context, '/settings'),
                         child: const Text('Settings'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pushNamed(context, '/return_pfand'),
+                        child: const Text('Return Pfand'),
                       ),
                       ElevatedButton(
                         onPressed: () {

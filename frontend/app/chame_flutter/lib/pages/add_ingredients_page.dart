@@ -6,6 +6,7 @@ Future<String?> addIngredientViaPyBridge({
   required String name,
   required double price,
   required int numberIngredients,
+  required double pfand,
   required int stock,
 }) async {
   // TODO: Implement actual call to pybridge
@@ -13,6 +14,7 @@ Future<String?> addIngredientViaPyBridge({
     name: name,
     price: price,
     numberIngredients: numberIngredients,
+    pfand: pfand,
     stock: stock,
   );
   return error; // return error message if any, null if success
@@ -31,7 +33,9 @@ class _AddIngredientsPageState extends State<AddIngredientsPage> {
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
   final _numberIngredientsController = TextEditingController();
+  final _pfandController = TextEditingController();
   double _pricePerUnit = 0.0;
+  double _pfand = 0.0;
   bool _isSubmitting = false;
 
   @override
@@ -54,16 +58,20 @@ class _AddIngredientsPageState extends State<AddIngredientsPage> {
     _nameController.dispose();
     _priceController.dispose();
     _numberIngredientsController.dispose();
+    _pfandController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSubmitting = true);
+    final pfand = double.tryParse(_pfandController.text) ?? 0.0;
+    // TODO: Use pfand in backend call if needed
     final error = await addIngredientViaPyBridge(
       name: _nameController.text.trim(),
       price: double.parse(_priceController.text),
       numberIngredients: int.parse(_numberIngredientsController.text),
+      pfand: pfand,
       stock: 0, // removed stock input, always pass 0
     );
     setState(() => _isSubmitting = false);
@@ -96,6 +104,7 @@ class _AddIngredientsPageState extends State<AddIngredientsPage> {
       _nameController.clear();
       _priceController.clear();
       _numberIngredientsController.clear();
+      _pfandController.clear();
       setState(() => _pricePerUnit = 0.0);
     }
   }
@@ -144,6 +153,17 @@ class _AddIngredientsPageState extends State<AddIngredientsPage> {
                           validator: (v) {
                             final val = int.tryParse(v ?? '');
                             if (val == null || val <= 0) return 'Enter valid number';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _pfandController,
+                          decoration: const InputDecoration(labelText: 'Pfand'),
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          validator: (v) {
+                            final val = double.tryParse(v ?? '');
+                            if (val == null || val < 0) return 'Enter valid Pfand';
                             return null;
                           },
                         ),

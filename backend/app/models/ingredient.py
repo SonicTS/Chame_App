@@ -10,20 +10,23 @@ class Ingredient(Base):
     name = Column(String, index=True)
     price_per_package = Column(Float)  # Purchasing price per package
     number_of_units = Column(Integer)  # Number of units in a package
+    pfand = Column(Float, default=0)  # Deposit price for the package(Pfand)
     price_per_unit = Column(Float)  # Purchasing price per unit
+
     stock_quantity = Column(Float, default=0)
 
     # Relationship back to Product (via the ProductIngredient table)
     ingredient_products = relationship("ProductIngredient", back_populates="ingredient")
-    def __init__(self, name, price_per_package=None, number_of_units=None, price_per_unit=None, stock_quantity=0):
+    def __init__(self, name, price_per_package=None, number_of_units=None, price_per_unit=None, pfand=0.0, stock_quantity=0):
         self.name = name
+        self.pfand = pfand
         self.price_per_package = price_per_package
         self.number_of_units = number_of_units
         self.price_per_unit = price_per_unit
         self.stock_quantity = stock_quantity
         
     def __repr__(self):
-        return f"<Ingredient(name={self.name}, price={self.price_per_unit}, stock={self.stock_quantity})>"
+        return f"<Ingredient(name={self.name}, price={self.price_per_unit}, number_of_units={self.number_of_units}, stock={self.stock_quantity}), pfand={self.pfand})>"
 
     def to_dict(self, include_products=False):
         def _round(val):
@@ -35,6 +38,7 @@ class Ingredient(Base):
             "number_of_units": self.number_of_units,
             "price_per_unit": _round(self.price_per_unit),
             "stock_quantity": _round(self.stock_quantity),
+            "pfand": _round(self.pfand)
         }
         if include_products:
             # Avoid circular imports; import here if needed

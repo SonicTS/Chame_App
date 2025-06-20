@@ -47,6 +47,17 @@ class Product(Base):
 
         print(f"Stock updated for product: {self.name} -> {self.stock_quantity}")
 
+    def get_pfand(self) -> float:
+        """
+        Calculate the total deposit price for the product based on its ingredients.
+        """
+        total_deposit = 0.0
+        for assoc in self.product_ingredients:
+            ingredient = assoc.ingredient
+            if ingredient and ingredient.pfand:
+                total_deposit += ingredient.pfand * assoc.ingredient_quantity
+        return round(total_deposit, 2)
+    
     def __init__(self, name: str, category: str, price_per_unit: float = 0, cost_per_unit: float = 0, profit_per_unit: float = 0, stock_quantity: int = 0, toaster_space: int = 0):
         self.name = name
         self.category = category
@@ -71,6 +82,7 @@ class Product(Base):
             "profit_per_unit": _round(self.profit_per_unit),
             "stock_quantity": self.stock_quantity,
             "toaster_space": self.toaster_space,
+            "pfand": self.get_pfand(),
         }
         if include_ingredients:
             data["ingredients"] = [pi.ingredient.to_dict() for pi in self.product_ingredients]

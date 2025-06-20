@@ -27,8 +27,9 @@ class _UsersPageState extends State<UsersPage> {
   String _txTypeFilter = 'all';
   String _userTableNameFilter = '';
   // Add scroll controllers for users and transactions tables
-  final ScrollController _usersTableScrollController = ScrollController();
   final ScrollController _transactionsTableScrollController = ScrollController();
+  final ScrollController _usersTableHorizontalController = ScrollController();
+  final ScrollController _usersTableVerticalController = ScrollController();
 
   @override
   void initState() {
@@ -138,8 +139,9 @@ class _UsersPageState extends State<UsersPage> {
       c.dispose();
     }
     // Dispose scroll controllers
-    _usersTableScrollController.dispose();
     _transactionsTableScrollController.dispose();
+    _usersTableVerticalController.dispose();
+    _usersTableHorizontalController.dispose();
     super.dispose();
   }
 
@@ -173,7 +175,8 @@ class _UsersPageState extends State<UsersPage> {
                   onDeposit: _deposit,
                   onWithdraw: _withdraw,
                   userTableNameFilter: _userTableNameFilter,
-                  scrollController: _usersTableScrollController,
+                  horizontalScrollController: _usersTableHorizontalController,
+                  verticalScrollController: _usersTableVerticalController,
                 ),
                 const SizedBox(height: 24),
                 // --- USER ADD / FILTER CONTROLS ---
@@ -337,7 +340,8 @@ class UsersTableSection extends StatelessWidget {
   final Function(int) onDeposit;
   final Function(int) onWithdraw;
   final String userTableNameFilter;
-  final ScrollController scrollController;
+  final ScrollController horizontalScrollController;
+  final ScrollController verticalScrollController;
 
   const UsersTableSection({
     super.key,
@@ -348,7 +352,8 @@ class UsersTableSection extends StatelessWidget {
     required this.onDeposit,
     required this.onWithdraw,
     required this.userTableNameFilter,
-    required this.scrollController,
+    required this.horizontalScrollController,
+    required this.verticalScrollController,
   });
 
   @override
@@ -356,28 +361,31 @@ class UsersTableSection extends StatelessWidget {
     final double tableHeight = MediaQuery.of(context).size.height * 0.3;
     return SizedBox(
       height: tableHeight,
-      child: Scrollbar(
-        thumbVisibility: true,
-        controller: scrollController,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          controller: scrollController,
-          child: SizedBox(
-            width: 600,
-            child: FutureBuilder<List<Map<String, dynamic>>>(
-              future: usersFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final users = snapshot.data ?? [];
-                final filteredUsers = userTableNameFilter.isEmpty
-                    ? users
-                    : users.where((u) => (u['name'] ?? '').toLowerCase().contains(userTableNameFilter)).toList();
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: usersFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final users = snapshot.data ?? [];
+          final filteredUsers = userTableNameFilter.isEmpty
+              ? users
+              : users.where((u) => (u['name'] ?? '').toLowerCase().contains(userTableNameFilter)).toList();
 
-                return ListView(
-                  children: [
-                    DataTable(
+          return Scrollbar(
+            thumbVisibility: true,
+            controller: horizontalScrollController,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                // minimum width for horizontal scroll; adjust as needed
+                width: 700,
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  controller: verticalScrollController,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.vertical,
+                    child: DataTable(
                       columns: const [
                         DataColumn(label: Text('Name')),
                         DataColumn(label: Text('Balance')),
@@ -385,63 +393,62 @@ class UsersTableSection extends StatelessWidget {
                         DataColumn(label: Text('Deposit')),
                         DataColumn(label: Text('Withdraw')),
                       ],
-                      rows: [
-                        ...filteredUsers.map((user) {
-                          final userId = user['user_id'] as int;
-                          depositControllers.putIfAbsent(userId, () => TextEditingController());
-                          withdrawControllers.putIfAbsent(userId, () => TextEditingController());
-                          return DataRow(cells: [
-                            DataCell(Text(user['name']?.toString() ?? '')),
-                            DataCell(Text(user['balance']?.toString() ?? '')),
-                            DataCell(Text(user['role']?.toString() ?? '')),
-                            DataCell(Row(
-                              children: [
-                                SizedBox(
-                                  width: 70,
-                                  child: TextField(
-                                    controller: depositControllers[userId],
-                                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                    decoration: const InputDecoration(hintText: 'Amount', isDense: true),
-                                  ),
+                      rows: filteredUsers.map((user) {
+                        final userId = user['user_id'] as int;
+                        depositControllers.putIfAbsent(userId, () => TextEditingController());
+                        withdrawControllers.putIfAbsent(userId, () => TextEditingController());
+                        return DataRow(cells: [
+                          DataCell(Text(user['name']?.toString() ?? '')),
+                          DataCell(Text(user['balance']?.toString() ?? '')),
+                          DataCell(Text(user['role']?.toString() ?? '')),
+                          DataCell(Row(
+                            children: [
+                              SizedBox(
+                                width: 70,
+                                child: TextField(
+                                  controller: depositControllers[userId],
+                                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                  decoration: const InputDecoration(hintText: 'Amount', isDense: true),
                                 ),
-                                const SizedBox(width: 4),
-                                ElevatedButton(
-                                  onPressed: isSubmitting ? null : () => onDeposit(userId),
-                                  child: const Text('Deposit'),
+                              ),
+                              const SizedBox(width: 4),
+                              ElevatedButton(
+                                onPressed: isSubmitting ? null : () => onDeposit(userId),
+                                child: const Text('Deposit'),
+                              ),
+                            ],
+                          )),
+                          DataCell(Row(
+                            children: [
+                              SizedBox(
+                                width: 70,
+                                child: TextField(
+                                  controller: withdrawControllers[userId],
+                                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                  decoration: const InputDecoration(hintText: 'Amount', isDense: true),
                                 ),
-                              ],
-                            )),
-                            DataCell(Row(
-                              children: [
-                                SizedBox(
-                                  width: 70,
-                                  child: TextField(
-                                    controller: withdrawControllers[userId],
-                                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                    decoration: const InputDecoration(hintText: 'Amount', isDense: true),
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                ElevatedButton(
-                                  onPressed: isSubmitting ? null : () => onWithdraw(userId),
-                                  child: const Text('Withdraw'),
-                                ),
-                              ],
-                            )),
-                          ]);
-                        }),
-                      ],
+                              ),
+                              const SizedBox(width: 4),
+                              ElevatedButton(
+                                onPressed: isSubmitting ? null : () => onWithdraw(userId),
+                                child: const Text('Withdraw'),
+                              ),
+                            ],
+                          )),
+                        ]);
+                      }).toList(),
                     ),
-                  ],
-                );
-              },
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 }
+
 
 // ------------------- TRANSACTIONS SECTION WIDGET -------------------
 

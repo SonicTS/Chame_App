@@ -1,10 +1,11 @@
 # admin_api.py
 # Bare Python functions for business logic, callable from other Python code or via FFI for Flutter integration.
 
+
 from models.ingredient import Ingredient
 from chame_app.database_instance import Database
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 database = None
 
@@ -68,14 +69,25 @@ def add_product(name, category, price, ingredients_ids, quantities, toaster_spac
     return database.add_product(name=name, ingredients=ingredient_quantity_pairs, price_per_unit=price, category=category, toaster_space=toaster_space)
 
 # Ingredient management
-def add_ingredient(name, price_per_package, stock_quantity, number_ingredients):
-    print("DEBUG: add_ingredient called with:", name, price_per_package, stock_quantity, number_ingredients)
+def add_ingredient(name, price_per_package, stock_quantity, number_ingredients, pfand):
+    print("DEBUG: add_ingredient called with:", name, price_per_package, stock_quantity, number_ingredients, pfand)
     if not name or not price_per_package or not number_ingredients:
         print("DEBUG: Invalid input for add_ingredient")
         raise ValueError("Invalid input")
+    if not pfand:
+        pfand = 0.0
     if not isinstance(stock_quantity, int) or stock_quantity < 0:
         stock_quantity = 0  # Default to 0 if invalid
-    return database.add_ingredient(name=name, price_per_package=price_per_package, stock_quantity=stock_quantity, number_ingredients=number_ingredients)
+    return database.add_ingredient(name=name, price_per_package=price_per_package, stock_quantity=stock_quantity, number_ingredients=number_ingredients, pfand=pfand)
+
+def submit_pfand_return(user_id, product_list):
+    print("DEBUG: submit_pfand_return called with user_id:", user_id, "and product_list:", product_list)
+    if not user_id or not product_list:
+        raise ValueError("Invalid input")
+    if not isinstance(product_list, list):
+        raise ValueError("Product list must be a list")
+    
+    return database.return_deposit(user_id=user_id, product_list=product_list)
 
 def restock_ingredients(_list: List[Dict[int, int]]):
     if not _list or not isinstance(_list, list):

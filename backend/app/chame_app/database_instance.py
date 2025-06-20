@@ -1,6 +1,6 @@
 from __future__ import annotations
 import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 from chame_app.database import get_session
 from models.ingredient import Ingredient
 from models.product_ingredient_table import ProductIngredient
@@ -87,7 +87,7 @@ class Database:
                     session.close()
             raise RuntimeError(f"change_password failed for User={user_name}: {e}") from e
 
-    def add_ingredient(self, name: str, price_per_package: float, stock_quantity: int, number_ingredients: int, session=None):
+    def add_ingredient(self, name: str, price_per_package: float, stock_quantity: int, number_ingredients: int, pfand: float = 0.0, session=None):
         close_session = False
         try:
             if session is None:
@@ -106,12 +106,12 @@ class Database:
             price_per_unit = price / number_ingredients
             stock = stock * number_ingredients
             print(f"DEBUG: Calculated price_per_unit={price_per_unit} for ingredient {name}")
-            ingredient = Ingredient(name=name, price_per_package=price, number_of_units=number_ingredients, price_per_unit=price_per_unit, stock_quantity=stock)
+            ingredient = Ingredient(name=name, price_per_package=price, number_of_units=number_ingredients, price_per_unit=price_per_unit, stock_quantity=stock, pfand=pfand)
             print(f"DEBUG: Created ingredient {ingredient}")
             if stock > 0:
                 bank = self.get_bank(session)
-                bank.ingredient_value += price_per_unit * stock
-                bank.costs_total += price_per_unit * stock
+                bank.ingredient_value += price_per_unit * stock + pfand * stock
+                bank.costs_total += price_per_unit * stock + pfand * stock
             session.add(ingredient)
             if close_session:
                 session.commit()
@@ -139,7 +139,9 @@ class Database:
                     raise ValueError("Invalid input: each item must be a dictionary with 'id' and 'restock' keys")
                 ingredient_id = item['id']
                 quantity = item['restock']
-                total_cost += self.stock_ingredient(ingredient_id, quantity, session=session)
+                price = item.get('price', None)
+                print(f"DEBUG: Restocking ingredient_id={ingredient_id}, quantity={quantity}, price={price}")
+                total_cost += self.stock_ingredient(ingredient_id, quantity, price=price, session=session)
             
             bank = self.get_bank(session)
             if bank.total_balance < total_cost:
@@ -171,7 +173,7 @@ class Database:
                     session.close()
             raise RuntimeError(f"restock_ingredients failed: {e}") from e
 
-    def stock_ingredient(self, ingredient_id: int, quantity: int, session=None) -> float:
+    def stock_ingredient(self, ingredient_id: int, quantity: int, price: Optional[float] = None, session=None) -> float:
         close_session = False
         ingredient_name = "404"
         try:
@@ -184,8 +186,15 @@ class Database:
             quantity = quantity * ingredient.number_of_units
             ingredient.stock_quantity += quantity
             bank = self.get_bank(session)
-            bank.costs_total += ingredient.price_per_unit * quantity
-            bank.ingredient_value += ingredient.price_per_unit * quantity
+            if price is None:
+                price = ingredient.price_per_unit
+            else:
+                price = float(price) / ingredient.number_of_units
+                if price <= 0:
+                    raise ValueError("Price must be greater than 0")
+            print(f"DEBUG: Stocking ingredient {ingredient_name} with price={price}, quantity={quantity}")
+            bank.costs_total += price * quantity + ingredient.pfand * quantity
+            bank.ingredient_value += price * quantity + ingredient.pfand * quantity
             for product_assoc in ingredient.ingredient_products:
                 product = product_assoc.product
                 current_stock = product.stock_quantity
@@ -197,7 +206,7 @@ class Database:
                 session.commit()
                 session.refresh(ingredient)
                 session.close()
-            return ingredient.price_per_unit * quantity
+            return price * quantity + ingredient.pfand * quantity
         except Exception as e:
             if session:
                 session.rollback()
@@ -303,6 +312,43 @@ class Database:
             for product_assoc in ingredient.ingredient_products:
                 product_assoc.product.update_stock()
 
+    def return_deposit(self, user_id: int, product_quantity_list: List[Any], session=None):
+        close_session = False
+        product_name = "404"
+        user_name = "404"
+        try:
+            if session is None:
+                session = self.get_session()
+                close_session = True
+            total_pfand = 0.0
+            for item in product_quantity_list:
+                quantity = int(item['amount'])
+                product = self.get_product_by_id(item('product_id'), session)
+                product_name = product.name
+                if quantity <= 0:
+                    raise ValueError("return_deposit: Quantity must be greater than 0")
+                bank = self.get_bank(session)
+                user = self.get_user_by_id(user_id, session=session)
+                user_name = user.name
+                pfand = product.get_pfand() * quantity
+                user.balance += pfand
+                bank.customer_funds += pfand
+                bank.revenue_funds -= pfand
+                bank.costs_reserved -= pfand
+                total_pfand += pfand
+            transaction = Transaction(user_id=user_id, amount=total_pfand, type="deposit", timestamp=datetime.datetime.now())
+            session.add(transaction)
+            if close_session:
+                session.commit()
+                session.refresh(user)
+                session.close()
+        except Exception as e:
+            if session:
+                session.rollback()
+                if close_session:
+                    session.close()
+            raise RuntimeError(f"return_deposit failed for User={user_name}, Product={product_name}, quantity={quantity}: {e}") from e
+
     def make_purchase(self, user_id: int, product_id: int, quantity: int, session=None, toast_round_id: int = 0) -> Sale:
         close_session = False
         product_name = "404"
@@ -320,7 +366,7 @@ class Database:
             self._check_product_stock(product, quantity)
             self._check_and_update_ingredient_stock(product, quantity, bank)
             product.update_stock()
-            total_cost = product.price_per_unit * quantity
+            total_cost = product.price_per_unit * quantity + product.get_pfand() * quantity
             user = self.get_user_by_id(user_id, session=session)
             user_name = user.name
             if user.balance < total_cost:
@@ -330,11 +376,11 @@ class Database:
             bank.customer_funds -= total_cost
             bank.revenue_total += total_cost
             if bank.revenue_funds < 0 and total_cost > abs(bank.revenue_funds):
-                if product.cost_per_unit * quantity >= bank.revenue_funds + total_cost:
+                if product.cost_per_unit * quantity + product.get_pfand() * quantity >= bank.revenue_funds + total_cost:
                     bank.costs_reserved = bank.revenue_funds + total_cost
-                    bank.profit_total = 0
+                    bank.profit_retained = 0
                 else:
-                    bank.costs_reserved = product.cost_per_unit * quantity
+                    bank.costs_reserved = product.cost_per_unit * quantity + product.get_pfand() * quantity
                     bank.profit_retained = bank.revenue_funds + total_cost - bank.costs_reserved
             bank.revenue_funds += total_cost
             bank.profit_total = bank.revenue_total - bank.costs_total
@@ -562,7 +608,12 @@ class Database:
         try:
             query = session.query(Ingredient)
             if eager_load:
-                query = query.options(joinedload(Ingredient.ingredient_products).joinedload(ProductIngredient.product))
+                query = query.options(
+                    joinedload(Ingredient.ingredient_products)
+                    .joinedload(ProductIngredient.product)
+                    .joinedload(Product.product_ingredients)
+                    .joinedload(ProductIngredient.ingredient)
+                )
             ingredients = query.all()
             return ingredients
         except Exception as e:
