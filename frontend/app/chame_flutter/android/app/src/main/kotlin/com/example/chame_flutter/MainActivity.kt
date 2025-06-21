@@ -471,7 +471,7 @@ class MainActivity : FlutterActivity() {
                         )
                     try {
                         val userId = call.argument<Number>("user_id")
-                        val product_json = call.argument<Number>("products")
+                        val product_json = call.argument<String>("product_list")
                         if (userId == null || product_json == null) {
                             result.error("ARGUMENT_ERROR", "Missing argument for submit_pfand_return", null)
                             return@setMethodCallHandler

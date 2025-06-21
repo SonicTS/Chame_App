@@ -355,7 +355,7 @@ class PyBridge {
     try {
       await _chan.invokeMethod('submit_pfand_return', {
         'user_id': userId,
-        'products': jsonEncode(products),
+        'product_list': jsonEncode(products),
       });
     } catch (e) {
       print('Error in submitPfandReturn: \x1b[31m$e\x1b[0m');

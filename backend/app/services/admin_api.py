@@ -87,7 +87,7 @@ def submit_pfand_return(user_id, product_list):
     if not isinstance(product_list, list):
         raise ValueError("Product list must be a list")
     
-    return database.return_deposit(user_id=user_id, product_list=product_list)
+    return database.return_deposit(user_id=user_id, product_quantity_list=product_list)
 
 def restock_ingredients(_list: List[Dict[int, int]]):
     if not _list or not isinstance(_list, list):

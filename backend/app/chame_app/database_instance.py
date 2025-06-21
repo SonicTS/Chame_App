@@ -161,7 +161,8 @@ class Database:
                 bank.costs_reserved -= total_cost
                 bank.revenue_funds -= total_cost
             bank.profit_total = bank.revenue_total - bank.costs_total
-            transaction = BankTransaction(amount=total_cost, type="withdraw", description="restock ingredients")
+            description = "Restock: " + ", ".join([f"{self.get_ingredient_by_id(item['id'], session).name} ({item['restock']}): {item.get('price', self.get_ingredient_by_id(item['id'], session).price_per_package)}€" for item in _list])
+            transaction = BankTransaction(amount=total_cost, type="withdraw", description=description)
             session.add(transaction)
             if close_session:
                 session.commit()
@@ -278,7 +279,7 @@ class Database:
             session.add(user)
             session.flush()
             if balance > 0:
-                transaction = Transaction(user_id=user.user_id, amount=balance, type="deposit", timestamp=datetime.datetime.now())
+                transaction = Transaction(user_id=user.user_id, amount=balance, type="deposit", timestamp=datetime.datetime.now().replace(second=0, microsecond=0))
                 session.add(transaction)
             if close_session:
                 session.commit()
@@ -313,6 +314,8 @@ class Database:
                 product_assoc.product.update_stock()
 
     def return_deposit(self, user_id: int, product_quantity_list: List[Any], session=None):
+        """Return deposit for a list of products."""
+        print(f"DEBUG: Returning deposit for user_id={user_id}, product_quantity_list={product_quantity_list}")
         close_session = False
         product_name = "404"
         user_name = "404"
@@ -322,8 +325,9 @@ class Database:
                 close_session = True
             total_pfand = 0.0
             for item in product_quantity_list:
+                print(f"DEBUG: Returning deposit for item: {item}")
                 quantity = int(item['amount'])
-                product = self.get_product_by_id(item('product_id'), session)
+                product = self.get_product_by_id(item['id'], session)
                 product_name = product.name
                 if quantity <= 0:
                     raise ValueError("return_deposit: Quantity must be greater than 0")
@@ -334,9 +338,19 @@ class Database:
                 user.balance += pfand
                 bank.customer_funds += pfand
                 bank.revenue_funds -= pfand
-                bank.costs_reserved -= pfand
+                if bank.revenue_funds < 0:
+                    bank.costs_reserved = 0
+                    bank.profit_retained = 0
+                else:
+                    if bank.profit_retained > pfand:
+                        bank.profit_retained -= pfand
+                    else:
+                        bank.costs_reserved -= pfand
+                        bank.costs_reserved += bank.profit_retained
+                        bank.profit_retained = 0
                 total_pfand += pfand
-            transaction = Transaction(user_id=user_id, amount=total_pfand, type="deposit", timestamp=datetime.datetime.now())
+            comment = f"User {user_name} returned deposit for " + ", ".join([f"{item['amount']}x {self.get_product_by_id(item['id'], session).name}" for item in product_quantity_list])
+            transaction = Transaction(user_id=user_id, amount=total_pfand, type="deposit", timestamp=datetime.datetime.now().replace(second=0, microsecond=0), comment=comment)
             session.add(transaction)
             if close_session:
                 session.commit()
@@ -371,7 +385,7 @@ class Database:
             user_name = user.name
             if user.balance < total_cost:
                 raise ValueError(f"Insufficient balance: {user.balance}")
-            purchase = Sale(user_id=user_id, product_id=product_id, quantity=quantity, total_price=total_cost, timestamp=datetime.datetime.now(), toast_round_id=toast_round_id)
+            purchase = Sale(user_id=user_id, product_id=product_id, quantity=quantity, total_price=total_cost, timestamp=datetime.datetime.now().replace(second=0, microsecond=0), toast_round_id=toast_round_id)
             user.balance -= total_cost
             bank.customer_funds -= total_cost
             bank.revenue_total += total_cost
@@ -411,7 +425,7 @@ class Database:
             user.balance += amount
             bank.total_balance += amount
             bank.customer_funds += amount
-            transaction = Transaction(user_id=user_id, amount=amount, type="deposit", timestamp=datetime.datetime.now())
+            transaction = Transaction(user_id=user_id, amount=amount, type="deposit", timestamp=datetime.datetime.now().replace(second=0, microsecond=0))
             session.add(transaction)
             if close_session:
                 session.commit()
@@ -442,7 +456,7 @@ class Database:
             user.balance -= amount
             bank.total_balance -= amount
             bank.customer_funds -= amount
-            transaction = Transaction(user_id=user_id, amount=amount, type="withdraw", timestamp=datetime.datetime.now())
+            transaction = Transaction(user_id=user_id, amount=amount, type="withdraw", timestamp=datetime.datetime.now().replace(second=0, microsecond=0))
             session.add(transaction)
             if close_session:
                 session.commit()
@@ -746,7 +760,7 @@ class Database:
                 session.close()
 
     def get_all_sales(self, session=None) -> 'List[Sale]':
-        """Get all sales with eager loading of user, product, and toast_round."""
+        """Get all sales with eager loading of user, product, toast_round, and product ingredients."""
         close_session = False
         if session is None:
             session = self.get_session()
@@ -754,7 +768,9 @@ class Database:
         try:
             sales = session.query(Sale).options(
                 joinedload(Sale.user),
-                joinedload(Sale.product),
+                joinedload(Sale.product)
+                .joinedload(Product.product_ingredients)
+                .joinedload(ProductIngredient.ingredient),
                 joinedload(Sale.toast_round)
             ).all()
             return sales

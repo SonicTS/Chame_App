@@ -470,48 +470,78 @@ class TransactionsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: tableHeight,
-      child: Scrollbar(
-        thumbVisibility: true,
-        controller: scrollController,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          controller: scrollController,
-          child: SizedBox(
-            width: 600,
-            child: FutureBuilder<List<Map<String, dynamic>>>(
-              future: transactionsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final txs = snapshot.data ?? [];
-                if (txs.isEmpty) {
-                  return const Text('No transactions found.');
-                }
-                return ListView(
-                  children: [
-                    DataTable(
-                      columns: const [
-                        DataColumn(label: Text('User')),
-                        DataColumn(label: Text('Type')),
-                        DataColumn(label: Text('Amount')),
-                        DataColumn(label: Text('Date')),
-                      ],
-                      rows: txs.map((tx) {
-                        return DataRow(cells: [
-                          DataCell(Text(tx['user']?['name'].toString() ?? '')),
-                          DataCell(Text(tx['type']?.toString() ?? '')),
-                          DataCell(Text(tx['amount']?.toString() ?? '')),
-                          DataCell(Text(formatTimestamp(tx['timestamp']))),
-                        ]);
-                      }).toList(),
-                    ),
-                  ],
-                );
-              },
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: transactionsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final txs = snapshot.data ?? [];
+          if (txs.isEmpty) {
+            return const Center(child: Text('No transactions found.'));
+          }
+          return Scrollbar(
+            thumbVisibility: true,
+            controller: scrollController,
+            child: SingleChildScrollView(
+              controller: scrollController,
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                // Set a minimum width so it scrolls if needed
+                constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.vertical,
+                  child: DataTable(
+                    columns: const [
+                      DataColumn(label: Text('User')),
+                      DataColumn(label: Text('Type')),
+                      DataColumn(label: Text('Amount')),
+                      DataColumn(label: Text('Comment')),
+                      DataColumn(label: Text('Date')),
+                    ],
+                    rows: txs.map((tx) {
+                      return DataRow(cells: [
+                        DataCell(Text(tx['user']?['name'].toString() ?? '')),
+                        DataCell(Text(tx['type']?.toString() ?? '')),
+                        DataCell(Text(tx['amount']?.toString() ?? '')),
+                        DataCell(
+                          InkWell(
+                            onTap: () {
+                              showDialog(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Comment'),
+                                  content: SingleChildScrollView(
+                                    child: Text(tx['comment']?.toString() ?? ''),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.of(ctx).pop(),
+                                      child: const Text('Close'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                            child: SizedBox(
+                              width: 120, // Control width of the comment column
+                              child: Text(
+                                tx['comment']?.toString() ?? '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ),
+                        DataCell(Text(formatTimestamp(tx['timestamp']))),
+                      ]);
+                    }).toList(),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

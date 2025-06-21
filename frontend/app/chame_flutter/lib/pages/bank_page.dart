@@ -342,8 +342,33 @@ class _BankPageState extends State<BankPage> {
                                 return DataRow(cells: [
                                   DataCell(Text(tx['type']?.toString() ?? '')),
                                   DataCell(Text(tx['amount']?.toString() ?? '')),
-                                  DataCell(Text(tx['description']?.toString() ?? '')),
-                                  DataCell(Text(tx['date']?.toString() ?? '')),
+                                  DataCell(
+                                    InkWell(
+                                      onTap: () {
+                                        showDialog(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            title: const Text('Description'),
+                                            content: SingleChildScrollView(
+                                              child: Text(tx['description']?.toString() ?? ''),
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.of(ctx).pop(),
+                                                child: const Text('Close'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                      child: Text(
+                                        tx['description']?.toString() ?? '',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(Text(tx['timestamp']?.toString() ?? '')),
                                 ]);
                               }).toList(),
                             ),
