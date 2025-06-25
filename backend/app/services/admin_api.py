@@ -4,20 +4,132 @@
 
 from models.ingredient import Ingredient
 from chame_app.database_instance import Database
+from chame_app.simple_migrations import SimpleMigrations
 import logging
 from typing import Dict, List, Optional
+import os
+import traceback
+
+# Conditional import for Alembic - only available in desktop/server environments
+try:
+    from alembic.config import Config
+    from alembic import command
+    ALEMBIC_AVAILABLE = True
+except ImportError:
+    # Alembic not available (e.g., in Chaquopy/mobile environment)
+    ALEMBIC_AVAILABLE = False
+    Config = None
+    command = None
 
 database = None
+
+def run_migrations():
+    """Run database migrations - uses Alembic if available, otherwise simple migrations"""
+    if ALEMBIC_AVAILABLE:
+        run_alembic_upgrade()
+    else:
+        run_simple_migrations()
+
+def run_simple_migrations():
+    """Run simple migrations for mobile/Chaquopy environments"""
+    print("📦 [SimpleMigrations] Starting simple database migrations")
+    try:
+        # Get the database engine
+        from chame_app.database import _engine
+        if _engine is None:
+            print("❌ [SimpleMigrations] Database engine not initialized")
+            return
+        
+        migrations = SimpleMigrations(_engine)
+        migrations.run_migrations()
+        print("✅ [SimpleMigrations] Simple migrations completed successfully")
+    except Exception:
+        print("❌ [SimpleMigrations] Simple migrations failed")
+        traceback.print_exc()
+
+def run_alembic_upgrade():
+    """Run Alembic database upgrade if available (desktop/server environments only)"""
+    if not ALEMBIC_AVAILABLE:
+        print("📦 [Alembic] Alembic not available in this environment (likely mobile/Chaquopy)")
+        return
+        
+    print("📦 [Alembic] Starting database upgrade")
+
+    try:
+        # Get this script’s directory
+        current_dir = os.path.dirname(__file__)
+        print(f"🔍 [Alembic] __file__ = {__file__}")
+        print(f"📂 [Alembic] Current directory = {current_dir}")
+
+        # Resolve path to alembic.ini (assumes it’s one level above)
+        alembic_ini_path = os.path.abspath(os.path.join(current_dir, "..", "alembic.ini"))
+        print(f"📄 [Alembic] alembic.ini path = {alembic_ini_path}")
+
+        if not os.path.exists(alembic_ini_path):
+            print("❌ [Alembic] ERROR: alembic.ini not found! Trying programmatic approach...")
+            run_alembic_programmatically()
+            return
+
+        # Load configuration
+        alembic_cfg = Config(alembic_ini_path)
+
+        # Optional: print final DB URL
+        db_url = alembic_cfg.get_main_option("sqlalchemy.url")
+        print(f"🔗 [Alembic] DB URL = {db_url}")
+
+        # Apply upgrade
+        command.upgrade(alembic_cfg, "head")
+        print("✅ [Alembic] Migration successful!")
+
+    except Exception:
+        print("❌ [Alembic] Migration failed!")
+        traceback.print_exc()
+
+def run_alembic_programmatically():
+    """Run Alembic migrations programmatically without alembic.ini"""
+    if not ALEMBIC_AVAILABLE:
+        return
+        
+    try:
+        from alembic.migration import MigrationContext
+        # from alembic.operations import Operations  # Uncomment if needed for migrations
+        from chame_app.database import _engine
+        
+        if _engine is None:
+            print("❌ [Alembic] Database engine not initialized")
+            return
+            
+        print("🔧 [Alembic] Running programmatic migrations")
+        
+        # Create migration context
+        with _engine.connect() as connection:
+            context = MigrationContext.configure(connection)
+            current_rev = context.get_current_revision()
+            print(f"📍 [Alembic] Current revision: {current_rev}")
+            
+            # You can run specific operations here
+            # ops = Operations(context)
+            # Example: ops.create_table(...) or ops.add_column(...)
+            
+            # Example usage of Operations:
+            # ops = Operations(context)
+            # ops.add_column('user_table', sa.Column('new_field', sa.String(50)))
+            
+        print("✅ [Alembic] Programmatic migration completed")
+        
+    except Exception:
+        print("❌ [Alembic] Programmatic migration failed")
+        traceback.print_exc()
 
 def create_database():
     global database
     if database is None:
         database = Database()
-        logging.info("Database instance created.")
+        run_migrations()  # <-- Run migrations (Alembic or simple) after DB is created
+        logging.info("Database instance created and migrations run.")
     else:
         logging.warning("Database instance already exists.")
     return database
-
 def login(username, password):
     if not username or not password:
         raise ValueError("Username and password cannot be empty")
@@ -102,18 +214,19 @@ def restock_ingredient(ingredient_id, quantity):
     return database.stock_ingredient(ingredient_id=ingredient_id, quantity=quantity)
 
 # Purchase logic
-def make_purchase(user_id, product_id, quantity):
-    if not user_id or not product_id or not quantity:
+def make_purchase(consumer_id, product_id, quantity, donator_id=None):
+    if not consumer_id or not product_id or not quantity:
         raise ValueError("Invalid input")
-    return database.make_purchase(user_id=user_id, product_id=product_id, quantity=quantity)
+    return database.make_purchase(consumer_id=consumer_id, donator_id=donator_id, product_id=product_id, quantity=quantity)
 
 # Toast round logic
-def add_toast_round(product_ids, user_selections):
-    if not product_ids or not user_selections:
+def add_toast_round(product_ids, consumer_selections, donator_selections):
+    print("DEBUG: add_toast_round called with product_ids:", product_ids, "and user_selections:", consumer_selections, "and donator_selections:", donator_selections)
+    if not product_ids or not consumer_selections or not donator_selections:
         raise ValueError("Product IDs and user selections cannot be empty.")
-    if len(product_ids) != len(user_selections):
+    if len(product_ids) != len(consumer_selections) or len(product_ids) != len(donator_selections):
         raise ValueError("Mismatch between product IDs and user selections.")
-    product_user_pairs = list(zip(product_ids, user_selections))
+    product_user_pairs = list(zip(product_ids, consumer_selections, donator_selections))
     return database.add_toast_round(product_user_list=product_user_pairs)
 
 # Bank logic
@@ -155,3 +268,9 @@ def get_bank():
 
 def get_bank_transaction():
     return [bt.to_dict() for bt in database.get_bank_transaction()]
+
+def get_pfand_history():
+    pfand_history = database.get_all_pfand_history()
+    if not pfand_history:
+        return []
+    return [ph.to_dict(include_user=True, include_product=True) for ph in pfand_history]

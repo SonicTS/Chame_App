@@ -96,6 +96,7 @@ chaquopy {
             install("sqlalchemy")
             install("passlib")
             install("argon2-cffi")
+            install("alembic")
         }
     }
 }

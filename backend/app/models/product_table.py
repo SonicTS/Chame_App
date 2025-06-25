@@ -18,6 +18,7 @@ class Product(Base):
     toaster_space = Column(Integer, default=0)  # For toast products
     sales = relationship("Sale", back_populates="product")
 
+    pfand_history = relationship("PfandHistory", back_populates="product")
     product_toast_rounds = relationship("ProductToastround", back_populates="product")
     product_ingredients = relationship("ProductIngredient", back_populates="product", cascade="all, delete-orphan")
 

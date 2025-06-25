@@ -1,6 +1,7 @@
 from __future__ import annotations
 import datetime
 from typing import Any, List, Optional
+from models.pfand_table import PfandHistory
 from chame_app.database import get_session
 from models.ingredient import Ingredient
 from models.product_ingredient_table import ProductIngredient
@@ -86,6 +87,30 @@ class Database:
                 if close_session:
                     session.close()
             raise RuntimeError(f"change_password failed for User={user_name}: {e}") from e
+        
+    def change_user_role(self, user_id: int, new_role: str, session=None):
+        close_session = False
+        user_name = "404"
+        try:
+            if session is None:
+                session = self.get_session()
+                close_session = True
+            user = self.get_user_by_id(user_id, session)
+            if not user:
+                raise ValueError(f"{USER_NOT_FOUND_MSG} (user_id={user_id})")
+            if new_role.lower() not in ["user", "admin", "wirt"]:
+                raise ValueError("Role must be 'user', 'admin', or 'wirt'")
+            user.role = new_role.lower()
+            if close_session:
+                session.commit()
+                session.refresh(user)
+                session.close()
+        except Exception as e:
+            if session:
+                session.rollback()
+                if close_session:
+                    session.close()
+            raise RuntimeError(f"change_user_role failed for User={user_name}, new_role={new_role}: {e}") from e
 
     def add_ingredient(self, name: str, price_per_package: float, stock_quantity: int, number_ingredients: int, pfand: float = 0.0, session=None):
         close_session = False
@@ -331,6 +356,11 @@ class Database:
                 product_name = product.name
                 if quantity <= 0:
                     raise ValueError("return_deposit: Quantity must be greater than 0")
+                pfand_history = self.get_pfand_history(user_id, product.product_id, session=session)
+                print(f"DEBUG: Pfand history for user_id={user_id}, product_id={product.product_id}: {pfand_history}")
+                if not pfand_history or pfand_history.counter < quantity:
+                    raise ValueError(f"Insufficient deposit history for product {product.name} (requested: {quantity}, available: {pfand_history.counter if pfand_history else 0})")
+                pfand_history.counter -= quantity
                 bank = self.get_bank(session)
                 user = self.get_user_by_id(user_id, session=session)
                 user_name = user.name
@@ -363,10 +393,10 @@ class Database:
                     session.close()
             raise RuntimeError(f"return_deposit failed for User={user_name}, Product={product_name}, quantity={quantity}: {e}") from e
 
-    def make_purchase(self, user_id: int, product_id: int, quantity: int, session=None, toast_round_id: int = 0) -> Sale:
+    def make_purchase(self, consumer_id: int, product_id: int, quantity: int, session=None, toast_round_id: int = 0, donator_id: Optional[int] = None) -> Sale:
         close_session = False
         product_name = "404"
-        user_name = "404"
+        payer_name = "404"
         try:
             if session is None:
                 session = self.get_session()
@@ -376,17 +406,27 @@ class Database:
             product_name = product.name
             if quantity <= 0:
                 raise ValueError("make_purchase: Quantity must be greater than 0")
+            payer_id = consumer_id
+            if donator_id is not None:
+                payer_id = donator_id
             bank = self.get_bank(session)
             self._check_product_stock(product, quantity)
             self._check_and_update_ingredient_stock(product, quantity, bank)
             product.update_stock()
             total_cost = product.price_per_unit * quantity + product.get_pfand() * quantity
-            user = self.get_user_by_id(user_id, session=session)
-            user_name = user.name
-            if user.balance < total_cost:
-                raise ValueError(f"Insufficient balance: {user.balance}")
-            purchase = Sale(user_id=user_id, product_id=product_id, quantity=quantity, total_price=total_cost, timestamp=datetime.datetime.now().replace(second=0, microsecond=0), toast_round_id=toast_round_id)
-            user.balance -= total_cost
+            payer = self.get_user_by_id(payer_id, session=session)
+            payer_name = payer.name
+            if payer.balance < total_cost:
+                raise ValueError(f"Insufficient balance: {payer.balance}")
+            purchase = Sale(consumer_id=consumer_id, donator_id=donator_id, product_id=product_id, quantity=quantity, total_price=total_cost, timestamp=datetime.datetime.now().replace(second=0, microsecond=0), toast_round_id=toast_round_id)
+            if product.get_pfand() > 0:
+                pfand_history = self.get_pfand_history(consumer_id, product_id, session=session)
+                if pfand_history:
+                    pfand_history.counter += quantity
+                else:
+                    pfand_history = PfandHistory(user_id=consumer_id, product_id=product_id, counter=quantity)
+                    session.add(pfand_history)
+            payer.balance -= total_cost
             bank.customer_funds -= total_cost
             bank.revenue_total += total_cost
             if bank.revenue_funds < 0 and total_cost > abs(bank.revenue_funds):
@@ -409,7 +449,7 @@ class Database:
                 session.rollback()
                 if close_session:
                     session.close()
-            raise RuntimeError(f"make_purchase failed for User={user_name}, Product={product_name}, quantity={quantity}: {e}") from e
+            raise RuntimeError(f"make_purchase failed for User={payer_name}, Product={product_name}, quantity={quantity}: {e}") from e
 
     def deposit_cash(self, user_id: int, amount: float, session=None):
         close_session = False
@@ -510,7 +550,7 @@ class Database:
                     session.close()
             raise RuntimeError(f"withdraw_cash_from_bank failed for amount={amount}: {e}") from e
    
-    def add_toast_round(self, product_user_list: List[tuple[int, int]], session=None):
+    def add_toast_round(self, product_user_list: List[tuple[int, int, int]], session=None):
         close_session = False
         name_list = ["404"]
         try:
@@ -523,13 +563,15 @@ class Database:
             session.flush()
             unique_products = set()
             name_list = []
-            for product_id, user_id in product_user_list:
+            for product_id, consumer_id, donator_id in product_user_list:
                 unique_products.add(product_id)
                 product = self.get_product_by_id(product_id, session)
-                user = self.get_user_by_id(user_id, session)
-                sale = self.make_purchase(user.user_id, product.product_id, 1, session=session, toast_round_id=toast_round.toast_round_id)
+                consumer = self.get_user_by_id(consumer_id, session)
+                donator = self.get_user_by_id(donator_id, session) if donator_id else None
+                sale = self.make_purchase(consumer.user_id, product.product_id, 1, session=session, toast_round_id=toast_round.toast_round_id, donator_id=donator.user_id if donator else None)
                 toast_round.sales.append(sale)
-                name_list.append(f"{user.name} bought {product.name}")
+                buyer_str = f"{donator.name}({consumer.name})" if donator else f"{consumer.name}"
+                name_list.append(f"{buyer_str} bought {product.name}")
             for product_id in unique_products:
                 product_toast_round = ProductToastround(product_id=product_id, toast_round_id=toast_round.toast_round_id)
                 session.add(product_toast_round)
@@ -632,6 +674,29 @@ class Database:
             return ingredients
         except Exception as e:
             raise RuntimeError(f"get_all_ingredients failed (eager_load={eager_load}): {e}") from e
+        finally:
+            if close_session:
+                session.close()
+
+
+    def get_all_pfand_history(self, session=None) -> 'List[PfandHistory]':
+        """Get all pfand history records."""
+        close_session = False
+        if session is None:
+            session = self.get_session()
+            close_session = True
+        try:
+            query = session.query(PfandHistory)
+            query = query.options(
+                joinedload(PfandHistory.user),
+                joinedload(PfandHistory.product)
+                    .joinedload(Product.product_ingredients)
+                    .joinedload(ProductIngredient.ingredient)
+            )
+            pfand_history = query.all()
+            return pfand_history
+        except Exception as e:
+            raise RuntimeError(f"get_all_pfand_history failed: {e}") from e
         finally:
             if close_session:
                 session.close()
@@ -748,9 +813,15 @@ class Database:
             close_session = True
         try:
             toast_rounds = session.query(ToastRound).options(
-                joinedload(ToastRound.sales).joinedload(Sale.user),
-                joinedload(ToastRound.sales).joinedload(Sale.product),
-                joinedload(ToastRound.toast_round_products).joinedload(ProductToastround.product)
+                joinedload(ToastRound.sales).joinedload(Sale.consumer),
+                joinedload(ToastRound.sales).joinedload(Sale.donator),
+                joinedload(ToastRound.sales).joinedload(Sale.product)
+                    .joinedload(Product.product_ingredients)
+                    .joinedload(ProductIngredient.ingredient),
+                joinedload(ToastRound.toast_round_products)
+                    .joinedload(ProductToastround.product)
+                    .joinedload(Product.product_ingredients)
+                    .joinedload(ProductIngredient.ingredient)
             ).all()
             return toast_rounds
         except Exception as e:
@@ -767,7 +838,8 @@ class Database:
             close_session = True
         try:
             sales = session.query(Sale).options(
-                joinedload(Sale.user),
+                joinedload(Sale.consumer),
+                joinedload(Sale.donator),
                 joinedload(Sale.product)
                 .joinedload(Product.product_ingredients)
                 .joinedload(ProductIngredient.ingredient),
@@ -836,6 +908,26 @@ class Database:
             if close_session:
                 session.close()
 
+    def get_pfand_history(self, user_id: int, product_id: int, session=None) -> PfandHistory:
+        """Get the pfand history for a user and product."""
+        close_session = False
+        if session is None:
+            session = self.get_session()
+            close_session = True
+        try:
+            pfand_history = session.query(PfandHistory).filter(
+                PfandHistory.user_id == user_id,
+                PfandHistory.product_id == product_id
+            ).all()
+            if len(pfand_history) > 1:
+                raise ValueError(f"Multiple pfand history records found for user_id={user_id}, product_id={product_id}")
+            return pfand_history[0] if pfand_history else None
+        except Exception as e:
+            raise RuntimeError(f"get_pfand_history failed for user_id={user_id}, product_id={product_id}: {e}") from e
+        finally:
+            if close_session:
+                session.close()
+
     def exists_ingredient_with_name(self, name: str, session=None) -> bool:
         """Check if an ingredient exists by name."""
         close_session = False
@@ -881,6 +973,8 @@ def extend_float_precision(value: float, precision: int = 16) -> float:
     extended_dec = dec_part + last_digit * (precision - len(dec_part))
     extended_str = f"{int_part}.{extended_dec[:precision]}"
     return float(extended_str)
+
+
 
 
 #database = Database()
