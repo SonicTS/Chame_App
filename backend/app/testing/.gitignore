@@ -1,0 +1,20 @@
+# Testing Directory .gitignore
+# This directory contains test databases that should be tracked in git
+
+# Track all test database files
+!*.db
+!test_databases/*.db
+
+# But ignore temporary test files
+**/tmp_*
+**/temp_*
+**/.pytest_cache/
+
+# Ignore Python cache files (covered by parent .gitignore but explicit here)
+__pycache__/
+*.pyc
+
+# Track all testing framework files
+!*.py
+!*.md
+!README.md

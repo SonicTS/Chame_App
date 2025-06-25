@@ -1,0 +1,224 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "API Tests: Quick Health Check",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/run_api_tests.py", "--quick"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Run quick API health check (data fetchers only)"
+		},
+		{
+			"label": "API Tests: Full Comprehensive Suite",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/run_api_tests.py"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Run complete API test suite with all functions and edge cases"
+		},
+		{
+			"label": "API Tests: Direct Comprehensive (Detailed Output)",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/comprehensive_api_tests.py"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Run comprehensive tests directly with detailed output and database preservation"
+		},
+		{
+			"label": "Generate Test Database: All Types",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/generate_test_databases.py", "all"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Generate all test database types (minimal, comprehensive, edge case, performance)"
+		},
+		{
+			"label": "Generate Test Database: Minimal",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/generate_test_databases.py", "minimal"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Generate minimal test database (basic users, ingredients, products)"
+		},
+		{
+			"label": "Generate Test Database: Comprehensive",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/generate_test_databases.py", "comprehensive"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Generate comprehensive test database (realistic business data)"
+		},
+		{
+			"label": "Generate Test Database: Edge Cases",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/generate_test_databases.py", "edge"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Generate edge case test database (unicode, extremes, special characters)"
+		},
+		{
+			"label": "Generate Test Database: Performance",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/generate_test_databases.py", "performance"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Generate performance test database (large datasets for stress testing)"
+		},
+		{
+			"label": "Testing Framework: Show Overview",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/show_testing_framework.py"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Display testing framework overview and capabilities"
+		},
+		{
+			"label": "Build: Create Executable",
+			"type": "shell",
+			"command": "scripts\\build_executeable.bat",
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Build executable using PyInstaller"
+		},
+		{
+			"label": "Run Main Application",
+			"type": "shell",
+			"command": "python",
+			"args": ["-m", "chame_app"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Run the main Chame application"
+		}
+	]
+}

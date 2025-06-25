@@ -3,7 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Database files (except testing databases)
 *.db
+!backend/app/testing/**/*.db
 
 # C extensions
 *.so
