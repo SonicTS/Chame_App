@@ -9,11 +9,9 @@ python = "^3.10"
 flask = "^2.1"
 sqlalchemy = "^1.4"
 alembic = "^1.7"
-requests = "^2.25"  # example of another dependency
-
-[build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+requests = "^2.25"
+passlib = "^1.7"
+argon2-cffi = "^21.1"
 
 [tool.black]
 line-length = 88
