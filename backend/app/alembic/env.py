@@ -6,6 +6,7 @@ from sqlalchemy import pool
 from alembic import context
 
 from config import get_sqlite_url
+from chame_app.database_instance import Database, Base
 
 
 
@@ -24,8 +25,7 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 
-from chame_app.database import Base, _create_engine_once
-_create_engine_once()  # Ensure the engine is created before accessing metadata
+database = Database()
 target_metadata = Base.metadata
 
 
