@@ -219,6 +219,86 @@
 			},
 			"problemMatcher": [],
 			"detail": "Run the main Chame application"
+		},
+		{
+			"label": "Migration & API Tests: Full Integration Suite",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/migration_and_api_tests.py"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Test database migrations and API functionality on all test databases"
+		},
+		{
+			"label": "Migration Tests: Baseline Migration Testing",
+			"type": "shell",
+			"command": "python",
+			"args": ["run_migration_tests.py"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Run baseline-based migration tests using real database snapshots"
+		},
+		{
+			"label": "Migration Workflow: Complete Testing Workflow",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/workflow_demo.py"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Run complete migration testing workflow (generate → test → migrate → validate)"
+		},
+		{
+			"label": "Migration Workflow: Quick Testing Workflow",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/workflow_demo.py", "--quick"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Run quick migration testing workflow using minimal databases only"
 		}
 	]
 }

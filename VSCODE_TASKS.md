@@ -24,6 +24,34 @@ This document explains all the VS Code tasks available for the Chame project bac
   - Best for debugging and detailed validation
   - Command: `python testing/comprehensive_api_tests.py`
 
+### Integration Testing
+- **Migration & API Tests: Full Integration Suite**
+  - Tests database migrations combined with API functionality
+  - Uses all test databases (minimal, comprehensive, edge case, performance)
+  - Validates data integrity throughout migration process
+  - Takes 5-10 minutes to complete
+  - Command: `python testing/migration_and_api_tests.py`
+
+- **Migration Tests: Baseline Migration Testing**
+  - Runs baseline-based migration tests using real database snapshots
+  - Tests migration compatibility with production-like data
+  - Requires baseline database setup
+  - Command: `python run_migration_tests.py`
+
+- **Migration Workflow: Complete Testing Workflow**
+  - Runs the complete migration testing workflow from start to finish
+  - Generates new databases → Tests APIs → Tests migrations → Validates results
+  - Best for comprehensive validation before releases
+  - Takes 10-15 minutes to complete
+  - Command: `python testing/workflow_demo.py`
+
+- **Migration Workflow: Quick Testing Workflow**
+  - Runs streamlined migration workflow using minimal databases only
+  - Faster validation for development iterations
+  - Same steps as complete workflow but with smaller datasets
+  - Takes 3-5 minutes to complete
+  - Command: `python testing/workflow_demo.py --quick`
+
 ## 🗄️ Database Generation Tasks
 
 ### Generate All Test Databases
@@ -95,6 +123,12 @@ This document explains all the VS Code tasks available for the Chame project bac
 2. **Detailed Testing**: Run "API Tests: Direct Comprehensive (Detailed Output)"
 3. **Manual Inspection**: Open generated test databases in SQLite browser
 
+### Migration Testing Workflow
+1. **Complete Workflow**: Use "Migration Workflow: Complete Testing Workflow" for full validation
+2. **Quick Workflow**: Use "Migration Workflow: Quick Testing Workflow" for faster testing
+3. **Manual Integration**: Run "Migration & API Tests: Full Integration Suite" 
+4. **Baseline Testing**: Use "Migration Tests: Baseline Migration Testing" for production scenarios
+
 ### Release Workflow
 1. **Comprehensive Testing**: Run "API Tests: Full Comprehensive Suite"
 2. **Performance Testing**: Generate and test with performance database
@@ -103,17 +137,17 @@ This document explains all the VS Code tasks available for the Chame project bac
 ## 📊 Task Groups
 
 Tasks are organized into logical groups:
-- **Test Group**: All testing-related tasks
+- **Test Group**: All testing-related tasks (API tests, migration tests, integration tests)
 - **Build Group**: Database generation, building, and utility tasks
 
 ## 🎯 Quick Reference
 
-| Task Type | Quick | Full | Detailed |
-|-----------|-------|------|----------|
-| **Health Check** | ✅ Quick Health Check | ✅ Full Comprehensive | ✅ Direct Comprehensive |
-| **Time** | ~30 seconds | 2-5 minutes | 3-7 minutes |
-| **Output** | Clean summary | Clean summary | Verbose details |
-| **Database** | Temporary | Temporary | Preserved |
+| Task Type | Quick | Full | Detailed | Integration |
+|-----------|-------|------|----------|-------------|
+| **Health Check** | ✅ Quick Health Check | ✅ Full Comprehensive | ✅ Direct Comprehensive | ✅ Migration & API Tests |
+| **Time** | ~30 seconds | 2-5 minutes | 3-7 minutes | 5-10 minutes |
+| **Output** | Clean summary | Clean summary | Verbose details | Comprehensive report |
+| **Database** | Temporary | Temporary | Preserved | Multiple test scenarios |
 
 ## 🛠️ Troubleshooting
 

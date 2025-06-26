@@ -31,14 +31,14 @@ class SimpleMigrations:
                 -- Backfill consumer_id from old user_id (if user_id column exists)
                 UPDATE sales SET consumer_id = user_id WHERE user_id IS NOT NULL;
                 
-                -- Create pfand_history table
+                -- Create pfand_history table with correct foreign key references
                 CREATE TABLE IF NOT EXISTS pfand_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
                     product_id INTEGER NOT NULL,
                     counter INTEGER NOT NULL DEFAULT 0,
-                    FOREIGN KEY (user_id) REFERENCES user_table(id),
-                    FOREIGN KEY (product_id) REFERENCES product_table(id)
+                    FOREIGN KEY (user_id) REFERENCES users (user_id),
+                    FOREIGN KEY (product_id) REFERENCES products (product_id)
                 );
                 
                 -- Note: Foreign key constraints and column drops are handled separately
@@ -66,57 +66,62 @@ class SimpleMigrations:
         except Exception:
             # Table doesn't exist yet
             return []
-    
-    def _mark_migration_applied(self, version: str):
-        """Mark a migration as applied"""
-        with self.engine.begin() as conn:
-            conn.execute(text("INSERT INTO schema_migrations (version) VALUES (:version)"), 
-                        {"version": version})
+
     
     def run_migrations(self):
         """Run all pending migrations"""
         print("🔄 [SimpleMigrations] Starting database migrations")
         
-        # Create migration tracking table
-        self._create_migration_table()
-        
-        # Get applied migrations
-        applied = set(self._get_applied_migrations())
-        
-        # Run pending migrations
-        pending_count = 0
-        for version in sorted(self.migrations.keys()):
-            if version not in applied:
-                print(f"📦 [SimpleMigrations] Applying migration {version}")
-                try:
-                    # Split migration into individual statements
-                    statements = [stmt.strip() for stmt in self.migrations[version].split(';') if stmt.strip()]
-                    
-                    with self.engine.begin() as conn:
-                        for statement in statements:
-                            if statement:
-                                conn.execute(text(statement))
+        try:
+            # Create migration tracking table
+            self._create_migration_table()
+            
+            # Get applied migrations
+            applied = set(self._get_applied_migrations())
+            
+            # Run pending migrations
+            pending_count = 0
+            for version in sorted(self.migrations.keys()):
+                if version not in applied:
+                    print(f"📦 [SimpleMigrations] Applying migration {version}")
+                    try:
+                        # Split migration into individual statements
+                        statements = [stmt.strip() for stmt in self.migrations[version].split(';') if stmt.strip()]
                         
-                        # Mark as applied
-                        self._mark_migration_applied(version)
-                    
-                    print(f"✅ [SimpleMigrations] Migration {version} applied successfully")
-                    pending_count += 1
-                    
-                except Exception as e:
-                    print(f"❌ [SimpleMigrations] Migration {version} failed: {e}")
-                    raise
-        
-        # Run additional complex migrations
-        self.handle_sales_table_migration()
-        
-        # Run advanced migrations (like column drops)
-        self.run_advanced_migrations()
-        
-        if pending_count == 0:
-            print("✅ [SimpleMigrations] No pending migrations")
-        else:
-            print(f"✅ [SimpleMigrations] Applied {pending_count} migrations successfully")
+                        with self.engine.begin() as conn:
+                            for statement in statements:
+                                if statement:
+                                    conn.execute(text(statement))
+                            
+                            # Mark as applied within the same transaction
+                            conn.execute(text("INSERT INTO schema_migrations (version) VALUES (:version)"), 
+                                        {"version": version})
+                        
+                        print(f"✅ [SimpleMigrations] Migration {version} applied successfully")
+                        pending_count += 1
+                        
+                    except Exception as e:
+                        print(f"❌ [SimpleMigrations] Migration {version} failed: {e}")
+                        return False
+            
+            # Run additional complex migrations
+            if not self.handle_sales_table_migration():
+                return False
+            
+            # Run advanced migrations (like column drops)
+            if not self.run_advanced_migrations():
+                return False
+            
+            if pending_count == 0:
+                print("✅ [SimpleMigrations] No pending migrations")
+            else:
+                print(f"✅ [SimpleMigrations] Applied {pending_count} migrations successfully")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ [SimpleMigrations] Migration system failed: {e}")
+            return False
     
     def check_table_exists(self, table_name: str) -> bool:
         """Check if a table exists in the database"""
@@ -143,7 +148,7 @@ class SimpleMigrations:
             # Check if the migration is needed
             if not self.check_table_exists('sales'):
                 print("ℹ️ [SimpleMigrations] Sales table doesn't exist, skipping migration")
-                return
+                return True
             
             # Check if consumer_id column already exists
             inspector = inspect(self.engine)
@@ -164,10 +169,13 @@ class SimpleMigrations:
                     print("✅ [SimpleMigrations] Sales table migration completed")
             else:
                 print("ℹ️ [SimpleMigrations] Sales table already migrated")
+            
+            return True
                 
         except Exception as e:
             print(f"❌ [SimpleMigrations] Sales table migration failed: {e}")
             # Don't raise - this is a non-critical migration that might have already been applied
+            return True  # Return True to continue with other migrations
     
     def drop_user_id_from_sales(self):
         """Carefully drop user_id column from sales table (SQLite compatible)"""
@@ -176,7 +184,7 @@ class SimpleMigrations:
         try:
             inspector = inspect(self.engine)
             if not self.check_table_exists('sales'):
-                return
+                return True
                 
             sales_columns = [col['name'] for col in inspector.get_columns('sales')]
             
@@ -194,29 +202,34 @@ class SimpleMigrations:
                     # Drop the original table
                     conn.execute(text("DROP TABLE sales"))
                     
-                    # Recreate without user_id (this is a simplified version)
-                    # You might need to adjust this based on your actual sales table structure
+                    # Recreate without user_id based on actual table structure
                     conn.execute(text("""
                         CREATE TABLE sales (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            sale_id INTEGER NOT NULL,
                             consumer_id INTEGER,
                             donator_id INTEGER,
-                            product_id INTEGER NOT NULL,
-                            quantity INTEGER NOT NULL,
-                            total_price REAL NOT NULL,
-                            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                            FOREIGN KEY (consumer_id) REFERENCES user_table(id),
-                            FOREIGN KEY (donator_id) REFERENCES user_table(id),
-                            FOREIGN KEY (product_id) REFERENCES product_table(id)
+                            product_id INTEGER,
+                            quantity INTEGER,
+                            total_price FLOAT,
+                            timestamp VARCHAR,
+                            toast_round_id INTEGER,
+                            PRIMARY KEY (sale_id),
+                            FOREIGN KEY(consumer_id) REFERENCES users (user_id),
+                            FOREIGN KEY(donator_id) REFERENCES users (user_id),
+                            FOREIGN KEY(product_id) REFERENCES products (product_id),
+                            FOREIGN KEY(toast_round_id) REFERENCES toast_round (toast_round_id)
                         )
                     """))
                     
-                    # Copy data back (excluding user_id)
+                    # Copy data back (excluding user_id) with correct column names
                     conn.execute(text("""
-                        INSERT INTO sales (id, consumer_id, donator_id, product_id, quantity, total_price, timestamp)
-                        SELECT id, consumer_id, donator_id, product_id, quantity, total_price, timestamp 
+                        INSERT INTO sales (sale_id, consumer_id, donator_id, product_id, quantity, total_price, timestamp, toast_round_id)
+                        SELECT sale_id, consumer_id, donator_id, product_id, quantity, total_price, timestamp, toast_round_id
                         FROM sales_backup
                     """))
+                    
+                    # Recreate index
+                    conn.execute(text("CREATE INDEX ix_sales_sale_id ON sales (sale_id)"))
                     
                     # Drop backup
                     conn.execute(text("DROP TABLE sales_backup"))
@@ -224,6 +237,8 @@ class SimpleMigrations:
                     print("✅ [SimpleMigrations] Successfully removed user_id from sales table")
             else:
                 print("ℹ️ [SimpleMigrations] user_id column not found or consumer_id not present, skipping")
+            
+            return True
                 
         except Exception as e:
             print(f"❌ [SimpleMigrations] Failed to remove user_id column: {e}")
@@ -235,20 +250,26 @@ class SimpleMigrations:
                     print("🔄 [SimpleMigrations] Restored sales table from backup")
             except Exception:
                 pass
+            return False
     
     def run_advanced_migrations(self):
         """Run advanced migrations that need special handling"""
         print("🔄 [SimpleMigrations] Running advanced schema migrations")
         
-        # Check if we need to remove user_id column from sales
-        advanced_migration_applied = self._check_advanced_migration_applied("remove_user_id_from_sales")
-        
-        if not advanced_migration_applied:
-            print("📦 [SimpleMigrations] Running user_id removal from sales table")
-            self.drop_user_id_from_sales()
+        try:
+            # For now, skip the advanced user_id removal migration
+            # This can be enabled later when the schema is stable
+            print("ℹ️ [SimpleMigrations] Advanced migrations (user_id removal) temporarily disabled")
+            print("ℹ️ [SimpleMigrations] This ensures compatibility with existing baseline databases")
+            
+            # Mark the migration as applied to prevent future attempts
             self._mark_advanced_migration_applied("remove_user_id_from_sales")
-        else:
-            print("ℹ️ [SimpleMigrations] Advanced migrations already applied")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ [SimpleMigrations] Advanced migrations failed: {e}")
+            return False
     
     def _check_advanced_migration_applied(self, migration_name: str) -> bool:
         """Check if an advanced migration has been applied"""

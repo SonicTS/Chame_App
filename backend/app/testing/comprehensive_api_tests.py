@@ -333,6 +333,7 @@ class ComprehensiveAPITester:
         self._test_function("get_all_toast_rounds", lambda: api.get_all_toast_rounds(), test_results)
         self._test_function("get_bank", lambda: api.get_bank(), test_results)
         self._test_function("get_bank_transaction", lambda: api.get_bank_transaction(), test_results)
+        self._test_function("get_pfand_history", lambda: api.get_pfand_history(), test_results)
         
         # Filtered transactions
         self._test_function("get_filtered_transaction (all)", 

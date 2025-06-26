@@ -9,6 +9,7 @@ Comprehensive testing framework for the Chame App admin API functions.
 - **`run_api_tests.py`** - Simple test runner with clean output and quick/full modes
 - **`generate_test_databases.py`** - Creates different types of test databases
 - **`show_testing_framework.py`** - Displays framework overview and capabilities
+- **`migration_and_api_tests.py`** - Integration tests combining database migrations with API validation
 
 ### Test Databases
 - **`test_databases/`** - Directory containing generated test databases
@@ -28,6 +29,9 @@ python run_api_tests.py
 
 # Or run directly
 python comprehensive_api_tests.py
+
+# Migration and API integration tests
+python migration_and_api_tests.py
 ```
 
 ### Generate Test Databases
@@ -75,7 +79,89 @@ python show_testing_framework.py
 - Large datasets for stress testing
 - Performance benchmarking scenarios
 
-## 🎯 What Gets Tested
+## 🔗 Migration and API Integration Testing
+
+### Overview
+The migration and API integration test suite (`migration_and_api_tests.py`) provides comprehensive testing that:
+
+1. **Tests Multiple Scenarios**: Uses all generated test databases (minimal, comprehensive, edge case, performance)
+2. **Migration Testing**: Validates that database migrations work correctly on real data
+3. **API Validation**: Ensures API functions work properly after migrations
+4. **Data Integrity**: Verifies that data is preserved and accessible throughout the migration process
+
+### What Gets Tested
+
+#### Migration Process
+- ✅ Schema migration execution
+- ✅ Data preservation during migration
+- ✅ Migration rollback capabilities
+- ✅ Cross-version compatibility
+
+#### Post-Migration API Testing
+- ✅ Data fetcher functions work with migrated schema
+- ✅ User operations (deposit, withdraw) function correctly
+- ✅ Product and ingredient queries return valid data
+- ✅ Database connections and transactions work properly
+
+#### Integration Scenarios
+- ✅ Fresh database -> migration -> API operations
+- ✅ Populated database -> migration -> data integrity check
+- ✅ Edge case data -> migration -> error handling validation
+- ✅ Large dataset -> migration -> performance validation
+
+### Usage Examples
+
+```bash
+# Run full migration and API integration test suite
+python migration_and_api_tests.py
+
+# The test will automatically:
+# 1. Find all test databases in testing/test_databases/
+# 2. Copy each to a temporary environment
+# 3. Run migrations on the copied database
+# 4. Test API functionality on the migrated database
+# 5. Report results for each database type
+```
+
+### Sample Output
+
+```
+🚀 Starting Migration and API Integration Test Suite
+======================================================================
+📁 Found 4 test databases:
+  • minimal_test.db
+  • comprehensive_test.db
+  • edge_case_test.db
+  • performance_test.db
+
+🎯 Testing database: minimal_test.db
+============================================================
+📄 Copied database: minimal_test.db -> test environment
+🔄 Testing migration on: minimal_test.db
+  📊 Analyzing pre-migration schema...
+     Tables: users, ingredients, products, sales
+  📋 Current version: 1.0
+  📋 Available migrations: 2
+  🚀 Running migrations...
+  ✅ Migration completed successfully
+🧪 Testing API functionality on: minimal_test.db
+  🔍 Testing data fetcher functions...
+  👥 Testing user operations...
+    ✅ User balance operations: Success
+  📊 API Test Results: 12 passed, 0 failed
+✅ minimal_test.db: All tests passed
+
+📊 FINAL TEST RESULTS
+======================================================================
+🎯 Total databases tested: 4
+✅ Successful: 4
+❌ Failed: 0
+
+🎉 All migration and API tests passed!
+💡 Your database migrations are working correctly across all test scenarios.
+```
+
+## 🧪 What Gets Tested
 
 ### User Management
 - ✅ User creation (all roles: user, admin, wirt)
