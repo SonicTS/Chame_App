@@ -22,16 +22,15 @@ backend/app/
 │   ├── admin_api.py       # Main admin API functions
 │   └── admin_webpage.py   # Web interface
 ├── 📂 testing/           # Testing framework
-│   ├── comprehensive_api_tests.py  # Complete API test suite
-│   ├── run_api_tests.py            # Test runner
+│   ├── comprehensive_api_tests.py  # Complete API test suite with CLI
 │   ├── generate_test_databases.py  # Test database generator
+│   ├── migration_and_api_tests.py  # Migration testing suite
 │   ├── show_testing_framework.py   # Framework overview
 │   └── test_databases/             # Generated test databases (tracked in git)
 ├── 📂 docs/              # Documentation
 │   └── API_TESTING.md    # Testing documentation
 ├── 📂 scripts/           # Utility scripts
 │   └── build_executeable.bat  # Build script
-├── 📂 alembic/           # Database migrations
 ├── 📂 build/             # Build artifacts
 ├── config.py             # Main configuration
 ├── requirements.txt      # Python dependencies
@@ -47,15 +46,17 @@ python -m chame_app
 
 ### Testing the API
 ```bash
-# Quick health check
-cd testing
-python run_api_tests.py --quick
+# Quick health check using minimal database
+python testing/comprehensive_api_tests.py --database-type minimal
 
-# Full test suite
-python run_api_tests.py
+# Full test suite using comprehensive database
+python testing/comprehensive_api_tests.py --database-type comprehensive
 
-# Generate test databases
-python generate_test_databases.py all
+# List available test databases
+python testing/comprehensive_api_tests.py --list-databases
+
+# Generate test databases (if missing)
+python testing/generate_test_databases.py all
 ```
 
 ### Building Executable
@@ -73,10 +74,10 @@ scripts\build_executeable.bat
 
 The `testing/` directory contains a complete testing framework:
 
-- **comprehensive_api_tests.py** - Tests all admin API functions with realistic data
-- **run_api_tests.py** - Simple test runner with clean output  
-- **generate_test_databases.py** - Creates various test database scenarios
-- **show_testing_framework.py** - Displays framework capabilities
+- **comprehensive_api_tests.py** - Complete API test suite with CLI for version/database selection
+- **generate_test_databases.py** - Creates various test database scenarios with version support
+- **migration_and_api_tests.py** - Tests database migrations and validates API functionality
+- **show_testing_framework.py** - Displays framework capabilities and usage examples
 
 ### Test Database Types
 - **Minimal** - Basic entities for quick testing
@@ -95,7 +96,7 @@ pip install -r requirements.txt
 ### Database Management
 - Main database: `kassensystem.db`
 - Test databases: `testing/test_databases/`
-- Migrations: `alembic/`
+- Migrations: `chame_app/simple_migration/`
 
 ### Code Organization
 - **Models** - Database table definitions
@@ -152,10 +153,10 @@ The main API functions are in `services/admin_api.py`:
 
 Before committing changes:
 
-1. **Quick Test**: `cd testing && python run_api_tests.py --quick`
-2. **Full Test**: `python run_api_tests.py` 
-3. **Check Results**: Review any failed tests
-4. **Inspect Data**: Examine preserved test databases
+1. **Quick Test**: `python testing/comprehensive_api_tests.py --database-type minimal`
+2. **Full Test**: `python testing/comprehensive_api_tests.py --database-type comprehensive` 
+3. **Check Results**: Review any failed tests and success rate
+4. **Inspect Data**: Examine preserved test databases in temp directory
 
 ## 📈 Success Metrics
 

@@ -1,11 +1,13 @@
 # comprehensive_api_tests.py
-# Complete testing framework for admin_api functions with database setup
+# Complete testing framework for admin_api functions using generated test databases
 
 import os
 import sys
 import tempfile
 import shutil
 import logging
+import argparse
+from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -13,32 +15,31 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import your modules
 import services.admin_api as api
 
+# Constants
+NO_DATABASES_MSG = "❌ No test databases found"
+
 logger = logging.getLogger(__name__)
 
 class ComprehensiveAPITester:
-    """Complete testing framework for all admin API functions"""
+    """Complete testing framework for all admin API functions using generated test databases"""
     
-    def __init__(self, test_db_path=None):
-        self.test_db_path = test_db_path or "test_database.db"
+    def __init__(self, version=None, database_type=None):
+        self.version = version
+        self.database_type = database_type
+        self.test_databases_dir = "testing/test_databases"
         self.temp_dir = None
-        self.created_entities = {
-            'users': [],
-            'ingredients': [],
-            'products': [],
-            'sales': [],
-            'toast_rounds': []
-        }
+        self.current_db_path = None
+        self.available_versions = []
+        self.available_databases = {}
         
     def setup_test_environment(self):
-        """Set up temporary directory and database for testing"""
+        """Set up temporary directory for testing"""
         self.temp_dir = tempfile.mkdtemp(prefix="api_test_")
-        self.test_db_path = os.path.join(self.temp_dir, "test_api.db")
         
         # Set environment variable to use test database
         os.environ["PRIVATE_STORAGE"] = self.temp_dir
         
         print(f"📁 Test environment created at: {self.temp_dir}")
-        print(f"🗄️ Test database: {self.test_db_path}")
         
     def teardown_test_environment(self):
         """Clean up test environment"""
@@ -46,224 +47,302 @@ class ComprehensiveAPITester:
             shutil.rmtree(self.temp_dir)
             print(f"🧹 Cleaned up test environment: {self.temp_dir}")
     
-    def create_test_database(self):
-        """Initialize database and create basic structure"""
-        print("🔧 Creating test database...")
+    def discover_available_databases(self):
+        """Discover all available test database versions and types"""
+        test_db_path = Path(self.test_databases_dir)
+        self.available_versions = []
+        self.available_databases = {}
         
-        # Reset the global database instance
-        api.database = None
+        if not test_db_path.exists():
+            print(f"❌ Test databases directory not found: {self.test_databases_dir}")
+            return False
         
-        # Create new database instance
-        db = api.create_database()
+        # Find all version directories
+        for version_dir in test_db_path.iterdir():
+            if version_dir.is_dir() and not version_dir.name.startswith('.'):
+                # Check if directory contains .db files
+                db_files = list(version_dir.glob("*.db"))
+                if db_files:
+                    version_name = version_dir.name
+                    self.available_versions.append(version_name)
+                    self.available_databases[version_name] = {}
+                    
+                    # Categorize databases by type
+                    for db_file in db_files:
+                        db_name = db_file.stem
+                        if "minimal" in db_name:
+                            self.available_databases[version_name]["minimal"] = str(db_file)
+                        elif "comprehensive" in db_name:
+                            self.available_databases[version_name]["comprehensive"] = str(db_file)
+                        elif "edge" in db_name:
+                            self.available_databases[version_name]["edge"] = str(db_file)
+                        elif "performance" in db_name:
+                            self.available_databases[version_name]["performance"] = str(db_file)
+                        else:
+                            # Generic database
+                            self.available_databases[version_name]["generic"] = str(db_file)
         
-        print("✅ Test database created successfully")
-        return db
+        # Sort versions (newer versions should come last alphabetically if named properly)
+        self.available_versions.sort()
+        
+        return len(self.available_versions) > 0
     
-    def populate_generic_test_data(self):
-        """Create a comprehensive set of test data"""
-        print("📊 Populating database with generic test data...")
-        
-        # Create test users
-        self._create_test_users()
-        
-        # Create test ingredients
-        self._create_test_ingredients()
-        
-        # Create test products
-        self._create_test_products()
-        
-        # Create test sales
-        self._create_test_sales()
-        
-        # Create test toast rounds
-        self._create_test_toast_rounds()
-        
-        print("✅ Generic test data populated successfully")
+    def get_latest_version(self):
+        """Get the latest available version"""
+        if not self.available_versions:
+            return None
+        return self.available_versions[-1]
     
-    def _create_test_users(self):
-        """Create various types of test users"""
-        print("👥 Creating test users...")
+    def select_database(self):
+        """Select appropriate database based on version and type preferences"""
+        if not self.discover_available_databases():
+            print("❌ No test databases found")
+            return None
         
-        users_data = [
-            ("admin_user", 1000.0, "admin", "admin123"),
-            ("wirt_user", 500.0, "wirt", "wirt1234"),
-            ("regular_user1", 50.0, "user", ""),
-            ("regular_user2", 25.75, "user", ""),
-            ("broke_user", 0.0, "user", ""),
-            ("rich_user", 999.99, "user", ""),
-            ("test_müller", 100.0, "user", ""),  # Test special characters
-            ("user_with_debt", -10.0, "user", ""),  # Test negative balance
-        ]
+        print(f"📋 Found test database versions: {', '.join(self.available_versions)}")
         
-        for name, balance, role, password in users_data:
-            try:
-                user = api.add_user(name, balance, role, password)
-                self.created_entities['users'].append(user)
-                print(f"  ✅ Created {role}: {name} (balance: {balance})")
-            except Exception as e:
-                print(f"  ❌ Failed to create user {name}: {e}")
+        # Determine version to use
+        selected_version = self.version
+        if not selected_version:
+            selected_version = self.get_latest_version()
+            print(f"🎯 No version specified, using latest: {selected_version}")
+        elif selected_version not in self.available_versions:
+            print(f"⚠️ Requested version '{selected_version}' not found")
+            selected_version = self.get_latest_version()
+            print(f"🎯 Falling back to latest version: {selected_version}")
+        else:
+            print(f"🎯 Using specified version: {selected_version}")
+        
+        if not selected_version:
+            return None
+        
+        # Determine database type to use
+        available_types = list(self.available_databases[selected_version].keys())
+        print(f"� Available database types in {selected_version}: {', '.join(available_types)}")
+        
+        selected_type = self.database_type
+        if not selected_type:
+            # Default preference order
+            preference_order = ["comprehensive", "minimal", "edge", "performance", "generic"]
+            for pref_type in preference_order:
+                if pref_type in available_types:
+                    selected_type = pref_type
+                    break
+            if not selected_type:
+                selected_type = available_types[0]
+            print(f"🎯 No database type specified, using: {selected_type}")
+        elif selected_type not in available_types:
+            print(f"⚠️ Requested database type '{selected_type}' not found in {selected_version}")
+            selected_type = available_types[0]
+            print(f"🎯 Falling back to: {selected_type}")
+        else:
+            print(f"🎯 Using specified database type: {selected_type}")
+        
+        selected_db_path = self.available_databases[selected_version][selected_type]
+        print(f"✅ Selected database: {selected_db_path}")
+        
+        return selected_db_path
     
-    def _create_test_ingredients(self):
-        """Create various test ingredients"""
-        print("🥬 Creating test ingredients...")
-        
-        ingredients_data = [
-            ("Bread", 2.50, 20, 10, 0.0),  # Basic ingredient
-            ("Cheese", 4.00, 15, 8, 0.0),
-            ("Ham", 5.50, 10, 6, 0.0),
-            ("Tomato", 3.00, 25, 12, 0.0),
-            ("Lettuce", 2.00, 30, 15, 0.0),
-            ("Cola", 1.50, 24, 1, 0.25),  # With Pfand
-            ("Beer", 2.00, 20, 1, 0.08),  # With Pfand
-            ("Water", 1.00, 50, 1, 0.25),  # With Pfand
-            ("Expensive_Ingredient", 99.99, 1, 1, 0.0),  # Edge case: expensive
-            ("Free_Sample", 0.01, 100, 50, 0.0),  # Edge case: very cheap
-        ]
-        
-        for name, price, stock, number, pfand in ingredients_data:
-            try:
-                ingredient = api.add_ingredient(name, price, stock, number, pfand)
-                self.created_entities['ingredients'].append(ingredient)
-                print(f"  ✅ Created ingredient: {name} (stock: {stock}, pfand: {pfand})")
-            except Exception as e:
-                print(f"  ❌ Failed to create ingredient {name}: {e}")
-    
-    def _create_test_products(self):
-        """Create various test products"""
-        print("🍞 Creating test products...")
-        
-        # Get created ingredients for product creation
-        ingredients = api.get_all_ingredients()
-        if not ingredients or len(ingredients) < 3:
-            print("  ⚠️ Not enough ingredients to create products")
-            return
-        
-        products_data = [
-            {
-                "name": "Classic Toast",
-                "category": "toast",
-                "price": 3.50,
-                "ingredient_indices": [0, 1],  # Bread, Cheese
-                "quantities": [1, 1],
-                "toaster_space": 1
-            },
-            {
-                "name": "Ham & Cheese Toast",
-                "category": "toast",
-                "price": 5.00,
-                "ingredient_indices": [0, 1, 2],  # Bread, Cheese, Ham
-                "quantities": [1, 1, 1],
-                "toaster_space": 1
-            },
-            {
-                "name": "Veggie Toast",
-                "category": "toast",
-                "price": 4.00,
-                "ingredient_indices": [0, 3, 4],  # Bread, Tomato, Lettuce
-                "quantities": [1, 2, 2],
-                "toaster_space": 1
-            },
-            {
-                "name": "Cola",
-                "category": "drink",
-                "price": 2.00,
-                "ingredient_indices": [5],  # Cola
-                "quantities": [1],
-                "toaster_space": 0
-            },
-            {
-                "name": "Premium Sandwich",
-                "category": "sandwich",
-                "price": 15.99,
-                "ingredient_indices": [0, 1, 2, 3, 4],  # All main ingredients
-                "quantities": [2, 2, 2, 1, 1],
-                "toaster_space": 2
-            }
-        ]
-        
-        for product_data in products_data:
-            try:
-                # Get ingredient IDs
-                ingredient_ids = []
-                for idx in product_data["ingredient_indices"]:
-                    if idx < len(ingredients):
-                        ingredient_ids.append(ingredients[idx]["ingredient_id"])
-                
-                product = api.add_product(
-                    product_data["name"],
-                    product_data["category"],
-                    product_data["price"],
-                    ingredient_ids,
-                    product_data["quantities"],
-                    product_data["toaster_space"]
-                )
-                self.created_entities['products'].append(product)
-                print(f"  ✅ Created product: {product_data['name']} (price: {product_data['price']})")
-            except Exception as e:
-                print(f"  ❌ Failed to create product {product_data['name']}: {e}")
-    
-    def _create_test_sales(self):
-        """Create various test sales"""
-        print("💰 Creating test sales...")
-        
-        users = api.get_all_users()
-        products = api.get_all_products()
-        
-        if not users or not products:
-            print("  ⚠️ No users or products available for sales")
-            return
-        
-        # Create various sales scenarios
-        sales_scenarios = [
-            # (user_index, product_index, quantity)
-            (0, 0, 1),  # Admin buys classic toast
-            (2, 1, 2),  # Regular user buys 2 ham & cheese toasts
-            (3, 3, 1),  # Regular user buys cola
-            (1, 4, 1),  # Wirt buys premium sandwich
-            (5, 0, 3),  # Rich user buys 3 classic toasts
-        ]
-        
-        for user_idx, product_idx, quantity in sales_scenarios:
-            try:
-                if user_idx < len(users) and product_idx < len(products):
-                    sale = api.make_purchase(
-                        users[user_idx]["user_id"],
-                        products[product_idx]["product_id"],
-                        quantity
-                    )
-                    self.created_entities['sales'].append(sale)
-                    print(f"  ✅ Sale: {users[user_idx]['name']} bought {quantity}x {products[product_idx]['name']}")
-            except Exception as e:
-                print(f"  ❌ Failed to create sale: {e}")
-    
-    def _create_test_toast_rounds(self):
-        """Create test toast rounds"""
-        print("🍞 Creating test toast rounds...")
-        
-        users = api.get_all_users()
-        products = api.get_all_products()
-        
-        if not users or not products:
-            print("  ⚠️ No users or products available for toast rounds")
-            return
-        
-        # Filter for toast products
-        toast_products = [p for p in products if p.get("category") == "toast"]
-        
-        if len(toast_products) < 2 or len(users) < 3:
-            print("  ⚠️ Not enough toast products or users for toast rounds")
-            return
+    def generate_missing_databases(self):
+        """Generate test databases if none are available"""
+        print("🔧 No test databases found, generating new ones...")
         
         try:
-            # Create a toast round with multiple products and users
-            product_ids = [toast_products[0]["product_id"], toast_products[1]["product_id"]]
-            user_selections = [users[0]["user_id"], users[2]["user_id"]]
+            import subprocess
             
-            toast_round = api.add_toast_round(product_ids, user_selections)
-            self.created_entities['toast_rounds'].append(toast_round)
-            print(f"  ✅ Created toast round with {len(product_ids)} products")
+            # Determine version to generate
+            target_version = self.version or "v1.0"
+            
+            print(f"📦 Generating test databases for version: {target_version}")
+            
+            # Run the database generator
+            result = subprocess.run([
+                "python", "testing/generate_test_databases.py", "all", "--version", target_version
+            ], capture_output=True, text=True, cwd=os.path.dirname(self.test_databases_dir))
+            
+            if result.returncode == 0:
+                print("✅ Test databases generated successfully")
+                print(f"📝 Generator output:\n{result.stdout}")
+                
+                # Re-discover databases
+                if self.discover_available_databases():
+                    return self.select_database()
+                else:
+                    print("❌ Failed to find generated databases")
+                    return None
+            else:
+                print(f"❌ Database generation failed: {result.stderr}")
+                return None
+                
         except Exception as e:
-            print(f"  ❌ Failed to create toast round: {e}")
+            print(f"❌ Error generating databases: {e}")
+            return None
+    
+    def copy_database_to_test_env(self, source_db_path):
+        """Copy selected database to test environment"""
+        if not os.path.exists(source_db_path):
+            raise FileNotFoundError(f"Source database not found: {source_db_path}")
+        
+        # Target path in test environment (standard name expected by admin_api)
+        target_path = os.path.join(self.temp_dir, "kassensystem.db")
+        
+        # Copy database
+        shutil.copy2(source_db_path, target_path)
+        
+        print(f"📄 Copied database: {os.path.basename(source_db_path)} -> test environment")
+        self.current_db_path = target_path
+        
+        return target_path
+    
+    def analyze_test_database(self):
+        """Analyze the current test database to understand its contents"""
+        if not self.current_db_path:
+            return
+        
+        print(f"📊 Analyzing test database: {os.path.basename(self.current_db_path)}")
+        
+        try:
+            import sqlite3
+            conn = sqlite3.connect(self.current_db_path)
+            cursor = conn.cursor()
+            
+            # Get table information
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = [row[0] for row in cursor.fetchall()]
+            
+            print("📋 Database contents:")
+            for table in sorted(tables):
+                try:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                    count = cursor.fetchone()[0]
+                    print(f"  • {table}: {count} records")
+                except Exception as e:
+                    print(f"  • {table}: Error counting records ({e})")
+            
+            conn.close()
+            
+        except Exception as e:
+            print(f"⚠️ Error analyzing database: {e}")
+    
+    def prepare_test_database(self):
+        """Prepare test database for API testing"""
+        # Select or generate database
+        selected_db = self.select_database()
+        
+        if not selected_db:
+            print("📦 Attempting to generate test databases...")
+            selected_db = self.generate_missing_databases()
+        
+        if not selected_db:
+            raise RuntimeError("No test databases available and generation failed")
+        
+        # Copy to test environment
+        self.copy_database_to_test_env(selected_db)
+        
+        # Analyze database contents
+        self.analyze_test_database()
+        
+        # Reset API database instance to use our test database
+        api.database = None
+        
+        # Create database connection (this will use our copied database)
+        db = api.create_database(False)
+        
+        print("✅ Test database prepared successfully")
+        return db
+    
+    def _validate_user_dict(self, user_dict, test_results):
+        """Validate that a user dictionary has the expected fields"""
+        expected_fields = ['user_id', 'name', 'balance', 'role']
+        return self._validate_dict_structure(user_dict, expected_fields, 'user', test_results)
+    
+    def _validate_product_dict(self, product_dict, test_results):
+        """Validate that a product dictionary has the expected fields"""
+        expected_fields = ['product_id', 'name', 'category', 'price_per_unit', 'cost_per_unit', 'profit_per_unit', 'stock_quantity', 'toaster_space']
+        return self._validate_dict_structure(product_dict, expected_fields, 'product', test_results)
+    
+    def _validate_ingredient_dict(self, ingredient_dict, test_results):
+        """Validate that an ingredient dictionary has the expected fields"""
+        expected_fields = ['ingredient_id', 'name', 'price_per_package', 'number_of_units', 'pfand', 'price_per_unit', 'stock_quantity']
+        return self._validate_dict_structure(ingredient_dict, expected_fields, 'ingredient', test_results)
+    
+    def _validate_sale_dict(self, sale_dict, test_results):
+        """Validate that a sale dictionary has the expected fields"""
+        expected_fields = ['sale_id', 'consumer_id', 'product_id', 'quantity', 'total_price', 'timestamp']
+        return self._validate_dict_structure(sale_dict, expected_fields, 'sale', test_results)
+    
+    def _validate_transaction_dict(self, transaction_dict, test_results):
+        """Validate that a transaction dictionary has the expected fields"""
+        expected_fields = ['transaction_id', 'user_id', 'amount', 'type', 'timestamp']
+        return self._validate_dict_structure(transaction_dict, expected_fields, 'transaction', test_results)
+    
+    def _validate_bank_dict(self, bank_dict, test_results):
+        """Validate that a bank dictionary has the expected fields"""
+        expected_fields = ['account_id', 'total_balance', 'customer_funds', 'revenue_funds']
+        return self._validate_dict_structure(bank_dict, expected_fields, 'bank', test_results)
+    
+    def _validate_pfand_history_dict(self, pfand_dict, test_results):
+        """Validate that a pfand history dictionary has the expected fields"""
+        expected_fields = ['user_id', 'product_id', 'counter']
+        return self._validate_dict_structure(pfand_dict, expected_fields, 'pfand_history', test_results)
+    
+    def _validate_toast_round_dict(self, toast_round_dict, test_results):
+        """Validate that a toast round dictionary has the expected fields"""
+        expected_fields = ['toast_round_id', 'timestamp']
+        return self._validate_dict_structure(toast_round_dict, expected_fields, 'toast_round', test_results)
+    
+    def _validate_dict_structure(self, data_dict, expected_fields, entity_type, test_results):
+        """Generic validation for dictionary structure"""
+        if not isinstance(data_dict, dict):
+            test_results['failed'] += 1
+            test_results['errors'].append(f"{entity_type}: Expected dict, got {type(data_dict)}")
+            return False
+        
+        missing_fields = [field for field in expected_fields if field not in data_dict]
+        if missing_fields:
+            test_results['failed'] += 1
+            test_results['errors'].append(f"{entity_type}: Missing fields: {missing_fields}")
+            return False
+        
+        # Check for unexpected None values in critical fields
+        none_fields = [field for field in expected_fields if data_dict.get(field) is None and field.endswith('_id')]
+        if none_fields:
+            test_results['failed'] += 1
+            test_results['errors'].append(f"{entity_type}: ID fields cannot be None: {none_fields}")
+            return False
+        
+        return True
+    
+    def _validate_list_response(self, response, validator_func, entity_type, test_results, min_items=0):
+        """Validate a list response from API"""
+        if response is None:
+            if min_items > 0:
+                test_results['failed'] += 1
+                test_results['errors'].append(f"{entity_type}: Expected list but got None")
+                return False
+            else:
+                # None is acceptable for empty lists in some cases
+                return True
+        
+        if not isinstance(response, list):
+            test_results['failed'] += 1
+            test_results['errors'].append(f"{entity_type}: Expected list, got {type(response)}")
+            return False
+        
+        if len(response) < min_items:
+            test_results['failed'] += 1
+            test_results['errors'].append(f"{entity_type}: Expected at least {min_items} items, got {len(response)}")
+            return False
+        
+        # Validate each item in the list
+        for i, item in enumerate(response):
+            if not validator_func(item, test_results):
+                test_results['errors'].append(f"{entity_type}[{i}]: Structure validation failed")
+                return False
+        
+        test_results['passed'] += 1
+        print(f"  ✅ {entity_type} list: Structure validated ({len(response)} items)")
+        return True
     
     def test_all_api_functions(self):
         """Test every function in the admin API"""
@@ -321,26 +400,79 @@ class ComprehensiveAPITester:
             return None
     
     def _test_data_fetchers(self, test_results):
-        """Test all data fetching functions"""
+        """Test all data fetching functions and validate returned dictionary structures"""
         print("\n📊 Testing data fetcher functions...")
         
-        # Basic data fetchers
-        self._test_function("get_all_users", lambda: api.get_all_users(), test_results)
-        self._test_function("get_all_products", lambda: api.get_all_products(), test_results)
-        self._test_function("get_all_ingredients", lambda: api.get_all_ingredients(), test_results)
-        self._test_function("get_all_sales", lambda: api.get_all_sales(), test_results)
-        self._test_function("get_all_toast_products", lambda: api.get_all_toast_products(), test_results)
-        self._test_function("get_all_toast_rounds", lambda: api.get_all_toast_rounds(), test_results)
-        self._test_function("get_bank", lambda: api.get_bank(), test_results)
-        self._test_function("get_bank_transaction", lambda: api.get_bank_transaction(), test_results)
+        # Test and validate users
+        users = self._test_function("get_all_users", lambda: api.get_all_users(), test_results)
+        if users is not None:
+            self._validate_list_response(users, self._validate_user_dict, "users", test_results)
         
-        # Filtered transactions
-        self._test_function("get_filtered_transaction (all)", 
+        # Test and validate products
+        products = self._test_function("get_all_products", lambda: api.get_all_products(), test_results)
+        if products is not None:
+            self._validate_list_response(products, self._validate_product_dict, "products", test_results)
+        
+        # Test and validate ingredients
+        ingredients = self._test_function("get_all_ingredients", lambda: api.get_all_ingredients(), test_results)
+        if ingredients is not None:
+            self._validate_list_response(ingredients, self._validate_ingredient_dict, "ingredients", test_results)
+        
+        # Test and validate sales
+        sales = self._test_function("get_all_sales", lambda: api.get_all_sales(), test_results)
+        if sales is not None:
+            self._validate_list_response(sales, self._validate_sale_dict, "sales", test_results)
+        
+        # Test and validate toast products
+        toast_products = self._test_function("get_all_toast_products", lambda: api.get_all_toast_products(), test_results)
+        if toast_products is not None:
+            self._validate_list_response(toast_products, self._validate_product_dict, "toast_products", test_results)
+        
+        # Test and validate toast rounds
+        toast_rounds = self._test_function("get_all_toast_rounds", lambda: api.get_all_toast_rounds(), test_results)
+        if toast_rounds is not None:
+            self._validate_list_response(toast_rounds, self._validate_toast_round_dict, "toast_rounds", test_results)
+        
+        # Test and validate bank (single dict, not list)
+        bank = self._test_function("get_bank", lambda: api.get_bank(), test_results)
+        if bank is not None:
+            if not self._validate_bank_dict(bank, test_results):
+                test_results['errors'].append("bank: Structure validation failed")
+            else:
+                test_results['passed'] += 1
+                print("  ✅ bank dict: Structure validated")
+        
+        # Test and validate bank transactions
+        bank_transactions = self._test_function("get_bank_transaction", lambda: api.get_bank_transaction(), test_results)
+        if bank_transactions is not None:
+            # Bank transactions return a list with different structure - validate as generic dicts
+            if isinstance(bank_transactions, list):
+                test_results['passed'] += 1
+                print(f"  ✅ bank_transaction list: Structure validated ({len(bank_transactions)} items)")
+            else:
+                test_results['failed'] += 1
+                test_results['errors'].append(f"bank_transaction: Expected list, got {type(bank_transactions)}")
+        
+        # Test and validate pfand history
+        pfand_history = self._test_function("get_pfand_history", lambda: api.get_pfand_history(), test_results)
+        if pfand_history is not None:
+            self._validate_list_response(pfand_history, self._validate_pfand_history_dict, "pfand_history", test_results)
+        
+        # Test and validate filtered transactions
+        all_transactions = self._test_function("get_filtered_transaction (all)", 
                           lambda: api.get_filtered_transaction(), test_results)
-        self._test_function("get_filtered_transaction (user 1)", 
+        if all_transactions is not None:
+            self._validate_list_response(all_transactions, self._validate_transaction_dict, "all_transactions", test_results)
+        
+        user1_transactions = self._test_function("get_filtered_transaction (user 1)", 
                           lambda: api.get_filtered_transaction(user_id=1), test_results)
-        self._test_function("get_filtered_transaction (sales only)", 
+        if user1_transactions is not None:
+            self._validate_list_response(user1_transactions, self._validate_transaction_dict, "user1_transactions", test_results)
+        
+        sales_transactions = self._test_function("get_filtered_transaction (sales only)", 
                           lambda: api.get_filtered_transaction(tx_type="sale"), test_results)
+        if sales_transactions is not None:
+            self._validate_list_response(sales_transactions, self._validate_transaction_dict, "sales_transactions", test_results)
     
     def _test_user_management(self, test_results):
         """Test user management functions"""
@@ -399,7 +531,7 @@ class ComprehensiveAPITester:
                               lambda: api.restock_ingredient(ingredient_id, 10), test_results)
             
             # Bulk restocking
-            restock_list = [{ingredient_id: 5}]
+            restock_list = [{'id': ingredient_id, 'restock': 5}]
             self._test_function("restock_ingredients", 
                               lambda: api.restock_ingredients(restock_list), test_results)
     
@@ -431,11 +563,17 @@ class ComprehensiveAPITester:
         
         users = api.get_all_users()
         products = api.get_all_products()
-        
+        user_id = None
         if users and products:
-            user_id = users[0]["user_id"]
+            for user in users:
+                if user['balance'] > products[0]['price_per_unit']:
+                    # Use the first user with sufficient balance
+                    user_id = user['user_id']
+                    break
+            if not user_id:
+                print("⚠️ No user with sufficient balance found for purchases")
+                return
             product_id = products[0]["product_id"]
-            
             # Valid purchase
             self._test_function("make_purchase (valid)", 
                               lambda: api.make_purchase(user_id, product_id, 1), test_results)
@@ -450,9 +588,17 @@ class ComprehensiveAPITester:
         
         # Pfand return testing
         if users and products:
-            product_list = [{"product_id": products[0]["product_id"], "quantity": 1}]
+            pfand_history = api.get_pfand_history()
+            if not pfand_history or len(pfand_history) == 0:
+                print("⚠️ No pfand history found, cannot test return")
+                return
+            user_id, product_id = pfand_history[0]["user_id"], pfand_history[0]["product_id"]
+            if pfand_history[0]["counter"] <= 0:
+                print("⚠️ No pfand amount to return, cannot test return")
+                return
+            product_list = [{"id": product_id, "amount": 1}]
             self._test_function("submit_pfand_return", 
-                              lambda: api.submit_pfand_return(users[0]["user_id"], product_list), test_results)
+                              lambda: api.submit_pfand_return(user_id, product_list), test_results)
     
     def _test_bank_functions(self, test_results):
         """Test bank-related functions"""
@@ -472,7 +618,7 @@ class ComprehensiveAPITester:
         
         # Test login with existing admin user
         self._test_function("login (valid admin)", 
-                          lambda: api.login("admin_user", "admin123"), test_results)
+                          lambda: api.login("admin", "password"), test_results)
         
         # Invalid login attempts
         self._test_function("login (invalid - wrong password)", 
@@ -527,17 +673,17 @@ class ComprehensiveAPITester:
         return edge_test_results
     
     def run_comprehensive_test_suite(self):
-        """Run the complete test suite"""
+        """Run the complete test suite using generated test databases"""
         print("🚀 Starting Comprehensive API Test Suite")
+        print("Using generated test databases for realistic testing scenarios")
         print("=" * 60)
         
         try:
             # Setup
             self.setup_test_environment()
-            self.create_test_database()
             
-            # Populate with test data
-            self.populate_generic_test_data()
+            # Prepare test database (select/generate and copy)
+            self.prepare_test_database()
             
             print("\n" + "=" * 60)
             print("🧪 PHASE 1: Testing all API functions")
@@ -556,11 +702,14 @@ class ComprehensiveAPITester:
             # Combined results
             total_passed = main_results['passed'] + edge_results['passed']
             total_failed = main_results['failed'] + edge_results['failed']
-            total_tests = total_passed + total_failed
+            total_tests = total_passed + total_failed;
             
             print("\n" + "=" * 60)
             print("📊 FINAL RESULTS")
             print("=" * 60)
+            print(f"🎯 Database used: {os.path.basename(self.current_db_path) if self.current_db_path else 'Unknown'}")
+            print(f"📦 Version: {self.version or 'Latest available'}")
+            print(f"📊 Database type: {self.database_type or 'Auto-selected'}")
             print(f"✅ Total Passed: {total_passed}")
             print(f"❌ Total Failed: {total_failed}")
             print(f"📈 Success Rate: {(total_passed/total_tests*100):.1f}%")
@@ -570,8 +719,8 @@ class ComprehensiveAPITester:
                 for error in main_results['errors'] + edge_results['errors']:
                     print(f"  • {error}")
             
-            print(f"\n💾 Test database saved at: {self.test_db_path}")
-            print("   You can examine this database to see all created test data")
+            print(f"\n💾 Test database preserved at: {self.current_db_path}")
+            print("   You can examine this database to see all test data and results")
             
             return total_failed == 0  # Return True if all tests passed
             
@@ -582,17 +731,185 @@ class ComprehensiveAPITester:
             return False
         finally:
             # Don't clean up automatically - let user examine the database
-            print(f"\n💡 Test environment preserved for examination")
-            print(f"   Database: {self.test_db_path}")
-            print(f"   To clean up: rm -rf {self.temp_dir}")
+            print("\n💡 Test environment preserved for examination")
+            print(f"   Database: {self.current_db_path}")
+            if self.temp_dir:
+                print(f"   To clean up: rm -rf {self.temp_dir}")
+
+def list_available_databases():
+    """List all available test databases"""
+    tester = ComprehensiveAPITester()
+    
+    if not tester.discover_available_databases():
+        print("❌ No test databases found")
+        print(f"💡 Expected location: {tester.test_databases_dir}/")
+        print("💡 To generate test databases:")
+        print("   python testing/generate_test_databases.py all --version v1.0")
+        return
+    
+    print("📋 Available Test Databases:")
+    print("=" * 40)
+    
+    for version in tester.available_versions:
+        print(f"\n📦 Version: {version}")
+        databases = tester.available_databases[version]
+        for db_type, db_path in databases.items():
+            db_name = os.path.basename(db_path)
+            print(f"  • {db_type}: {db_name}")
+    
+    latest = tester.get_latest_version()
+    if latest:
+        print(f"\n🎯 Latest version: {latest}")
+
+def _inspect_single_database(db_path, db_type, detailed=False):
+    """Inspect a single database file and show table contents"""
+    print(f"\n📊 Database: {db_type} ({os.path.basename(db_path)})")
+    
+    try:
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Get all tables
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+        tables = [row[0] for row in cursor.fetchall()]
+        
+        if not tables:
+            print("  ⚠️ No tables found")
+            conn.close()
+            return
+        
+        # Show table info
+        for table in tables:
+            _inspect_single_table(cursor, table, detailed)
+        
+        conn.close()
+        
+    except Exception as e:
+        print(f"  ❌ Error opening database: {e}")
+
+def _inspect_single_table(cursor, table, detailed=False):
+    """Inspect a single table and show its contents"""
+    try:
+        cursor.execute(f"SELECT COUNT(*) FROM {table}")
+        count = cursor.fetchone()[0]
+        
+        if detailed and count > 0:
+            # Get column info
+            cursor.execute(f"PRAGMA table_info({table})")
+            columns = cursor.fetchall()
+            column_names = [col[1] for col in columns]
+            
+            print(f"  📋 {table}: {count} records")
+            print(f"     Columns: {', '.join(column_names)}")
+            
+            # Show sample data for small tables
+            if count <= 5:
+                cursor.execute(f"SELECT * FROM {table} LIMIT 3")
+                sample_rows = cursor.fetchall()
+                if sample_rows:
+                    print("     Sample data:")
+                    for i, row in enumerate(sample_rows):
+                        print(f"       Row {i+1}: {dict(zip(column_names, row))}")
+        else:
+            print(f"  📋 {table}: {count} records")
+            
+    except Exception as e:
+        print(f"  ❌ {table}: Error reading table ({e})")
+
+def inspect_databases(version=None, detailed=False):
+    """Inspect all database files and show their table contents"""
+    tester = ComprehensiveAPITester()
+    
+    if not tester.discover_available_databases():
+        print(NO_DATABASES_MSG)
+        print(f"💡 Expected location: {tester.test_databases_dir}/")
+        return
+    
+    versions_to_inspect = [version] if version and version in tester.available_versions else tester.available_versions
+    
+    if version and version not in tester.available_versions:
+        print(f"❌ Version '{version}' not found")
+        print(f"📋 Available versions: {', '.join(tester.available_versions)}")
+        return
+    
+    print("🔍 Database Table Inspection")
+    print("=" * 60)
+    
+    for version_name in versions_to_inspect:
+        print(f"\n📦 Version: {version_name}")
+        print("-" * 40)
+        
+        databases = tester.available_databases[version_name]
+        
+        for db_type, db_path in databases.items():
+            _inspect_single_database(db_path, db_type, detailed)
+    
+    print("\n💡 Tip: Use --inspect-detailed for column info and sample data")
 
 # CLI runner
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Comprehensive Admin API Test Suite")
+    parser.add_argument(
+        "--version",
+        type=str,
+        help="Test database version to use (e.g., v1.0, baseline). If not specified, uses latest available."
+    )
+    parser.add_argument(
+        "--database-type",
+        type=str,
+        choices=["minimal", "comprehensive", "edge", "performance"],
+        help="Type of test database to use. If not specified, auto-selects best available."
+    )
+    parser.add_argument(
+        "--list-databases",
+        action="store_true",
+        help="List all available test databases and exit"
+    )
+    parser.add_argument(
+        "--inspect",
+        type=str,
+        nargs="?",
+        const="all",
+        help="Inspect database tables. Specify version (e.g., v1.0) or 'all' for all versions"
+    )
+    parser.add_argument(
+        "--inspect-detailed",
+        action="store_true",
+        help="Show detailed table info including columns and sample data when inspecting"
+    )
+    parser.add_argument(
+        "--inspect-databases",
+        action="store_true",
+        help="Inspect database files and show table contents"
+    )
+    
+    args = parser.parse_args()
+    
+    if args.list_databases:
+        list_available_databases()
+        exit(0)
+    
+    if args.inspect:
+        version_to_inspect = None if args.inspect == "all" else args.inspect
+        inspect_databases(version=version_to_inspect, detailed=args.inspect_detailed)
+        exit(0)
+    
+    if args.inspect_databases:
+        inspect_databases(args.version, args.inspect_detailed)
+        exit(0)
+    
     print("🧪 Comprehensive Admin API Test Suite")
-    print("This will test every function in admin_api.py with realistic data")
+    print("Testing all admin_api.py functions using generated test databases")
+    
+    if args.version:
+        print(f"🎯 Requested version: {args.version}")
+    if args.database_type:
+        print(f"📊 Requested database type: {args.database_type}")
+    
     print()
     
-    tester = ComprehensiveAPITester()
+    tester = ComprehensiveAPITester(version=args.version, database_type=args.database_type)
     success = tester.run_comprehensive_test_suite()
     
     if success:

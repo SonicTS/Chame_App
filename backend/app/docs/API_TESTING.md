@@ -17,6 +17,11 @@ This directory contains a comprehensive testing framework for the `admin_api.py`
 **Usage:**
 ```bash
 python comprehensive_api_tests.py
+python comprehensive_api_tests.py --database-type minimal
+python comprehensive_api_tests.py --version v1.0
+python comprehensive_api_tests.py --list-databases
+python comprehensive_api_tests.py --inspect all
+python comprehensive_api_tests.py --inspect v1.0 --inspect-detailed
 ```
 
 **What it tests:**
@@ -62,6 +67,60 @@ python generate_test_databases.py performance   # Large database for performance
 - **Comprehensive**: Realistic data with multiple users, products, sales
 - **Edge Case**: Unicode characters, extreme values, special cases
 - **Performance**: Large datasets for stress testing
+
+### 4. Database Inspection Tools
+**Built-in tools to examine test database contents**
+
+**Features:**
+- List all available test databases across versions
+- Inspect table contents and schema information
+- Compare database structures between versions
+- View sample data for understanding test scenarios
+
+**Usage:**
+```bash
+# List all available test databases
+python comprehensive_api_tests.py --list-databases
+
+# Inspect table contents (basic overview)
+python comprehensive_api_tests.py --inspect                    # Latest version
+python comprehensive_api_tests.py --inspect all               # All versions
+python comprehensive_api_tests.py --inspect v1.0              # Specific version
+
+# Detailed inspection with column info and sample data
+python comprehensive_api_tests.py --inspect all --inspect-detailed
+python comprehensive_api_tests.py --inspect v1.0 --inspect-detailed
+```
+
+**What Inspection Shows:**
+- Database versions and types available
+- Table names and record counts
+- Column names and data types (with `--inspect-detailed`)
+- Sample data for small tables (with `--inspect-detailed`)
+- Schema differences between versions
+
+**Example Output:**
+```
+📋 Available Test Databases:
+========================================
+
+📦 Version: v1.0
+  • minimal: minimal_test.db
+  • comprehensive: comprehensive_test.db
+  • edge: edge_case_test.db
+
+🎯 Latest version: v1.0
+
+🔍 Database Table Inspection
+============================================================
+📊 Database: comprehensive (comprehensive_test.db)
+  📋 users: 8 records
+     Columns: id, name, balance, role, password_hash
+     Sample data:
+       Row 1: {'id': 1, 'name': 'admin', 'balance': 100.0, 'role': 'admin'}
+  📋 products: 6 records
+     Columns: id, name, category, price, toaster_space
+```
 
 ## 📊 Test Database Contents
 

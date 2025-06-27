@@ -1,1 +1,3 @@
 sqlalchemy
+passlib
+argon2-cffi

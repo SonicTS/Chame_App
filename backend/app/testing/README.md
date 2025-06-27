@@ -1,17 +1,17 @@
 # Testing Framework
 
-Comprehensive testing framework for the Chame App admin API functions.
+Comprehensive testing framework for the Chame App admin API functions using generated test databases.
 
 ## 🧪 Framework Components
 
 ### Core Testing Files
-- **`comprehensive_api_tests.py`** - Main testing engine that validates all admin_api functions
-- **`run_api_tests.py`** - Simple test runner with clean output and quick/full modes
-- **`generate_test_databases.py`** - Creates different types of test databases
+- **`comprehensive_api_tests.py`** - Main testing engine with CLI for version/database selection
+- **`generate_test_databases.py`** - Creates different types of test databases with version support
+- **`migration_and_api_tests.py`** - Integration tests combining database migrations with API validation
 - **`show_testing_framework.py`** - Displays framework overview and capabilities
 
 ### Test Databases
-- **`test_databases/`** - Directory containing generated test databases
+- **`test_databases/`** - Directory containing versioned generated test databases
 
 **Note**: Test database files (*.db) in this directory are tracked by git to provide
 consistent test data across different development environments and deployments.
@@ -20,14 +20,25 @@ consistent test data across different development environments and deployments.
 
 ### Run Tests
 ```bash
-# Quick health check (data fetchers only)
-python run_api_tests.py --quick
+# Quick health check using minimal database
+python comprehensive_api_tests.py --database-type minimal
 
-# Full comprehensive test suite
-python run_api_tests.py
+# Full comprehensive test suite using comprehensive database
+python comprehensive_api_tests.py --database-type comprehensive
 
-# Or run directly
-python comprehensive_api_tests.py
+# Use specific version
+python comprehensive_api_tests.py --version v1.0 --database-type comprehensive
+
+# List available databases
+python comprehensive_api_tests.py --list-databases
+
+# Inspect database table contents
+python comprehensive_api_tests.py --inspect all
+python comprehensive_api_tests.py --inspect v1.0
+python comprehensive_api_tests.py --inspect --inspect-detailed
+
+# Migration and API integration tests
+python migration_and_api_tests.py
 ```
 
 ### Generate Test Databases
@@ -46,6 +57,82 @@ python generate_test_databases.py performance
 ```bash
 python show_testing_framework.py
 ```
+
+## 🔍 Database Inspection
+
+The testing framework includes powerful database inspection capabilities to help you understand and analyze test data:
+
+### List Available Databases
+```bash
+# See all available test database versions and types
+python comprehensive_api_tests.py --list-databases
+```
+
+This shows:
+- All available versions (baseline, v1.0, v1.1-test, etc.)
+- Database types within each version (minimal, comprehensive, edge, performance)
+- File names and locations
+
+### Inspect Database Contents
+```bash
+# Inspect latest version (quick overview)
+python comprehensive_api_tests.py --inspect
+
+# Inspect all versions
+python comprehensive_api_tests.py --inspect all
+
+# Inspect specific version
+python comprehensive_api_tests.py --inspect v1.0
+
+# Detailed inspection with column info and sample data
+python comprehensive_api_tests.py --inspect all --inspect-detailed
+```
+
+### What Inspection Shows
+
+#### Basic Inspection
+- Table names in each database
+- Record count for each table
+- Database type and version information
+
+#### Detailed Inspection (`--inspect-detailed`)
+- Column names and types for each table
+- Sample data for small tables (≤5 records)
+- Comprehensive schema overview
+
+### Example Output
+```
+🔍 Database Table Inspection
+============================================================
+
+📦 Version: v1.0
+----------------------------------------
+
+📊 Database: minimal (minimal_test.db)
+  📋 users: 2 records
+  📋 ingredients: 2 records
+  📋 products: 1 records
+  📋 toast_rounds: 0 records
+
+📊 Database: comprehensive (comprehensive_test.db)
+  📋 users: 8 records
+     Columns: id, name, balance, role, password_hash
+     Sample data:
+       Row 1: {'id': 1, 'name': 'admin', 'balance': 100.0, 'role': 'admin', 'password_hash': 'hash123'}
+  📋 ingredients: 12 records
+  📋 products: 6 records
+  📋 sales: 15 records
+
+💡 Tip: Use --inspect-detailed for column info and sample data
+```
+
+### Use Cases for Inspection
+
+1. **Development**: Understand what test data is available
+2. **Debugging**: See actual data in test databases
+3. **Data Verification**: Confirm test databases contain expected data
+4. **Schema Analysis**: Compare database structures across versions
+5. **Test Planning**: Choose appropriate database type for specific tests
 
 ## 📊 Test Database Types
 
@@ -75,7 +162,89 @@ python show_testing_framework.py
 - Large datasets for stress testing
 - Performance benchmarking scenarios
 
-## 🎯 What Gets Tested
+## 🔗 Migration and API Integration Testing
+
+### Overview
+The migration and API integration test suite (`migration_and_api_tests.py`) provides comprehensive testing that:
+
+1. **Tests Multiple Scenarios**: Uses all generated test databases (minimal, comprehensive, edge case, performance)
+2. **Migration Testing**: Validates that database migrations work correctly on real data
+3. **API Validation**: Ensures API functions work properly after migrations
+4. **Data Integrity**: Verifies that data is preserved and accessible throughout the migration process
+
+### What Gets Tested
+
+#### Migration Process
+- ✅ Schema migration execution
+- ✅ Data preservation during migration
+- ✅ Migration rollback capabilities
+- ✅ Cross-version compatibility
+
+#### Post-Migration API Testing
+- ✅ Data fetcher functions work with migrated schema
+- ✅ User operations (deposit, withdraw) function correctly
+- ✅ Product and ingredient queries return valid data
+- ✅ Database connections and transactions work properly
+
+#### Integration Scenarios
+- ✅ Fresh database -> migration -> API operations
+- ✅ Populated database -> migration -> data integrity check
+- ✅ Edge case data -> migration -> error handling validation
+- ✅ Large dataset -> migration -> performance validation
+
+### Usage Examples
+
+```bash
+# Run full migration and API integration test suite
+python migration_and_api_tests.py
+
+# The test will automatically:
+# 1. Find all test databases in testing/test_databases/
+# 2. Copy each to a temporary environment
+# 3. Run migrations on the copied database
+# 4. Test API functionality on the migrated database
+# 5. Report results for each database type
+```
+
+### Sample Output
+
+```
+🚀 Starting Migration and API Integration Test Suite
+======================================================================
+📁 Found 4 test databases:
+  • minimal_test.db
+  • comprehensive_test.db
+  • edge_case_test.db
+  • performance_test.db
+
+🎯 Testing database: minimal_test.db
+============================================================
+📄 Copied database: minimal_test.db -> test environment
+🔄 Testing migration on: minimal_test.db
+  📊 Analyzing pre-migration schema...
+     Tables: users, ingredients, products, sales
+  📋 Current version: 1.0
+  📋 Available migrations: 2
+  🚀 Running migrations...
+  ✅ Migration completed successfully
+🧪 Testing API functionality on: minimal_test.db
+  🔍 Testing data fetcher functions...
+  👥 Testing user operations...
+    ✅ User balance operations: Success
+  📊 API Test Results: 12 passed, 0 failed
+✅ minimal_test.db: All tests passed
+
+📊 FINAL TEST RESULTS
+======================================================================
+🎯 Total databases tested: 4
+✅ Successful: 4
+❌ Failed: 0
+
+🎉 All migration and API tests passed!
+💡 Your database migrations are working correctly across all test scenarios.
+```
+
+## 🧪 What Gets Tested
 
 ### User Management
 - ✅ User creation (all roles: user, admin, wirt)
@@ -198,15 +367,22 @@ print(users)
 
 ```
 testing/
-├── comprehensive_api_tests.py  # Main test engine
-├── run_api_tests.py           # Test runner
-├── generate_test_databases.py # Database generator
+├── comprehensive_api_tests.py  # Main test engine with CLI
+├── generate_test_databases.py # Database generator with version support
+├── migration_and_api_tests.py # Migration testing suite
 ├── show_testing_framework.py  # Framework overview
-├── test_databases/            # Generated databases
-│   ├── minimal_test.db
-│   ├── comprehensive_test.db
-│   ├── edge_case_test.db
-│   └── performance_test.db
+├── test_databases/            # Versioned generated databases
+│   ├── baseline/              # Old schema databases
+│   │   ├── minimal_test.db
+│   │   ├── comprehensive_test.db
+│   │   └── edge_case_test.db
+│   ├── v1.0/                  # Version 1.0 databases
+│   │   ├── minimal_test.db
+│   │   ├── comprehensive_test.db
+│   │   ├── edge_case_test.db
+│   │   └── performance_test.db
+│   └── v1.1-test/             # Latest test version
+│       └── minimal_test.db
 └── README.md                  # This file
 ```
 
@@ -229,8 +405,8 @@ fi
 ## 💡 Best Practices
 
 ### For Development
-1. Run `--quick` tests during active development
-2. Run full tests before committing changes
+1. Run minimal database tests during active development
+2. Run comprehensive tests before committing changes
 3. Generate fresh databases when models change
 4. Add custom tests for new business logic
 
@@ -242,4 +418,4 @@ fi
 
 ---
 
-**Start testing:** `python run_api_tests.py --quick`
+**Start testing:** `python comprehensive_api_tests.py --database-type minimal`

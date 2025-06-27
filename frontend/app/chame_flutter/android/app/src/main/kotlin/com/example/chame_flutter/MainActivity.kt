@@ -227,15 +227,17 @@ class MainActivity : FlutterActivity() {
                         )
                     try {
                         val productIds = call.argument<List<Number>>("product_ids")
-                        val userSelections = call.argument<List<Number>>("user_selections")
-                        if (productIds == null || userSelections == null) {
+                        val consumerSelections = call.argument<List<Number>>("consumer_selections")
+                        val donatorSelections = call.argument<List<Number>>("donator_selections")
+                        if (productIds == null || consumerSelections == null || donatorSelections == null) {
                             result.error("ARGUMENT_ERROR", "Missing argument for add_toast_round", null)
                             return@setMethodCallHandler
                         }
                         pyModule.callAttr(
                             "add_toast_round",
                             productIds.map { it.toInt() }.toTypedArray(),
-                            userSelections.map { it.toInt() }.toTypedArray()
+                            consumerSelections.map { it.toInt() }.toTypedArray(),
+                            donatorSelections.map { it.toInt() }.toTypedArray()
                         )
                         result.success(null)
                     } catch (e: Exception) {
@@ -480,6 +482,23 @@ class MainActivity : FlutterActivity() {
                         val productList = json.callAttr("loads", product_json)
                         pyModule.callAttr("submit_pfand_return", userId.toInt(), productList)
                         result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "get_pfand_history" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val pyResult = pyModule.callAttr("get_pfand_history")
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
                     } catch (e: Exception) {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
                     }

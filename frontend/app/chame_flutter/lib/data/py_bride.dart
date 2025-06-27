@@ -193,12 +193,14 @@ class PyBridge {
 
   Future<String?> addToastRound({
     required List<int> productIds,
-    required List<int> userSelections,
+    required List<int> consumer_selections,
+    required List<int> donator_selections,
   }) async {
     try {
       await _chan.invokeMethod('add_toast_round', {
         'product_ids': productIds,
-        'user_selections': userSelections,
+        'consumer_selections': consumer_selections,
+        'donator_selections': donator_selections,
       });
       return null;
     } catch (e) {
@@ -359,6 +361,20 @@ class PyBridge {
       });
     } catch (e) {
       print('Error in submitPfandReturn: \x1b[31m$e\x1b[0m');
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getPfandHistory() async {
+    try {
+      final result = await _chan.invokeMethod('get_pfand_history');
+      if (result == null || result == 'null') {
+        return <Map<String, dynamic>>[];
+      }
+      final List<dynamic> decoded = jsonDecode(result as String);
+      return decoded.cast<Map<String, dynamic>>();
+    } catch (e, stack) {
+      print('Error in getPfandHistory: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
       rethrow;
     }
   }

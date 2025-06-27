@@ -196,46 +196,79 @@ class _PurchasePageState extends State<PurchasePage> {
                     ),
                     const SizedBox(height: 12),
                     const Text('Sales', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                    SizedBox(
-                      height: 300,
-                      child: FutureBuilder<List<Map<String, dynamic>>>(
-                        future: _salesFuture,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const Center(child: CircularProgressIndicator());
-                          }
-                          final sales = snapshot.data ?? [];
-                          final filteredSales = _salesConfig == 'all'
-                              ? sales
-                              : sales.where((s) => s['product']?['category'] == _salesConfig).toList();
-                          if (filteredSales.isEmpty) {
-                            return const Text('No sales found.');
-                          }
-                          return SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: DataTable(
-                              columns: const [
-                                DataColumn(label: Text('Sale ID')),
-                                DataColumn(label: Text('User')),
-                                DataColumn(label: Text('Product')),
-                                DataColumn(label: Text('Quantity')),
-                                DataColumn(label: Text('Total Price')),
-                                DataColumn(label: Text('Timestamp')),
-                              ],
-                              rows: filteredSales.map((sale) {
-                                return DataRow(cells: [
-                                  DataCell(Text(sale['sale_id']?.toString() ?? '')),
-                                  DataCell(Text(sale['user']?['name']?.toString() ?? '')),
-                                  DataCell(Text(sale['product']?['name']?.toString() ?? '')),
-                                  DataCell(Text(sale['quantity']?.toString() ?? '')),
-                                  DataCell(Text(sale['total_price']?.toString() ?? '')),
-                                  DataCell(Text(_formatTimestamp(sale['timestamp']))),
-                                ]);
-                              }).toList(),
+                    FutureBuilder<List<Map<String, dynamic>>>(
+                      future: _salesFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        final sales = snapshot.data ?? [];
+                        final filteredSales = _salesConfig == 'all'
+                            ? sales
+                            : sales.where((s) => s['product']?['category'] == _salesConfig).toList();
+                        if (filteredSales.isEmpty) {
+                          return const Text('No sales found.');
+                        }
+                        return SizedBox(
+                          height: 300,
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.vertical,
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: DataTable(
+                                columns: const [
+                                  DataColumn(label: Text('Sale ID')),
+                                  DataColumn(label: Text('Consumer')),
+                                  DataColumn(label: Text('Donator')),
+                                  DataColumn(label: Text('Product')),
+                                  DataColumn(label: Text('Quantity')),
+                                  DataColumn(label: Text('Total Price')),
+                                  DataColumn(label: Text('Timestamp')),
+                                ],
+                                rows: filteredSales.map((sale) {
+                                  String consumer = '';
+                                  String donator = '';
+                                  String product = '';
+                                  try {
+                                    final consumerField = sale['consumer'];
+                                    final donatorField = sale['donator'];
+                                    final productField = sale['product'];
+                                    debugPrint('SALE: sale_id=${sale['sale_id']} consumer=$consumerField donator=$donatorField product=$productField');
+                                    consumer = consumerField is Map && consumerField['name'] != null
+                                        ? consumerField['name'].toString()
+                                        : consumerField?.toString() ?? '';
+                                    donator = donatorField == null
+                                        ? ''
+                                        : (donatorField is Map && donatorField['name'] != null
+                                            ? donatorField['name'].toString()
+                                            : donatorField.toString());
+                                    product = productField is Map && productField['name'] != null
+                                        ? productField['name'].toString()
+                                        : productField?.toString() ?? '';
+                                  } catch (e, st) {
+                                    debugPrint('ERROR in DataRow for sale: $sale\nError: $e\nStack: $st');
+                                    consumer = sale['consumer']?.toString() ?? '';
+                                    donator = sale['donator']?.toString() ?? '';
+                                    product = sale['product']?.toString() ?? '';
+                                  }
+                                  return DataRow(
+                                    key: ValueKey(sale['sale_id']),
+                                    cells: [
+                                      DataCell(Text(sale['sale_id']?.toString() ?? '')),
+                                      DataCell(Text(consumer)),
+                                      DataCell(Text(donator)),
+                                      DataCell(Text(product)),
+                                      DataCell(Text(sale['quantity']?.toString() ?? '')),
+                                      DataCell(Text(sale['total_price']?.toString() ?? '')),
+                                      DataCell(Text(_formatTimestamp(sale['timestamp']))),
+                                    ],
+                                  );
+                                }).toList(),
+                              ),
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),

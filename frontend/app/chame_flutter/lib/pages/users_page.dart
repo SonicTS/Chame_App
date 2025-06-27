@@ -386,6 +386,7 @@ class UsersTableSection extends StatelessWidget {
             thumbVisibility: true,
             controller: horizontalScrollController,
             child: SingleChildScrollView(
+              controller: horizontalScrollController, // <-- attach controller
               scrollDirection: Axis.horizontal,
               controller: horizontalScrollController,
               child: SizedBox(
@@ -395,6 +396,7 @@ class UsersTableSection extends StatelessWidget {
                   thumbVisibility: true,
                   controller: verticalScrollController,
                   child: SingleChildScrollView(
+                    controller: verticalScrollController, // <-- attach controller
                     scrollDirection: Axis.vertical,
                     controller: verticalScrollController,
                     child: DataTable(
@@ -499,7 +501,7 @@ class TransactionsSection extends StatelessWidget {
             thumbVisibility: true,
             controller: scrollController,
             child: SingleChildScrollView(
-              controller: scrollController,
+              controller: scrollController, // <-- attach controller
               scrollDirection: Axis.horizontal,
               child: ConstrainedBox(
                 // Set a minimum width so it scrolls if needed

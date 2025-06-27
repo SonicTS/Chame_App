@@ -17,9 +17,10 @@ This directory contains comprehensive documentation for the Chame App backend.
 
 ### Testing Framework
 - **Location**: `../testing/`
-- **Quick Start**: `cd ../testing && python run_api_tests.py --quick`
-- **Full Test**: `python run_api_tests.py`
-- **Generate DBs**: `python generate_test_databases.py all`
+- **Quick Start**: `python ../testing/comprehensive_api_tests.py --database-type minimal`
+- **Full Test**: `python ../testing/comprehensive_api_tests.py --database-type comprehensive`
+- **List DBs**: `python ../testing/comprehensive_api_tests.py --list-databases`
+- **Generate DBs**: `python ../testing/generate_test_databases.py all`
 
 ### Key Documentation Topics
 

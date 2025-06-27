@@ -17,8 +17,10 @@ import services.admin_api as api
 class TestDatabaseGenerator:
     """Generate test databases with different scenarios"""
     
-    def __init__(self, output_dir: str = None):
-        self.output_dir = output_dir or "test_databases"
+    def __init__(self, output_dir: str = None, baseline_version: str = "v1.0"):
+        self.output_dir = output_dir or "testing/test_databases"
+        self.baseline_version = baseline_version
+        self.versioned_dir = os.path.join(self.output_dir, baseline_version)
         self.current_db_path = None
         
     def create_minimal_database(self, db_name: str = "minimal_test.db") -> str:
@@ -117,6 +119,20 @@ class TestDatabaseGenerator:
             except Exception as e:
                 print(f"⚠️ Note: Some sales creation failed: {e}")
         
+        # Create some pfand history (pfand returns)
+        if users and products:
+            try:
+                # Find products that have pfand (drinks)
+                drinks_with_pfand = [p for p in products if p["name"] in ["Cola Bottle", "Beer Bottle"]]
+                if drinks_with_pfand and len(users) >= 3:
+                    # Simulate some pfand returns
+                    for drink in drinks_with_pfand[:2]:  # Test with first 2 drinks
+                        api.submit_pfand_return(users[2]["user_id"], [{"product_id": drink["product_id"], "amount": 1}])
+                        api.submit_pfand_return(users[3]["user_id"], [{"product_id": drink["product_id"], "amount": 2}])
+                    print("  ✅ Created pfand history entries")
+            except Exception as e:
+                print(f"⚠️ Note: Pfand history creation failed: {e}")
+        
         print(f"✅ Comprehensive database created: {db_path}")
         return db_path
     
@@ -185,57 +201,70 @@ class TestDatabaseGenerator:
     
     def _setup_database(self, db_name: str) -> str:
         """Setup database environment and return path"""
-        # Create output directory
-        os.makedirs(self.output_dir, exist_ok=True)
+        # Create versioned output directory
+        os.makedirs(self.versioned_dir, exist_ok=True)
         
-        # Set up temporary environment
+        # Create temporary directory
         temp_dir = tempfile.mkdtemp(prefix="dbgen_")
         os.environ["PRIVATE_STORAGE"] = temp_dir
         
-        # Force reset database instance completely
+        # Set database to None to ensure fresh creation
         api.database = None
         
-        # Remove any existing database file in the temp directory
+        # Also reset the database engine
+        from chame_app.database import reset_database
+        reset_database()
+        
+        # Create fresh database in temp directory
+        api.create_database(False)
+        
+        # Mark all migrations as applied since this is a fresh database with latest schema
+        from chame_app.database import _engine
+        from chame_app.simple_migrations import SimpleMigrations
+        
+        if _engine is not None:
+            migrations = SimpleMigrations(_engine)
+            migrations.mark_all_migrations_applied()
+        else:
+            print("⚠️ Warning: Could not mark migrations as applied - engine not available")
+        
+        # Verify database was created successfully
+        if api.database is None:
+            raise RuntimeError("Failed to create database instance")
+        
+        # Store paths
         temp_db_path = os.path.join(temp_dir, "kassensystem.db")
-        if os.path.exists(temp_db_path):
-            os.remove(temp_db_path)
-        
-        # Create fresh database - force creation by setting database to None first
-        api.database = None  # Ensure it's None
-        api.create_database()
-        
-        # Verify the database is fresh by checking if it has any users
-        try:
-            users = api.get_all_users()
-            if users:
-                print(f"⚠️ Warning: Database not fresh, found {len(users)} existing users")
-                # Force recreate the database instance
-                from chame_app.database import Database
-                api.database = Database()
-        except Exception:
-            # This is expected for a fresh database
-            pass
-        
-        # Final database path
-        final_path = os.path.join(self.output_dir, db_name)
+        final_path = os.path.join(self.versioned_dir, db_name)
         self.current_db_path = temp_db_path
         
+        print(f"✅ Database setup complete in temp directory: {temp_dir}")
         return final_path
     
     def finalize_database(self, final_path: str):
         """Copy database to final location and cleanup"""
         if self.current_db_path and os.path.exists(self.current_db_path):
+            # Close database connection before copying
+            api.database = None
+            from chame_app.database import reset_database
+            reset_database()
+            
+            # Brief pause to ensure file handles are released
+            import time
+            time.sleep(0.2)
+            
+            # Copy database from temp to final location
             shutil.copy2(self.current_db_path, final_path)
             print(f"💾 Database saved to: {final_path}")
-            # Clean up temp directory - try to close any open connections first
+            
+            # Clean up temp directory
             try:
-                import time
-                time.sleep(0.1)  # Brief pause to allow file handles to close
                 temp_dir = os.path.dirname(self.current_db_path)
                 shutil.rmtree(temp_dir, ignore_errors=True)
+                print(f"🧹 Cleaned up temp directory: {temp_dir}")
             except Exception as e:
-                print(f"⚠️ Note: Temp directory cleanup failed (file may be in use): {e}")
-                print(f"   Temp dir: {os.path.dirname(self.current_db_path)}")
+                print(f"⚠️ Note: Temp directory cleanup failed: {e}")
+        else:
+            print(f"⚠️ Warning: Could not finalize database - temp file not found: {self.current_db_path}")
         
     def generate_all_databases(self):
         """Generate all types of test databases"""
@@ -252,12 +281,27 @@ class TestDatabaseGenerator:
         created_dbs = []
         for db_type, create_func in databases:
             try:
+                print(f"\n🔧 Starting {db_type} database generation...")
+                
+                # Generate database
                 db_path = create_func(f"{db_type}_test.db")
                 self.finalize_database(db_path)
                 created_dbs.append(db_path)
+                
+                print(f"✅ {db_type} database completed and finalized")
+                
+                # Force reset for next database
+                api.database = None
+                
             except Exception as e:
                 print(f"❌ Failed to create {db_type} database: {e}")
+                # Reset even on failure
+                api.database = None
         
+        self._print_generation_summary(created_dbs)
+    
+    def _print_generation_summary(self, created_dbs):
+        """Print summary of database generation"""
         print("\n" + "=" * 50)
         print("📊 GENERATION SUMMARY")
         print("=" * 50)
@@ -265,35 +309,52 @@ class TestDatabaseGenerator:
         for db_path in created_dbs:
             print(f"  • {db_path}")
         
-        print(f"\n📁 All databases in: {os.path.abspath(self.output_dir)}")
+        print(f"\n📁 All databases in: {os.path.abspath(self.versioned_dir)}")
+        print(f"🏷️ Baseline version: {self.baseline_version}")
         print("\n💡 Usage:")
         print("  • Copy any database to 'kassensystem.db' to use as active database")
         print("  • Use these databases to test different scenarios")
         print("  • Import into SQLite browser for manual inspection")
+        print("  • Move databases to testing/test_databases/baseline/ for migration testing")
 
 # CLI interface
 if __name__ == "__main__":
     import sys
+    import argparse
     
-    generator = TestDatabaseGenerator()
+    parser = argparse.ArgumentParser(description="Generate test databases for different scenarios")
+    parser.add_argument(
+        "command", 
+        nargs="?", 
+        choices=["minimal", "comprehensive", "edge", "performance", "all"],
+        default="all",
+        help="Type of database to generate (default: all)"
+    )
+    parser.add_argument(
+        "--version", 
+        default="v1.0",
+        help="Baseline version for the generated databases (default: v1.0)"
+    )
     
-    if len(sys.argv) > 1:
-        command = sys.argv[1].lower()
-        if command == "minimal":
-            db_path = generator.create_minimal_database()
-            generator.finalize_database(db_path)
-        elif command == "comprehensive":
-            db_path = generator.create_comprehensive_database()
-            generator.finalize_database(db_path)
-        elif command == "edge":
-            db_path = generator.create_edge_case_database()
-            generator.finalize_database(db_path)
-        elif command == "performance":
-            db_path = generator.create_performance_database()
-            generator.finalize_database(db_path)
-        elif command == "all":
-            generator.generate_all_databases()
-        else:
-            print("Usage: python generate_test_databases.py [minimal|comprehensive|edge|performance|all]")
-    else:
+    args = parser.parse_args()
+    
+    generator = TestDatabaseGenerator(baseline_version=args.version)
+    
+    command = args.command.lower()
+    if command == "minimal":
+        db_path = generator.create_minimal_database()
+        generator.finalize_database(db_path)
+    elif command == "comprehensive":
+        db_path = generator.create_comprehensive_database()
+        generator.finalize_database(db_path)
+    elif command == "edge":
+        db_path = generator.create_edge_case_database()
+        generator.finalize_database(db_path)
+    elif command == "performance":
+        db_path = generator.create_performance_database()
+        generator.finalize_database(db_path)
+    elif command == "all":
         generator.generate_all_databases()
+    else:
+        print("Usage: python generate_test_databases.py [minimal|comprehensive|edge|performance|all] [--version VERSION]")
+        print("Example: python generate_test_databases.py all --version v1.1")
