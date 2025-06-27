@@ -5,7 +5,7 @@
 			"label": "API Tests: Quick Health Check",
 			"type": "shell",
 			"command": "python",
-			"args": ["testing/run_api_tests.py", "--quick"],
+			"args": ["testing/comprehensive_api_tests.py", "--database-type", "minimal"],
 			"options": {
 				"cwd": "${workspaceFolder}/backend/app"
 			},
@@ -19,13 +19,13 @@
 				"clear": false
 			},
 			"problemMatcher": [],
-			"detail": "Run quick API health check (data fetchers only)"
+			"detail": "Run quick API health check using minimal test database"
 		},
 		{
 			"label": "API Tests: Full Comprehensive Suite",
 			"type": "shell",
 			"command": "python",
-			"args": ["testing/run_api_tests.py"],
+			"args": ["testing/comprehensive_api_tests.py", "--database-type", "comprehensive"],
 			"options": {
 				"cwd": "${workspaceFolder}/backend/app"
 			},
@@ -39,7 +39,7 @@
 				"clear": false
 			},
 			"problemMatcher": [],
-			"detail": "Run complete API test suite with all functions and edge cases"
+			"detail": "Run complete API test suite using comprehensive test database"
 		},
 		{
 			"label": "API Tests: Direct Comprehensive (Detailed Output)",
@@ -241,10 +241,10 @@
 			"detail": "Test database migrations and API functionality on all test databases"
 		},
 		{
-			"label": "Migration Tests: Baseline Migration Testing",
+			"label": "Migration Tests: Modern Migration Testing",
 			"type": "shell",
 			"command": "python",
-			"args": ["run_migration_tests.py"],
+			"args": ["testing/migration_and_api_tests.py"],
 			"options": {
 				"cwd": "${workspaceFolder}/backend/app"
 			},
@@ -258,7 +258,7 @@
 				"clear": false
 			},
 			"problemMatcher": [],
-			"detail": "Run baseline-based migration tests using real database snapshots"
+			"detail": "Run modern migration tests with comprehensive API validation"
 		},
 		{
 			"label": "Migration Workflow: Complete Testing Workflow",
@@ -299,6 +299,86 @@
 			},
 			"problemMatcher": [],
 			"detail": "Run quick migration testing workflow using minimal databases only"
+		},
+		{
+			"label": "Database Inspection: List All Databases",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/comprehensive_api_tests.py", "--list-databases"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "List all available test databases and their types"
+		},
+		{
+			"label": "Database Inspection: Inspect All Versions",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/comprehensive_api_tests.py", "--inspect", "all"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Inspect table contents of all test database versions"
+		},
+		{
+			"label": "Database Inspection: Detailed Inspection (All Versions)",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/comprehensive_api_tests.py", "--inspect", "all", "--inspect-detailed"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Inspect table contents with column info and sample data for all versions"
+		},
+		{
+			"label": "Database Inspection: Inspect Latest Version",
+			"type": "shell",
+			"command": "python",
+			"args": ["testing/comprehensive_api_tests.py", "--inspect"],
+			"options": {
+				"cwd": "${workspaceFolder}/backend/app"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Inspect table contents of the latest test database version only"
 		}
 	]
 }

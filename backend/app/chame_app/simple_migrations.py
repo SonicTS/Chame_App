@@ -66,7 +66,43 @@ class SimpleMigrations:
         except Exception:
             # Table doesn't exist yet
             return []
-
+    
+    def _needs_all_migrations(self) -> bool:
+        """Check if this is a database that needs all migrations applied (no migration tracking table)"""
+        try:
+            inspector = inspect(self.engine)
+            tables = inspector.get_table_names()
+            
+            # If there's no schema_migrations table, we need to apply all migrations
+            if 'schema_migrations' not in tables:
+                print("📋 [SimpleMigrations] No migration tracking table found - all migrations needed")
+                return True
+                
+            return False
+            
+        except Exception as e:
+            print(f"⚠️ [SimpleMigrations] Error checking if all migrations needed: {e}")
+            return False
+    
+    def mark_all_migrations_applied(self):
+        """Mark all migrations as applied for a fresh database"""
+        print("📝 [SimpleMigrations] Marking all migrations as applied for fresh database")
+        
+        # Create migration tracking table first
+        self._create_migration_table()
+        
+        with self.engine.begin() as conn:
+            for version in sorted(self.migrations.keys()):
+                conn.execute(text("INSERT OR IGNORE INTO schema_migrations (version) VALUES (:version)"), 
+                            {"version": version})
+            
+            # Also mark all advanced migrations as applied
+            for migration_name in self._get_advanced_migrations().keys():
+                advanced_version = f"advanced_{migration_name}"
+                conn.execute(text("INSERT OR IGNORE INTO schema_migrations (version) VALUES (:version)"), 
+                            {"version": advanced_version})
+        
+        print("✅ [SimpleMigrations] All migrations marked as applied")
     
     def run_migrations(self):
         """Run all pending migrations"""
@@ -79,49 +115,86 @@ class SimpleMigrations:
             # Get applied migrations
             applied = set(self._get_applied_migrations())
             
-            # Run pending migrations
-            pending_count = 0
-            for version in sorted(self.migrations.keys()):
-                if version not in applied:
-                    print(f"📦 [SimpleMigrations] Applying migration {version}")
-                    try:
-                        # Split migration into individual statements
-                        statements = [stmt.strip() for stmt in self.migrations[version].split(';') if stmt.strip()]
-                        
-                        with self.engine.begin() as conn:
-                            for statement in statements:
-                                if statement:
-                                    conn.execute(text(statement))
-                            
-                            # Mark as applied within the same transaction
-                            conn.execute(text("INSERT INTO schema_migrations (version) VALUES (:version)"), 
-                                        {"version": version})
-                        
-                        print(f"✅ [SimpleMigrations] Migration {version} applied successfully")
-                        pending_count += 1
-                        
-                    except Exception as e:
-                        print(f"❌ [SimpleMigrations] Migration {version} failed: {e}")
-                        return False
+            # Check if this is an empty database that needs all migrations
+            if self._needs_all_migrations():
+                print("📦 [SimpleMigrations] Empty database - applying all migrations")
+                return self._apply_all_migrations()
             
-            # Run additional complex migrations
-            if not self.handle_sales_table_migration():
-                return False
-            
-            # Run advanced migrations (like column drops)
-            if not self.run_advanced_migrations():
-                return False
-            
-            if pending_count == 0:
-                print("✅ [SimpleMigrations] No pending migrations")
-            else:
-                print(f"✅ [SimpleMigrations] Applied {pending_count} migrations successfully")
-            
-            return True
+            # Run pending migrations for existing database
+            return self._apply_pending_migrations(applied)
             
         except Exception as e:
             print(f"❌ [SimpleMigrations] Migration system failed: {e}")
             return False
+    
+    def _apply_all_migrations(self):
+        """Apply all migrations to an empty database"""
+        pending_count = 0
+        for version in sorted(self.migrations.keys()):
+            print(f"📦 [SimpleMigrations] Applying migration {version}")
+            try:
+                # Split migration into individual statements
+                statements = [stmt.strip() for stmt in self.migrations[version].split(';') if stmt.strip()]
+                
+                with self.engine.begin() as conn:
+                    for statement in statements:
+                        if statement:
+                            conn.execute(text(statement))
+                    
+                    # Mark as applied within the same transaction
+                    conn.execute(text("INSERT INTO schema_migrations (version) VALUES (:version)"), 
+                                {"version": version})
+                
+                print(f"✅ [SimpleMigrations] Migration {version} applied successfully")
+                pending_count += 1
+                
+            except Exception as e:
+                print(f"❌ [SimpleMigrations] Migration {version} failed: {e}")
+                return False
+        
+        # Run advanced migrations (includes sales table migration)
+        if not self.run_advanced_migrations():
+            return False
+        
+        print(f"✅ [SimpleMigrations] Applied {pending_count} migrations successfully")
+        return True
+    
+    def _apply_pending_migrations(self, applied):
+        """Apply only pending migrations to an existing database"""
+        pending_count = 0
+        for version in sorted(self.migrations.keys()):
+            if version not in applied:
+                print(f"📦 [SimpleMigrations] Applying migration {version}")
+                try:
+                    # Split migration into individual statements
+                    statements = [stmt.strip() for stmt in self.migrations[version].split(';') if stmt.strip()]
+                    
+                    with self.engine.begin() as conn:
+                        for statement in statements:
+                            if statement:
+                                conn.execute(text(statement))
+                        
+                        # Mark as applied within the same transaction
+                        conn.execute(text("INSERT INTO schema_migrations (version) VALUES (:version)"), 
+                                    {"version": version})
+                    
+                    print(f"✅ [SimpleMigrations] Migration {version} applied successfully")
+                    pending_count += 1
+                    
+                except Exception as e:
+                    print(f"❌ [SimpleMigrations] Migration {version} failed: {e}")
+                    return False
+        
+        # Run advanced migrations (includes sales table migration)
+        if not self.run_advanced_migrations():
+            return False
+        
+        if pending_count == 0:
+            print("✅ [SimpleMigrations] No pending migrations")
+        else:
+            print(f"✅ [SimpleMigrations] Applied {pending_count} migrations successfully")
+        
+        return True
     
     def check_table_exists(self, table_name: str) -> bool:
         """Check if a table exists in the database"""
@@ -252,24 +325,51 @@ class SimpleMigrations:
                 pass
             return False
     
+    def _get_advanced_migrations(self):
+        """Define advanced migrations with their functions"""
+        return {
+            "sales_table_migration": lambda: self.handle_sales_table_migration(),
+            "remove_user_id_from_sales": lambda: self._handle_user_id_removal()
+        }
+    
     def run_advanced_migrations(self):
         """Run advanced migrations that need special handling"""
         print("🔄 [SimpleMigrations] Running advanced schema migrations")
         
+        # Get advanced migrations from centralized definition
+        advanced_migrations = self._get_advanced_migrations()
+        
         try:
-            # For now, skip the advanced user_id removal migration
-            # This can be enabled later when the schema is stable
-            print("ℹ️ [SimpleMigrations] Advanced migrations (user_id removal) temporarily disabled")
-            print("ℹ️ [SimpleMigrations] This ensures compatibility with existing baseline databases")
-            
-            # Mark the migration as applied to prevent future attempts
-            self._mark_advanced_migration_applied("remove_user_id_from_sales")
+            for migration_name, migration_func in advanced_migrations.items():
+                # Check if already applied
+                if self._check_advanced_migration_applied(migration_name):
+                    print(f"ℹ️ [SimpleMigrations] Advanced migration '{migration_name}' already applied, skipping")
+                    continue
+                
+                print(f"� [SimpleMigrations] Running advanced migration: {migration_name}")
+                
+                # Execute the migration function
+                if migration_func():
+                    # Mark as applied only if successful
+                    self._mark_advanced_migration_applied(migration_name)
+                    print(f"✅ [SimpleMigrations] Advanced migration '{migration_name}' completed")
+                else:
+                    print(f"❌ [SimpleMigrations] Advanced migration '{migration_name}' failed")
+                    return False
             
             return True
             
         except Exception as e:
             print(f"❌ [SimpleMigrations] Advanced migrations failed: {e}")
             return False
+    
+    def _handle_user_id_removal(self):
+        """Handle the user_id removal migration"""
+        # For now, skip the advanced user_id removal migration
+        # This can be enabled later when the schema is stable
+        print("ℹ️ [SimpleMigrations] Advanced migrations (user_id removal) temporarily disabled")
+        print("ℹ️ [SimpleMigrations] This ensures compatibility with existing baseline databases")
+        return True
     
     def _check_advanced_migration_applied(self, migration_name: str) -> bool:
         """Check if an advanced migration has been applied"""

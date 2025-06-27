@@ -18,15 +18,22 @@ def get_session():
 
     return SessionLocal()
 
+def reset_database():
+    """Reset the database engine and session to None to force fresh creation."""
+    global _engine, SessionLocal
+    _engine = None
+    SessionLocal = None
+    print("DEBUG: Database engine and session reset to None")
+
 # ── Internal helpers ─────────────────────────────────────────────────-
 _engine: Optional[object] = None           # keeps the singleton engine
 
 def _create_engine_once():
     """Build engine after env-vars are ready, ensure directory exists."""
-    print("[DEBUG] os.name:", os.name)
-    print("[DEBUG] All environment variables:")
-    for k, v in os.environ.items():
-        print(f"    {k}={v}")
+    # print("[DEBUG] os.name:", os.name)
+    # print("[DEBUG] All environment variables:")
+    # for k, v in os.environ.items():
+    #     print(f"    {k}={v}")
     private_dir = os.environ.get("PRIVATE_STORAGE")
     home_dir = os.environ.get("HOME")
     if private_dir:

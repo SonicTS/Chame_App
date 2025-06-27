@@ -28,7 +28,17 @@ Ensure your new tests work correctly:
    ```bash
    python testing/comprehensive_api_tests.py
    ```
-   This should use the latest generated databases and all tests should pass.
+   This will automatically use the latest generated databases.
+
+2. **Test specific database version/type** if needed:
+   ```bash
+   python testing/comprehensive_api_tests.py --version v1.1 --database-type comprehensive
+   ```
+
+3. **List available test databases**:
+   ```bash
+   python testing/comprehensive_api_tests.py --list-databases
+   ```
 
 ### 3. Migration Development Phase
 Write migration functions to update old databases:
@@ -77,7 +87,9 @@ Use the following VS Code tasks for common operations:
 - **API Tests: Quick Health Check**: Run basic API tests
 - **API Tests: Full Comprehensive Suite**: Run all API tests
 - **Generate Test Database: All Types**: Generate all test database types
-- **Migration & API Tests: Full Integration Suite**: Run complete migration and API testing
+- **Migration Tests: Modern Migration Testing**: Run migration tests with API validation
+- **Migration Workflow: Complete Testing Workflow**: Run complete migration workflow
+- **Migration Workflow: Quick Testing Workflow**: Run quick migration workflow
 
 ## Command Examples
 

@@ -6,17 +6,17 @@ This document explains all the VS Code tasks available for the Chame project bac
 
 ### Quick Testing
 - **API Tests: Quick Health Check**
-  - Runs a fast health check of all data fetcher functions
+  - Runs a fast health check using minimal test database
   - Perfect for quick validation during development
-  - Takes ~30 seconds to complete
-  - Command: `python testing/run_api_tests.py --quick`
+  - Uses generated minimal test database for realistic but fast testing
+  - Command: `python testing/comprehensive_api_tests.py --database-type minimal`
 
 ### Comprehensive Testing
 - **API Tests: Full Comprehensive Suite**
-  - Runs the complete test suite with all functions and edge cases
-  - Includes data modification functions, edge cases, and error handling
-  - Takes 2-5 minutes to complete
-  - Command: `python testing/run_api_tests.py`
+  - Runs the complete test suite using comprehensive test database
+  - Includes all functions, edge cases, and error handling with realistic data
+  - Uses generated comprehensive test database with extensive test scenarios
+  - Command: `python testing/comprehensive_api_tests.py --database-type comprehensive`
 
 - **API Tests: Direct Comprehensive (Detailed Output)**
   - Runs comprehensive tests directly with verbose output
@@ -32,11 +32,12 @@ This document explains all the VS Code tasks available for the Chame project bac
   - Takes 5-10 minutes to complete
   - Command: `python testing/migration_and_api_tests.py`
 
-- **Migration Tests: Baseline Migration Testing**
-  - Runs baseline-based migration tests using real database snapshots
-  - Tests migration compatibility with production-like data
-  - Requires baseline database setup
-  - Command: `python run_migration_tests.py`
+- **Migration Tests: Modern Migration Testing**
+  - Runs comprehensive migration tests with API validation
+  - Uses versioned test databases and modern workflow
+  - Tests that migrated databases work correctly with current API
+  - **RECOMMENDED** for all migration testing
+  - Command: `python testing/migration_and_api_tests.py`
 
 - **Migration Workflow: Complete Testing Workflow**
   - Runs the complete migration testing workflow from start to finish
@@ -83,6 +84,30 @@ This document explains all the VS Code tasks available for the Chame project bac
 
 ## 🔧 Utility Tasks
 
+### Database Inspection
+- **Database Inspection: List All Databases**
+  - Lists all available test databases and their types
+  - Shows version information and database types available
+  - Quick way to see what test data is available
+  - Command: `python testing/comprehensive_api_tests.py --list-databases`
+
+- **Database Inspection: Inspect All Versions**
+  - Shows table contents for all test database versions
+  - Displays record counts for each table in each database
+  - Perfect for understanding test data structure across versions
+  - Command: `python testing/comprehensive_api_tests.py --inspect all`
+
+- **Database Inspection: Detailed Inspection (All Versions)**
+  - Shows detailed table information including column names and sample data
+  - Provides comprehensive view of database schemas and content
+  - Includes sample records for small tables
+  - Command: `python testing/comprehensive_api_tests.py --inspect all --inspect-detailed`
+
+- **Database Inspection: Inspect Latest Version**
+  - Shows table contents for only the latest test database version
+  - Faster than inspecting all versions when you only need current data
+  - Command: `python testing/comprehensive_api_tests.py --inspect`
+
 ### Framework Information
 - **Testing Framework: Show Overview**
   - Displays comprehensive information about the testing framework
@@ -117,17 +142,24 @@ This document explains all the VS Code tasks available for the Chame project bac
 1. **Quick Health Check**: Run "API Tests: Quick Health Check" during development
 2. **Full Testing**: Run "API Tests: Full Comprehensive Suite" before committing
 3. **Generate Fresh Data**: Use "Generate Test Database: Minimal" for manual testing
+4. **Inspect Data**: Use "Database Inspection: List All Databases" to see available test data
 
 ### Debugging Workflow
 1. **Generate Edge Cases**: Use "Generate Test Database: Edge Cases"
 2. **Detailed Testing**: Run "API Tests: Direct Comprehensive (Detailed Output)"
-3. **Manual Inspection**: Open generated test databases in SQLite browser
+3. **Inspect Database Structure**: Use "Database Inspection: Detailed Inspection (All Versions)"
+4. **Manual Inspection**: Open generated test databases in SQLite browser
+
+### Database Investigation Workflow
+1. **List Available Data**: Use "Database Inspection: List All Databases"
+2. **Quick Structure View**: Use "Database Inspection: Inspect Latest Version"
+3. **Detailed Analysis**: Use "Database Inspection: Detailed Inspection (All Versions)"
+4. **Generate Missing Data**: Use appropriate "Generate Test Database" tasks as needed
 
 ### Migration Testing Workflow
 1. **Complete Workflow**: Use "Migration Workflow: Complete Testing Workflow" for full validation
 2. **Quick Workflow**: Use "Migration Workflow: Quick Testing Workflow" for faster testing
-3. **Manual Integration**: Run "Migration & API Tests: Full Integration Suite" 
-4. **Baseline Testing**: Use "Migration Tests: Baseline Migration Testing" for production scenarios
+3. **Modern Migration Testing**: Use "Migration Tests: Modern Migration Testing" for migration-only testing
 
 ### Release Workflow
 1. **Comprehensive Testing**: Run "API Tests: Full Comprehensive Suite"
@@ -138,7 +170,7 @@ This document explains all the VS Code tasks available for the Chame project bac
 
 Tasks are organized into logical groups:
 - **Test Group**: All testing-related tasks (API tests, migration tests, integration tests)
-- **Build Group**: Database generation, building, and utility tasks
+- **Build Group**: Database generation, building, inspection, and utility tasks
 
 ## 🎯 Quick Reference
 

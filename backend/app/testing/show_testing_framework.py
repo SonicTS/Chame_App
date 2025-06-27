@@ -28,16 +28,17 @@ def show_framework_overview():
       ↳ Creates realistic test data and scenarios
       ↳ Reports detailed pass/fail results
       ↳ Preserves test database for manual inspection
+      ↳ CLI for version and database type selection
+      ↳ Auto-generates missing databases
    
-   2. run_api_tests.py  
-      ↳ Simple test runner with clean output
-      ↳ Quick and full test modes available
-      ↳ Clear success/failure reporting
-   
-   3. generate_test_databases.py
-      ↳ Creates different types of test databases
+   2. generate_test_databases.py
+      ↳ Creates different types of test databases with version support
       ↳ Minimal, comprehensive, edge-case, and performance variants
       ↳ Perfect for manual testing and development
+   
+   3. migration_and_api_tests.py
+      ↳ Integration tests for database migrations and API validation
+      ↳ Tests old databases can be migrated and work with current API
    
    4. API_TESTING.md
       ↳ Complete documentation and usage guide
@@ -67,11 +68,13 @@ def show_quick_examples():
     print_banner("QUICK USAGE EXAMPLES")
     
     examples = [
-        ("Full Test Suite", "python comprehensive_api_tests.py"),
-        ("Quick Health Check", "python run_api_tests.py --quick"),
+        ("Full Test Suite (Comprehensive DB)", "python comprehensive_api_tests.py --database-type comprehensive"),
+        ("Quick Health Check (Minimal DB)", "python comprehensive_api_tests.py --database-type minimal"),
+        ("List Available Databases", "python comprehensive_api_tests.py --list-databases"),
+        ("Use Specific Version", "python comprehensive_api_tests.py --version v1.0 --database-type comprehensive"),
         ("Generate All Test DBs", "python generate_test_databases.py all"),
         ("Create Minimal Test DB", "python generate_test_databases.py minimal"),
-        ("Show Help", "python run_api_tests.py --help"),
+        ("Migration Tests", "python migration_and_api_tests.py"),
     ]
     
     for description, command in examples:
@@ -141,9 +144,9 @@ def check_file_status():
     print_banner("FRAMEWORK FILE STATUS")
     
     files_to_check = [
-        ("comprehensive_api_tests.py", "Main testing engine"),
-        ("run_api_tests.py", "Simple test runner"), 
-        ("generate_test_databases.py", "Database generator"),
+        ("comprehensive_api_tests.py", "Main testing engine with CLI"),
+        ("generate_test_databases.py", "Database generator with version support"), 
+        ("migration_and_api_tests.py", "Migration testing suite"),
         ("API_TESTING.md", "Documentation"),
         ("test_databases/", "Generated test databases directory"),
     ]
@@ -166,13 +169,16 @@ def show_next_steps():
     
     print("""
 🚀 FOR IMMEDIATE TESTING:
-   1. Run: python run_api_tests.py --quick
-      ↳ Get immediate feedback on API health
+   1. Run: python comprehensive_api_tests.py --database-type minimal
+      ↳ Get immediate feedback on API health using minimal database
    
-   2. Run: python comprehensive_api_tests.py  
-      ↳ Full validation of all functions
+   2. Run: python comprehensive_api_tests.py --database-type comprehensive  
+      ↳ Full validation of all functions with realistic data
    
-   3. Check: Open generated test database in SQLite browser
+   3. List: python comprehensive_api_tests.py --list-databases
+      ↳ See all available test database versions and types
+   
+   4. Check: Open generated test database in SQLite browser
       ↳ Inspect realistic test data
 
 🔧 FOR DEVELOPMENT:
@@ -213,7 +219,7 @@ def main():
     print("🎉 READY TO TEST!")
     print("="*60)
     print("Your comprehensive API testing framework is ready to use.")
-    print("Start with: python run_api_tests.py --quick")
+    print("Start with: python comprehensive_api_tests.py --database-type minimal")
     print("For full documentation: open API_TESTING.md")
 
 if __name__ == "__main__":

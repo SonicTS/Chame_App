@@ -10,25 +10,12 @@ from typing import Dict, List, Optional
 import os
 import traceback
 
-# Conditional import for Alembic - only available in desktop/server environments
-try:
-    from alembic.config import Config
-    from alembic import command
-    ALEMBIC_AVAILABLE = True
-except ImportError:
-    # Alembic not available (e.g., in Chaquopy/mobile environment)
-    ALEMBIC_AVAILABLE = False
-    Config = None
-    command = None
-
 database = None
 
 def run_migrations():
-    """Run database migrations - uses Alembic if available, otherwise simple migrations"""
-    if ALEMBIC_AVAILABLE:
-        run_alembic_upgrade()
-    else:
-        run_simple_migrations()
+    """Run database migrations - uses simple migrations"""
+    print("DEBUG: Running migrations with SimpleMigrations")
+    run_simple_migrations()
 
 def run_simple_migrations():
     """Run simple migrations for mobile/Chaquopy environments"""
@@ -47,89 +34,15 @@ def run_simple_migrations():
         print("❌ [SimpleMigrations] Simple migrations failed")
         traceback.print_exc()
 
-def run_alembic_upgrade():
-    """Run Alembic database upgrade if available (desktop/server environments only)"""
-    if not ALEMBIC_AVAILABLE:
-        print("📦 [Alembic] Alembic not available in this environment (likely mobile/Chaquopy)")
-        return
-        
-    print("📦 [Alembic] Starting database upgrade")
-
-    try:
-        # Get this script’s directory
-        current_dir = os.path.dirname(__file__)
-        print(f"🔍 [Alembic] __file__ = {__file__}")
-        print(f"📂 [Alembic] Current directory = {current_dir}")
-
-        # Resolve path to alembic.ini (assumes it’s one level above)
-        alembic_ini_path = os.path.abspath(os.path.join(current_dir, "..", "alembic.ini"))
-        print(f"📄 [Alembic] alembic.ini path = {alembic_ini_path}")
-
-        if not os.path.exists(alembic_ini_path):
-            print("❌ [Alembic] ERROR: alembic.ini not found! Trying programmatic approach...")
-            run_alembic_programmatically()
-            return
-
-        # Load configuration
-        alembic_cfg = Config(alembic_ini_path)
-
-        # Optional: print final DB URL
-        db_url = alembic_cfg.get_main_option("sqlalchemy.url")
-        print(f"🔗 [Alembic] DB URL = {db_url}")
-
-        # Apply upgrade
-        command.upgrade(alembic_cfg, "head")
-        print("✅ [Alembic] Migration successful!")
-
-    except Exception:
-        print("❌ [Alembic] Migration failed!")
-        traceback.print_exc()
-
-def run_alembic_programmatically():
-    """Run Alembic migrations programmatically without alembic.ini"""
-    if not ALEMBIC_AVAILABLE:
-        return
-        
-    try:
-        from alembic.migration import MigrationContext
-        # from alembic.operations import Operations  # Uncomment if needed for migrations
-        from chame_app.database import _engine
-        
-        if _engine is None:
-            print("❌ [Alembic] Database engine not initialized")
-            return
-            
-        print("🔧 [Alembic] Running programmatic migrations")
-        
-        # Create migration context
-        with _engine.connect() as connection:
-            context = MigrationContext.configure(connection)
-            current_rev = context.get_current_revision()
-            print(f"📍 [Alembic] Current revision: {current_rev}")
-            
-            # You can run specific operations here
-            # ops = Operations(context)
-            # Example: ops.create_table(...) or ops.add_column(...)
-            
-            # Example usage of Operations:
-            # ops = Operations(context)
-            # ops.add_column('user_table', sa.Column('new_field', sa.String(50)))
-            
-        print("✅ [Alembic] Programmatic migration completed")
-        
-    except Exception:
-        print("❌ [Alembic] Programmatic migration failed")
-        traceback.print_exc()
-
-def create_database():
+def create_database(apply_migration: bool = True) -> Database:
     global database
     if database is None:
-        database = Database()
-        run_migrations()  # <-- Run migrations (Alembic or simple) after DB is created
+        database = Database(apply_migration)
         logging.info("Database instance created and migrations run.")
     else:
         logging.warning("Database instance already exists.")
     return database
+
 def login(username, password):
     if not username or not password:
         raise ValueError("Username and password cannot be empty")

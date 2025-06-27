@@ -127,8 +127,8 @@ class TestDatabaseGenerator:
                 if drinks_with_pfand and len(users) >= 3:
                     # Simulate some pfand returns
                     for drink in drinks_with_pfand[:2]:  # Test with first 2 drinks
-                        api.submit_pfand_return(users[2]["user_id"], [{"product_id": drink["product_id"], "quantity": 1}])
-                        api.submit_pfand_return(users[3]["user_id"], [{"product_id": drink["product_id"], "quantity": 2}])
+                        api.submit_pfand_return(users[2]["user_id"], [{"product_id": drink["product_id"], "amount": 1}])
+                        api.submit_pfand_return(users[3]["user_id"], [{"product_id": drink["product_id"], "amount": 2}])
                     print("  ✅ Created pfand history entries")
             except Exception as e:
                 print(f"⚠️ Note: Pfand history creation failed: {e}")
@@ -204,54 +204,67 @@ class TestDatabaseGenerator:
         # Create versioned output directory
         os.makedirs(self.versioned_dir, exist_ok=True)
         
-        # Set up temporary environment
+        # Create temporary directory
         temp_dir = tempfile.mkdtemp(prefix="dbgen_")
         os.environ["PRIVATE_STORAGE"] = temp_dir
         
-        # Force reset database instance completely
+        # Set database to None to ensure fresh creation
         api.database = None
         
-        # Remove any existing database file in the temp directory
+        # Also reset the database engine
+        from chame_app.database import reset_database
+        reset_database()
+        
+        # Create fresh database in temp directory
+        api.create_database(False)
+        
+        # Mark all migrations as applied since this is a fresh database with latest schema
+        from chame_app.database import _engine
+        from chame_app.simple_migrations import SimpleMigrations
+        
+        if _engine is not None:
+            migrations = SimpleMigrations(_engine)
+            migrations.mark_all_migrations_applied()
+        else:
+            print("⚠️ Warning: Could not mark migrations as applied - engine not available")
+        
+        # Verify database was created successfully
+        if api.database is None:
+            raise RuntimeError("Failed to create database instance")
+        
+        # Store paths
         temp_db_path = os.path.join(temp_dir, "kassensystem.db")
-        if os.path.exists(temp_db_path):
-            os.remove(temp_db_path)
-        
-        # Create fresh database - force creation by setting database to None first
-        api.database = None  # Ensure it's None
-        api.create_database()
-        
-        # Verify the database is fresh by checking if it has any users
-        try:
-            users = api.get_all_users()
-            if users:
-                print(f"⚠️ Warning: Database not fresh, found {len(users)} existing users")
-                # Force recreate the database instance
-                from chame_app.database import Database
-                api.database = Database()
-        except Exception:
-            # This is expected for a fresh database
-            pass
-        
-        # Final database path in versioned directory
         final_path = os.path.join(self.versioned_dir, db_name)
         self.current_db_path = temp_db_path
         
+        print(f"✅ Database setup complete in temp directory: {temp_dir}")
         return final_path
     
     def finalize_database(self, final_path: str):
         """Copy database to final location and cleanup"""
         if self.current_db_path and os.path.exists(self.current_db_path):
+            # Close database connection before copying
+            api.database = None
+            from chame_app.database import reset_database
+            reset_database()
+            
+            # Brief pause to ensure file handles are released
+            import time
+            time.sleep(0.2)
+            
+            # Copy database from temp to final location
             shutil.copy2(self.current_db_path, final_path)
             print(f"💾 Database saved to: {final_path}")
-            # Clean up temp directory - try to close any open connections first
+            
+            # Clean up temp directory
             try:
-                import time
-                time.sleep(0.1)  # Brief pause to allow file handles to close
                 temp_dir = os.path.dirname(self.current_db_path)
                 shutil.rmtree(temp_dir, ignore_errors=True)
+                print(f"🧹 Cleaned up temp directory: {temp_dir}")
             except Exception as e:
-                print(f"⚠️ Note: Temp directory cleanup failed (file may be in use): {e}")
-                print(f"   Temp dir: {os.path.dirname(self.current_db_path)}")
+                print(f"⚠️ Note: Temp directory cleanup failed: {e}")
+        else:
+            print(f"⚠️ Warning: Could not finalize database - temp file not found: {self.current_db_path}")
         
     def generate_all_databases(self):
         """Generate all types of test databases"""
@@ -268,12 +281,27 @@ class TestDatabaseGenerator:
         created_dbs = []
         for db_type, create_func in databases:
             try:
+                print(f"\n🔧 Starting {db_type} database generation...")
+                
+                # Generate database
                 db_path = create_func(f"{db_type}_test.db")
                 self.finalize_database(db_path)
                 created_dbs.append(db_path)
+                
+                print(f"✅ {db_type} database completed and finalized")
+                
+                # Force reset for next database
+                api.database = None
+                
             except Exception as e:
                 print(f"❌ Failed to create {db_type} database: {e}")
+                # Reset even on failure
+                api.database = None
         
+        self._print_generation_summary(created_dbs)
+    
+    def _print_generation_summary(self, created_dbs):
+        """Print summary of database generation"""
         print("\n" + "=" * 50)
         print("📊 GENERATION SUMMARY")
         print("=" * 50)

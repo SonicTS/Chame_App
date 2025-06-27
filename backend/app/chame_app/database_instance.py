@@ -20,7 +20,7 @@ BANK_NOT_FOUND_MSG = "Bank account not found"
 USER_NOT_FOUND_MSG = "User not found"
 
 class Database:
-    def __init__(self):
+    def __init__(self, apply_migrations: bool = True):
         self.session = get_session()
         bank = self.session.query(Bank).filter_by(account_id=1).first()
         if not bank:
@@ -36,6 +36,26 @@ class Database:
         for product in self.session.query(Product).all():
             product.update_stock()
         self.session.close()
+        
+        # Run migrations to ensure database is up to date
+        if apply_migrations:
+            self._ensure_migrations_applied()
+
+    def _ensure_migrations_applied(self):
+        """Ensure database migrations are applied if needed"""
+        try:
+            from chame_app.database import _engine
+            from chame_app.simple_migrations import SimpleMigrations
+            
+            if _engine is None:
+                return  # Engine not initialized yet
+            
+            migrations = SimpleMigrations(_engine)
+            migrations.run_migrations()
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Migration check failed: {e}")
+            # Don't raise - database creation should continue even if migrations fail
 
     def get_session(self):
         """Create a new session."""
@@ -462,6 +482,8 @@ class Database:
             user = self.get_user_by_id(user_id, session)
             user_name = user.name
             amount = float(amount)
+            if amount <= 0:
+                raise ValueError("Amount must be greater than 0 ")
             user.balance += amount
             bank.total_balance += amount
             bank.customer_funds += amount

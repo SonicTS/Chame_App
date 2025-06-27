@@ -236,57 +236,11 @@ class MigrationAPITester:
             api_tester.test_db_path = db_path
             
             # Test core API functions
-            print("  🔍 Testing data fetcher functions...")
-            test_results = {
-                'passed': 0,
-                'failed': 0,
-                'errors': []
-            }
-            
+            print("  🔍 Testing all api functions...")
+    
             # Test basic data fetchers
-            api_tester._test_data_fetchers(test_results)
-            
-            # Test a few user operations (if there are users in the database)
-            users = api.get_all_users()
-            if users and len(users) > 0:
-                print("  👥 Testing user operations...")
-                # Test deposit/withdraw on existing user
-                user_id = users[0]["user_id"]
-                try:
-                    original_balance = users[0]["balance"]
-                    api.deposit(user_id, 10.0)
-                    api.withdraw(user_id, 5.0)
-                    
-                    # Verify balance
-                    updated_users = api.get_all_users()
-                    updated_user = next(u for u in updated_users if u["user_id"] == user_id)
-                    expected_balance = original_balance + 10.0 - 5.0
-                    
-                    if abs(updated_user["balance"] - expected_balance) < 0.01:
-                        test_results['passed'] += 1
-                        print("    ✅ User balance operations: Success")
-                    else:
-                        test_results['failed'] += 1
-                        test_results['errors'].append(f"Balance mismatch: expected {expected_balance}, got {updated_user['balance']}")
-                        print("    ❌ User balance operations: Failed")
-                        
-                except Exception as e:
-                    test_results['failed'] += 1
-                    test_results['errors'].append(f"User operations: {e}")
-                    print(f"    ❌ User operations error: {e}")
-            
-            # Test product/ingredient queries if they exist
-            products = api.get_all_products()
-            ingredients = api.get_all_ingredients()
-            pfand_history = api.get_pfand_history()
-            
-            if products:
-                print(f"  🍞 Found {len(products)} products - product system working")
-            if ingredients:
-                print(f"  🥬 Found {len(ingredients)} ingredients - ingredient system working")
-            if pfand_history:
-                print(f"  🍺 Found {len(pfand_history)} pfand history entries - pfand system working")
-            
+            test_results = api_tester.test_all_api_functions()
+    
             print(f"  📊 API Test Results: {test_results['passed']} passed, {test_results['failed']} failed")
             return test_results
             
@@ -403,54 +357,6 @@ class MigrationAPITester:
             # Cleanup target temp directory
             if os.path.exists(target_temp_dir):
                 shutil.rmtree(target_temp_dir, ignore_errors=True)
-        """Run complete migration and API test on a single database"""
-        db_name = os.path.basename(source_db_path)
-        print(f"\n🎯 Testing database: {db_name}")
-        print("=" * 60)
-        
-        test_result = {
-            'database': db_name,
-            'migration_success': False,
-            'api_test_results': None,
-            'errors': []
-        }
-        
-        try:
-            # Copy database to test environment
-            test_db_path = self.copy_database_to_test_env(source_db_path)
-            
-            # Test migration
-            migration_success = self.test_database_migration(test_db_path)
-            test_result['migration_success'] = migration_success
-            
-            if not migration_success:
-                test_result['errors'].append("Migration failed")
-                return test_result
-            
-            # Test API functionality
-            api_results = self.test_api_functionality(test_db_path)
-            test_result['api_test_results'] = api_results
-            
-            # Update overall test counts
-            self.test_results['total_tests'] += 1
-            if migration_success and api_results['failed'] == 0:
-                self.test_results['passed'] += 1
-                print(f"✅ {db_name}: All tests passed")
-            else:
-                self.test_results['failed'] += 1
-                print(f"❌ {db_name}: Some tests failed")
-                if test_result['errors']:
-                    self.test_results['errors'].extend(test_result['errors'])
-                if api_results and api_results['errors']:
-                    self.test_results['errors'].extend(api_results['errors'])
-            
-        except Exception as e:
-            test_result['errors'].append(f"Test execution failed: {e}")
-            self.test_results['failed'] += 1
-            self.test_results['total_tests'] += 1
-            print(f"❌ {db_name}: Test execution failed: {e}")
-        
-        return test_result
     
     def run_full_test_suite(self) -> bool:
         """Run migration and API tests on all available test databases"""
