@@ -34,6 +34,8 @@ class _UsersPageState extends State<UsersPage> {
   @override
   void initState() {
     super.initState();
+    // Initialize scroll controllers here to ensure they're ready
+    // No additional initialization needed as they're already created
     _reload();
   }
 
@@ -367,16 +369,25 @@ class UsersTableSection extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
           final users = snapshot.data ?? [];
           final filteredUsers = userTableNameFilter.isEmpty
               ? users
               : users.where((u) => (u['name'] ?? '').toLowerCase().contains(userTableNameFilter)).toList();
+
+          // Only build scrollable content if we have data
+          if (filteredUsers.isEmpty) {
+            return const Center(child: Text('No users found.'));
+          }
 
           return Scrollbar(
             thumbVisibility: true,
             controller: horizontalScrollController,
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
+              controller: horizontalScrollController,
               child: SizedBox(
                 // minimum width for horizontal scroll; adjust as needed
                 width: 700,
@@ -385,6 +396,7 @@ class UsersTableSection extends StatelessWidget {
                   controller: verticalScrollController,
                   child: SingleChildScrollView(
                     scrollDirection: Axis.vertical,
+                    controller: verticalScrollController,
                     child: DataTable(
                       columns: const [
                         DataColumn(label: Text('Name')),
@@ -475,6 +487,9 @@ class TransactionsSection extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
           }
           final txs = snapshot.data ?? [];
           if (txs.isEmpty) {
