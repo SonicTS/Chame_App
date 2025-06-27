@@ -504,6 +504,98 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 
+                // ========== BACKUP MANAGEMENT ROUTES ==========
+                "create_backup" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val backupType = call.argument<String>("backup_type") ?: "manual"
+                        val description = call.argument<String>("description") ?: ""
+                        val createdBy = call.argument<String>("created_by") ?: "android_app"
+                        
+                        val pyResult = pyModule.callAttr("create_backup", backupType, description, createdBy)
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "list_backups" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val pyResult = pyModule.callAttr("list_backups")
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "restore_backup" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val backupPath = call.argument<String>("backup_path")
+                        val confirm = call.argument<Boolean>("confirm") ?: false
+                        
+                        if (backupPath == null) {
+                            result.error("ARGUMENT_ERROR", "Missing backup_path argument for restore_backup", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val pyResult = pyModule.callAttr("restore_backup", backupPath, confirm)
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "delete_backup" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val backupFilename = call.argument<String>("backup_filename")
+                        
+                        if (backupFilename == null) {
+                            result.error("ARGUMENT_ERROR", "Missing backup_filename argument for delete_backup", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val pyResult = pyModule.callAttr("delete_backup", backupFilename)
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
                 else -> result.notImplemented()
             }
             

@@ -378,4 +378,77 @@ class PyBridge {
       rethrow;
     }
   }
+
+  // ========== BACKUP MANAGEMENT METHODS ==========
+
+  Future<Map<String, dynamic>> createBackup({
+    String backupType = "manual",
+    String description = "",
+    String createdBy = "flutter_admin",
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('create_backup', {
+        'backup_type': backupType,
+        'description': description,
+        'created_by': createdBy,
+      });
+      if (result == null || result == 'null') {
+        throw Exception('Failed to create backup: No response from backend');
+      }
+      return jsonDecode(result as String) as Map<String, dynamic>;
+    } catch (e, stack) {
+      print('Error in createBackup: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> listBackups() async {
+    try {
+      final result = await _chan.invokeMethod('list_backups');
+      if (result == null || result == 'null') {
+        return <Map<String, dynamic>>[];
+      }
+      final List<dynamic> decoded = jsonDecode(result as String);
+      return decoded.cast<Map<String, dynamic>>();
+    } catch (e, stack) {
+      print('Error in listBackups: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> restoreBackup({
+    required String backupPath,
+    required bool confirm,
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('restore_backup', {
+        'backup_path': backupPath,
+        'confirm': confirm,
+      });
+      if (result == null || result == 'null') {
+        throw Exception('Failed to restore backup: No response from backend');
+      }
+      return jsonDecode(result as String) as Map<String, dynamic>;
+    } catch (e, stack) {
+      print('Error in restoreBackup: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteBackup({
+    required String backupFilename,
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('delete_backup', {
+        'backup_filename': backupFilename,
+      });
+      if (result == null || result == 'null') {
+        throw Exception('Failed to delete backup: No response from backend');
+      }
+      return jsonDecode(result as String) as Map<String, dynamic>;
+    } catch (e, stack) {
+      print('Error in deleteBackup: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
 }

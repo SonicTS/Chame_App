@@ -51,7 +51,8 @@ class Database:
                 return  # Engine not initialized yet
             
             migrations = SimpleMigrations(_engine)
-            migrations.run_migrations()
+            # Create backup before migrations (True by default)
+            migrations.run_migrations(create_backup=True)
             
         except Exception as e:
             print(f"⚠️ Warning: Migration check failed: {e}")
@@ -980,6 +981,181 @@ class Database:
             if close_session:
                 session.close()
 
+# ========== BACKUP FUNCTIONALITY ==========
+    
+    def create_backup(self, backup_type: str = "manual", description: str = "", created_by: str = "user"):
+        """Create a database backup using the backup manager"""
+        try:
+            from services.database_backup import DatabaseBackupManager
+            
+            backup_manager = DatabaseBackupManager()
+            result = backup_manager.create_backup(
+                backup_type=backup_type,
+                description=description,
+                created_by=created_by
+            )
+            
+            if result['success']:
+                print(f"✅ Backup created: {result['message']}")
+            else:
+                print(f"❌ Backup failed: {result['message']}")
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Failed to create backup: {e}"
+            print(f"❌ {error_msg}")
+            return {
+                'success': False,
+                'error': str(e),
+                'message': error_msg
+            }
+    
+    def restore_backup(self, backup_path: str, confirm: bool = False):
+        """Restore database from backup"""
+        try:
+            from services.database_backup import DatabaseBackupManager
+            
+            if not confirm:
+                return {
+                    'success': False,
+                    'error': 'Restore not confirmed',
+                    'message': 'You must set confirm=True to perform restore. This will overwrite your current database!'
+                }
+            
+            backup_manager = DatabaseBackupManager()
+            result = backup_manager.restore_backup(backup_path, confirm=True)
+            
+            if result['success']:
+                print(f"✅ Database restored: {result['message']}")
+                # Reset database connection after restore
+                self._reset_connection()
+            else:
+                print(f"❌ Restore failed: {result['message']}")
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Failed to restore backup: {e}"
+            print(f"❌ {error_msg}")
+            return {
+                'success': False,
+                'error': str(e),
+                'message': error_msg
+            }
+    
+    def list_backups(self):
+        """List all available backups"""
+        try:
+            from services.database_backup import DatabaseBackupManager
+            
+            backup_manager = DatabaseBackupManager()
+            backups = backup_manager.list_backups()
+            
+            if backups:
+                print(f"📦 Found {len(backups)} backup(s):")
+                for backup in backups[:10]:  # Show latest 10
+                    size_mb = backup['size'] / (1024 * 1024)
+                    print(f"  • {backup['filename']} ({backup['type']}) - {size_mb:.1f}MB - {backup['created']}")
+            else:
+                print("📦 No backups found")
+            
+            return backups
+            
+        except Exception as e:
+            error_msg = f"Failed to list backups: {e}"
+            print(f"❌ {error_msg}")
+            return []
+    
+    def delete_backup(self, backup_filename: str):
+        """Delete a specific backup"""
+        try:
+            from services.database_backup import DatabaseBackupManager
+            
+            backup_manager = DatabaseBackupManager()
+            result = backup_manager.delete_backup(backup_filename)
+            
+            if result['success']:
+                print(f"✅ {result['message']}")
+            else:
+                print(f"❌ {result['message']}")
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Failed to delete backup: {e}"
+            print(f"❌ {error_msg}")
+            return {
+                'success': False,
+                'error': str(e),
+                'message': error_msg
+            }
+    
+    def export_data(self, format: str = "json", include_sensitive: bool = False):
+        """Export database data in various formats"""
+        try:
+            from services.database_backup import DatabaseBackupManager
+            
+            backup_manager = DatabaseBackupManager()
+            result = backup_manager.export_data(format=format, include_sensitive=include_sensitive)
+            
+            if result['success']:
+                print(f"✅ Data exported: {result['message']}")
+            else:
+                print(f"❌ Export failed: {result['message']}")
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Failed to export data: {e}"
+            print(f"❌ {error_msg}")
+            return {
+                'success': False,
+                'error': str(e),
+                'message': error_msg
+            }
+    
+    def cleanup_old_backups(self, daily_keep: int = 7, weekly_keep: int = 4):
+        """Clean up old backups based on retention policy"""
+        try:
+            from services.database_backup import DatabaseBackupManager
+            
+            backup_manager = DatabaseBackupManager()
+            result = backup_manager.cleanup_old_backups(daily_keep=daily_keep, weekly_keep=weekly_keep)
+            
+            if result['success']:
+                print(f"✅ {result['message']}")
+            else:
+                print(f"❌ {result['message']}")
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Failed to cleanup backups: {e}"
+            print(f"❌ {error_msg}")
+            return {
+                'success': False,
+                'error': str(e),
+                'message': error_msg
+            }
+    
+    def _reset_connection(self):
+        """Reset database connection after restore"""
+        try:
+            if hasattr(self, 'session') and self.session:
+                self.session.close()
+            
+            # Reset global database state
+            from chame_app.database import reset_database
+            reset_database()
+            
+            # Reinitialize session
+            self.session = get_session()
+            print("🔄 Database connection reset successfully")
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to reset database connection: {e}")
+
 def extend_float_precision(value: float, precision: int = 16) -> float:
     """
     Extends the last digit of a float's decimal part to the specified precision.
@@ -996,7 +1172,5 @@ def extend_float_precision(value: float, precision: int = 16) -> float:
     extended_str = f"{int_part}.{extended_dec[:precision]}"
     return float(extended_str)
 
-
-
-
-#database = Database()
+# Initialize database instance when module is imported
+# database = Database()
