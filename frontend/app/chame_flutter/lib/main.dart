@@ -1,5 +1,6 @@
 import 'package:chame_flutter/pages/add_ingredients_page.dart';
 import 'package:chame_flutter/pages/add_product_page.dart';
+import 'package:chame_flutter/pages/backup_management_page.dart';
 import 'package:chame_flutter/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -75,6 +76,7 @@ class ChameApp extends StatelessWidget {
             '/add_product': (_) => AddProductPage(),
             '/restock_ingredients': (_) => RestockIngredientsPage(),
             '/settings': (_) => SettingsPage(),
+            '/backup_management': (_) => BackupManagementPage(),
             '/return_pfand': (_) => ReturnPfandPage(),
             // ...other routes
           },
@@ -221,23 +223,52 @@ class _LoginScreenState extends State<LoginScreen> {
 class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthService>(context);
+    
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: ElevatedButton(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Change Password button
+              ElevatedButton(
                 onPressed: () => showModalBottomSheet(
-                context: context,
-                isScrollControlled: true, // <-- Key for keyboard safety!
-                builder: (ctx) => ChangePasswordSheet(),
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                  context: context,
+                  isScrollControlled: true, // <-- Key for keyboard safety!
+                  builder: (ctx) => ChangePasswordSheet(),
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
                 ),
+                child: const Text('Change Password'),
               ),
-              child: const Text('Change Password'),
-            ),
+              
+              // Backup Management button (admin only)
+              if (auth.role == "admin") ...[
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () => Navigator.pushNamed(context, '/backup_management'),
+                  icon: const Icon(Icons.backup),
+                  label: const Text('Database Backup Management'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Create, restore, and manage database backups',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ],
           ),
         ),
       ),

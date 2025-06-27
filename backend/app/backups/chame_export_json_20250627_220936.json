@@ -1,0 +1,47 @@
+{
+  "ingredients": [],
+  "products": [],
+  "toast_round": [],
+  "users": [
+    {
+      "user_id": 1,
+      "name": "admin",
+      "balance": 0.0,
+      "password_hash": "$argon2id$v=19$m=65536,t=3,p=1$qnXOuReCcI6xljJmzPl/zw$LAqua/PA+5/PvMAPLELy3ZKdhGSxf/9uaXS152dKp+w",
+      "role": "admin"
+    }
+  ],
+  "bank": [
+    {
+      "account_id": 1,
+      "total_balance": 0.0,
+      "customer_funds": 0.0,
+      "revenue_funds": 0.0,
+      "costs_reserved": 0.0,
+      "profit_retained": 0.0,
+      "revenue_total": 0.0,
+      "costs_total": 0.0,
+      "profit_total": 0.0,
+      "product_value": 0.0,
+      "ingredient_value": 0.0
+    }
+  ],
+  "bank_transactions": [],
+  "pfand_history": [],
+  "product_ingredient": [],
+  "product_toast_round": [],
+  "sales": [],
+  "transactions": [],
+  "schema_migrations": [
+    {
+      "version": "001_init",
+      "applied_at": "2025-06-27 20:09:36"
+    }
+  ],
+  "_metadata": {
+    "export_timestamp": "2025-06-27T22:09:36.680391",
+    "database_version": "0",
+    "include_sensitive": false,
+    "format": "json"
+  }
+}

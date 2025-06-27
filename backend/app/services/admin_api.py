@@ -187,3 +187,150 @@ def get_pfand_history():
     if not pfand_history:
         return []
     return [ph.to_dict(include_user=True, include_product=True) for ph in pfand_history]
+
+# ========== BACKUP FUNCTIONS ==========
+
+def create_backup(backup_type="manual", description="", created_by="api"):
+    """Create a database backup"""
+    try:
+        result = database.create_backup(
+            backup_type=backup_type,
+            description=description,
+            created_by=created_by
+        )
+        
+        if result['success']:
+            return {
+                'success': True,
+                'backup_path': result['backup_path'],
+                'metadata': result['metadata'],
+                'message': result['message']
+            }
+        else:
+            raise RuntimeError(result['message'])
+            
+    except Exception as e:
+        print(f"create_backup error: {e}")
+        raise RuntimeError(f"Failed to create backup: {e}") from e
+
+def restore_backup(backup_path, confirm=False):
+    """Restore database from backup"""
+    try:
+        if not confirm:
+            raise ValueError("You must set confirm=True to perform restore. This will overwrite your current database!")
+        
+        result = database.restore_backup(backup_path, confirm=True)
+        
+        if result['success']:
+            return {
+                'success': True,
+                'restored_from': result['restored_from'],
+                'database_path': result['database_path'],
+                'message': result['message']
+            }
+        else:
+            raise RuntimeError(result['message'])
+            
+    except Exception as e:
+        print(f"restore_backup error: {e}")
+        raise RuntimeError(f"Failed to restore backup: {e}") from e
+
+def list_backups():
+    """List all available backups"""
+    try:
+        backups = database.list_backups()
+        return backups
+        
+    except Exception as e:
+        print(f"list_backups error: {e}")
+        raise RuntimeError(f"Failed to list backups: {e}") from e
+
+def delete_backup(backup_filename):
+    """Delete a specific backup"""
+    try:
+        result = database.delete_backup(backup_filename)
+        
+        if result['success']:
+            return {
+                'success': True,
+                'message': result['message']
+            }
+        else:
+            raise RuntimeError(result['message'])
+            
+    except Exception as e:
+        print(f"delete_backup error: {e}")
+        raise RuntimeError(f"Failed to delete backup: {e}") from e
+
+def export_data(format="json", include_sensitive=False):
+    """Export database data in various formats"""
+    try:
+        result = database.export_data(format=format, include_sensitive=include_sensitive)
+        
+        if result['success']:
+            return {
+                'success': True,
+                'export_path': result['export_path'],
+                'format': result['format'],
+                'message': result['message']
+            }
+        else:
+            raise RuntimeError(result['message'])
+            
+    except Exception as e:
+        print(f"export_data error: {e}")
+        raise RuntimeError(f"Failed to export data: {e}") from e
+
+def cleanup_old_backups(daily_keep=7, weekly_keep=4):
+    """Clean up old backups based on retention policy"""
+    try:
+        result = database.cleanup_old_backups(daily_keep=daily_keep, weekly_keep=weekly_keep)
+        
+        if result['success']:
+            return {
+                'success': True,
+                'deleted_count': result['deleted_count'],
+                'message': result['message']
+            }
+        else:
+            raise RuntimeError(result['message'])
+            
+    except Exception as e:
+        print(f"cleanup_old_backups error: {e}")
+        raise RuntimeError(f"Failed to cleanup backups: {e}") from e
+
+def get_backup_system_info():
+    """Get backup system information"""
+    try:
+        from services.database_backup import DatabaseBackupManager
+        
+        manager = DatabaseBackupManager()
+        backups = manager.list_backups()
+        
+        # Calculate backup statistics
+        backup_counts = {}
+        total_size = 0
+        
+        for backup in backups:
+            backup_type = backup['type']
+            backup_counts[backup_type] = backup_counts.get(backup_type, 0) + 1
+            total_size += backup['size']
+        
+        db_path = manager._get_database_path()
+        
+        return {
+            'backup_directory': str(manager.backup_dir),
+            'database_path': str(db_path),
+            'database_exists': db_path.exists(),
+            'database_size': db_path.stat().st_size if db_path.exists() else 0,
+            'database_version': manager._get_database_version(),
+            'backup_counts': backup_counts,
+            'total_backup_size': total_size,
+            'total_backups': len(backups)
+        }
+    except Exception as e:
+        raise RuntimeError(f"get_backup_system_info failed: {e}") from e
+
+#Create a global database instance
+
+database = create_database()

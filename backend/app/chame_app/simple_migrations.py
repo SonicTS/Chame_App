@@ -104,8 +104,21 @@ class SimpleMigrations:
         
         print("✅ [SimpleMigrations] All migrations marked as applied")
     
-    def run_migrations(self):
-        """Run all pending migrations"""
+    def _has_pending_migrations(self, applied):
+        """Check if there are any pending migrations (regular or advanced)"""
+        # Check for pending regular migrations
+        pending_regular = [v for v in sorted(self.migrations.keys()) if v not in applied]
+        
+        # Check for pending advanced migrations
+        pending_advanced = []
+        for migration_name in self._get_advanced_migrations().keys():
+            if not self._check_advanced_migration_applied(migration_name):
+                pending_advanced.append(migration_name)
+        
+        return pending_regular, pending_advanced
+    
+    def run_migrations(self, create_backup: bool = False):
+        """Run all pending migrations with optional backup creation"""
         print("🔄 [SimpleMigrations] Starting database migrations")
         
         try:
@@ -118,14 +131,98 @@ class SimpleMigrations:
             # Check if this is an empty database that needs all migrations
             if self._needs_all_migrations():
                 print("📦 [SimpleMigrations] Empty database - applying all migrations")
+                
+                # Create backup before migrations if requested (for new database with existing data)
+                backup_created = False
+                if create_backup:
+                    backup_result = self._create_pre_migration_backup()
+                    if not backup_result['success']:
+                        print(f"⚠️ [SimpleMigrations] Backup failed: {backup_result['message']}")
+                        print("⚠️ [SimpleMigrations] Continuing without backup (use at your own risk)")
+                    else:
+                        print(f"✅ [SimpleMigrations] Pre-migration backup created: {backup_result['backup_path']}")
+                        backup_created = True
+                
                 return self._apply_all_migrations()
             
+            pending_regular, pending_advanced = self._has_pending_migrations(applied)
+            
+            # If no pending migrations, skip backup creation
+            if not pending_regular and not pending_advanced:
+                print("✅ [SimpleMigrations] No pending migrations - no backup needed")
+                return True
+            
+            # Create backup before migrations if requested (only when there are pending migrations)
+            backup_created = False
+            if create_backup:
+                backup_result = self._create_pre_migration_backup()
+                if not backup_result['success']:
+                    print(f"⚠️ [SimpleMigrations] Backup failed: {backup_result['message']}")
+                    print("⚠️ [SimpleMigrations] Continuing without backup (use at your own risk)")
+                else:
+                    print(f"✅ [SimpleMigrations] Pre-migration backup created: {backup_result['backup_path']}")
+                    backup_created = True
+            
+            # Log what migrations will be applied
+            if pending_regular:
+                print(f"📋 [SimpleMigrations] Found {len(pending_regular)} pending regular migrations: {pending_regular}")
+            if pending_advanced:
+                print(f"📋 [SimpleMigrations] Found {len(pending_advanced)} pending advanced migrations: {pending_advanced}")
+            
             # Run pending migrations for existing database
-            return self._apply_pending_migrations(applied)
+            success = self._apply_pending_migrations(applied)
+            
+            # If migrations failed and we created a backup, mention it
+            if not success and backup_created:
+                print("❌ [SimpleMigrations] Migrations failed! You can restore from backup if needed.")
+            
+            return success
             
         except Exception as e:
             print(f"❌ [SimpleMigrations] Migration system failed: {e}")
             return False
+    
+    def _create_pre_migration_backup(self):
+        """Create a backup before running migrations"""
+        try:
+            from services.database_backup import DatabaseBackupManager
+            import datetime
+            
+            backup_manager = DatabaseBackupManager()
+            
+            # Create backup with migration-specific description
+            current_version = self._get_current_version()
+            next_version = self._get_next_version()
+            
+            description = f"Pre-migration backup (v{current_version} -> v{next_version})"
+            
+            result = backup_manager.create_backup(
+                backup_type="manual",
+                description=description,
+                created_by="migration_system"
+            )
+            
+            return result
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'message': f"Failed to create pre-migration backup: {e}"
+            }
+    
+    def _get_current_version(self):
+        """Get current database version"""
+        try:
+            applied = self._get_applied_migrations()
+            return str(len(applied))
+        except Exception:
+            return "0"
+    
+    def _get_next_version(self):
+        """Get next database version after migrations"""
+        total_migrations = len(self.migrations) + len(self._get_advanced_migrations())
+        return str(total_migrations)
     
     def _apply_all_migrations(self):
         """Apply all migrations to an empty database"""
