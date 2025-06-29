@@ -65,7 +65,7 @@ class _AddIngredientsPageState extends State<AddIngredientsPage> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSubmitting = true);
-    final pfand = double.tryParse(_pfandController.text) ?? 0.0;
+    final pfand = double.tryParse(_pfandController.text.trim()) ?? 0.0;
     // TODO: Use pfand in backend call if needed
     final error = await addIngredientViaPyBridge(
       name: _nameController.text.trim(),
@@ -159,10 +159,11 @@ class _AddIngredientsPageState extends State<AddIngredientsPage> {
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: _pfandController,
-                          decoration: const InputDecoration(labelText: 'Pfand'),
+                          decoration: const InputDecoration(labelText: 'Pfand (optional)'),
                           keyboardType: TextInputType.numberWithOptions(decimal: true),
                           validator: (v) {
-                            final val = double.tryParse(v ?? '');
+                            if (v == null || v.trim().isEmpty) return null; // Allow empty
+                            final val = double.tryParse(v);
                             if (val == null || val < 0) return 'Enter valid Pfand';
                             return null;
                           },

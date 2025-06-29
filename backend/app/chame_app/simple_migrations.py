@@ -8,8 +8,24 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Firebase logging support
+try:
+    from utils.firebase_logger import log_to_firebase
+    FIREBASE_LOGGING_AVAILABLE = True
+except ImportError:
+    FIREBASE_LOGGING_AVAILABLE = False
+    
+    def log_to_firebase(level, message, **metadata):
+        """Fallback when Firebase l                print(f"📦 [SimpleMigrations] Running advanced migration: {migration_name}")
+                log_to_firebase("INFO", f"Applying advanced migration: {migration_name}",
+                               migration_name=migration_name, migration_type="advanced")gging is not available"""
+        logger.info(f"[{level}] {message} | Metadata: {metadata}")
+
 class SimpleMigrations:
     """Simple migration system using raw SQL that works in mobile environments"""
+    
+    # SQL constant to avoid duplication
+    INSERT_MIGRATION_SQL = "INSERT OR IGNORE INTO schema_migrations (version) VALUES (:version)"
     
     def __init__(self, engine):
         self.engine = engine
@@ -43,6 +59,33 @@ class SimpleMigrations:
                 
                 -- Note: Foreign key constraints and column drops are handled separately
                 -- to ensure compatibility across different SQLite versions
+            """,
+            "003_add_soft_delete_columns": """
+                -- Add soft delete columns to users table
+                ALTER TABLE users ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE NOT NULL;
+                ALTER TABLE users ADD COLUMN deleted_at DATETIME;
+                ALTER TABLE users ADD COLUMN deleted_by VARCHAR(255);
+                
+                -- Add soft delete columns to products table
+                ALTER TABLE products ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE NOT NULL;
+                ALTER TABLE products ADD COLUMN deleted_at DATETIME;
+                ALTER TABLE products ADD COLUMN deleted_by VARCHAR(255);
+                
+                -- Add soft delete columns to ingredients table
+                ALTER TABLE ingredients ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE NOT NULL;
+                ALTER TABLE ingredients ADD COLUMN deleted_at DATETIME;
+                ALTER TABLE ingredients ADD COLUMN deleted_by VARCHAR(255);
+                
+                -- Update existing records to have is_deleted = FALSE (default value should handle this, but ensure it)
+                UPDATE users SET is_deleted = FALSE WHERE is_deleted IS NULL;
+                UPDATE users SET deleted_at = NULL WHERE deleted_at IS NULL;
+                UPDATE users SET deleted_by = NULL WHERE deleted_by IS NULL;
+                UPDATE products SET is_deleted = FALSE WHERE is_deleted IS NULL;
+                UPDATE products SET deleted_at = NULL WHERE deleted_at IS NULL;
+                UPDATE products SET deleted_by = NULL WHERE deleted_by IS NULL;
+                UPDATE ingredients SET is_deleted = FALSE WHERE is_deleted IS NULL;
+                UPDATE ingredients SET deleted_at = NULL WHERE deleted_at IS NULL;
+                UPDATE ingredients SET deleted_by = NULL WHERE deleted_by IS NULL;
             """,
             # Add more migrations here as needed
         }
@@ -93,13 +136,13 @@ class SimpleMigrations:
         
         with self.engine.begin() as conn:
             for version in sorted(self.migrations.keys()):
-                conn.execute(text("INSERT OR IGNORE INTO schema_migrations (version) VALUES (:version)"), 
+                conn.execute(text(self.INSERT_MIGRATION_SQL), 
                             {"version": version})
             
             # Also mark all advanced migrations as applied
             for migration_name in self._get_advanced_migrations().keys():
                 advanced_version = f"advanced_{migration_name}"
-                conn.execute(text("INSERT OR IGNORE INTO schema_migrations (version) VALUES (:version)"), 
+                conn.execute(text(self.INSERT_MIGRATION_SQL), 
                             {"version": advanced_version})
         
         print("✅ [SimpleMigrations] All migrations marked as applied")
@@ -121,6 +164,11 @@ class SimpleMigrations:
         """Run all pending migrations with optional backup creation"""
         print("🔄 [SimpleMigrations] Starting database migrations")
         
+        # Log migration start to Firebase
+        log_to_firebase("INFO", "Database migration process started", 
+                       migration_system="SimpleMigrations", 
+                       backup_requested=create_backup)
+        
         try:
             # Create migration tracking table
             self._create_migration_table()
@@ -131,6 +179,8 @@ class SimpleMigrations:
             # Check if this is an empty database that needs all migrations
             if self._needs_all_migrations():
                 print("📦 [SimpleMigrations] Empty database - applying all migrations")
+                log_to_firebase("INFO", "Empty database detected - applying all migrations",
+                               database_type="empty", total_migrations=len(self.migrations))
                 
                 # Create backup before migrations if requested (for new database with existing data)
                 backup_created = False
@@ -139,18 +189,40 @@ class SimpleMigrations:
                     if not backup_result['success']:
                         print(f"⚠️ [SimpleMigrations] Backup failed: {backup_result['message']}")
                         print("⚠️ [SimpleMigrations] Continuing without backup (use at your own risk)")
+                        log_to_firebase("WARNING", "Pre-migration backup failed", 
+                                       error=backup_result.get('error', 'Unknown'))
                     else:
                         print(f"✅ [SimpleMigrations] Pre-migration backup created: {backup_result['backup_path']}")
+                        log_to_firebase("INFO", "Pre-migration backup created successfully",
+                                       backup_path=backup_result['backup_path'])
                         backup_created = True
                 
-                return self._apply_all_migrations()
+                result = self._apply_all_migrations()
+                
+                if result:
+                    log_to_firebase("INFO", "All migrations applied successfully",
+                                   migration_type="full_migration", database_type="empty")
+                else:
+                    log_to_firebase("ERROR", "Migration process failed during full migration",
+                                   migration_type="full_migration", database_type="empty")
+                
+                return result
             
             pending_regular, pending_advanced = self._has_pending_migrations(applied)
             
             # If no pending migrations, skip backup creation
             if not pending_regular and not pending_advanced:
                 print("✅ [SimpleMigrations] No pending migrations - no backup needed")
+                log_to_firebase("INFO", "No pending migrations found - database up to date",
+                               applied_count=len(applied))
                 return True
+            
+            # Log pending migrations info
+            log_to_firebase("INFO", "Pending migrations detected",
+                           pending_regular_count=len(pending_regular),
+                           pending_advanced_count=len(pending_advanced),
+                           pending_regular=pending_regular,
+                           pending_advanced=pending_advanced)
             
             # Create backup before migrations if requested (only when there are pending migrations)
             backup_created = False
@@ -159,8 +231,12 @@ class SimpleMigrations:
                 if not backup_result['success']:
                     print(f"⚠️ [SimpleMigrations] Backup failed: {backup_result['message']}")
                     print("⚠️ [SimpleMigrations] Continuing without backup (use at your own risk)")
+                    log_to_firebase("WARNING", "Pre-migration backup failed", 
+                                   error=backup_result.get('error', 'Unknown'))
                 else:
                     print(f"✅ [SimpleMigrations] Pre-migration backup created: {backup_result['backup_path']}")
+                    log_to_firebase("INFO", "Pre-migration backup created successfully",
+                                   backup_path=backup_result['backup_path'])
                     backup_created = True
             
             # Log what migrations will be applied
@@ -172,21 +248,32 @@ class SimpleMigrations:
             # Run pending migrations for existing database
             success = self._apply_pending_migrations(applied)
             
-            # If migrations failed and we created a backup, mention it
-            if not success and backup_created:
-                print("❌ [SimpleMigrations] Migrations failed! You can restore from backup if needed.")
+            # Log final result
+            if success:
+                log_to_firebase("INFO", "Migration process completed successfully",
+                               migration_type="incremental_migration",
+                               applied_regular=len(pending_regular),
+                               applied_advanced=len(pending_advanced))
+            else:
+                log_to_firebase("ERROR", "Migration process failed",
+                               migration_type="incremental_migration",
+                               backup_available=backup_created)
+                # If migrations failed and we created a backup, mention it
+                if backup_created:
+                    print("❌ [SimpleMigrations] Migrations failed! You can restore from backup if needed.")
             
             return success
             
         except Exception as e:
             print(f"❌ [SimpleMigrations] Migration system failed: {e}")
+            log_to_firebase("ERROR", "Migration system encountered critical error",
+                           error=str(e), error_type=type(e).__name__)
             return False
     
     def _create_pre_migration_backup(self):
         """Create a backup before running migrations"""
         try:
             from services.database_backup import DatabaseBackupManager
-            import datetime
             
             backup_manager = DatabaseBackupManager()
             
@@ -226,9 +313,15 @@ class SimpleMigrations:
     
     def _apply_all_migrations(self):
         """Apply all migrations to an empty database"""
+        log_to_firebase("INFO", "Starting full migration process for empty database",
+                       total_migrations=len(self.migrations))
+        
         pending_count = 0
         for version in sorted(self.migrations.keys()):
             print(f"📦 [SimpleMigrations] Applying migration {version}")
+            log_to_firebase("INFO", f"Applying migration {version}",
+                           migration_version=version, migration_type="regular")
+            
             try:
                 # Split migration into individual statements
                 statements = [stmt.strip() for stmt in self.migrations[version].split(';') if stmt.strip()]
@@ -239,21 +332,32 @@ class SimpleMigrations:
                             conn.execute(text(statement))
                     
                     # Mark as applied within the same transaction
-                    conn.execute(text("INSERT INTO schema_migrations (version) VALUES (:version)"), 
+                    conn.execute(text(self.INSERT_MIGRATION_SQL), 
                                 {"version": version})
                 
                 print(f"✅ [SimpleMigrations] Migration {version} applied successfully")
+                log_to_firebase("INFO", f"Migration {version} completed successfully",
+                               migration_version=version, statements_executed=len(statements))
                 pending_count += 1
                 
             except Exception as e:
                 print(f"❌ [SimpleMigrations] Migration {version} failed: {e}")
+                log_to_firebase("ERROR", f"Migration {version} failed",
+                               migration_version=version, error=str(e), 
+                               error_type=type(e).__name__)
                 return False
         
         # Run advanced migrations (includes sales table migration)
+        log_to_firebase("INFO", "Starting advanced migrations",
+                       regular_migrations_applied=pending_count)
+        
         if not self.run_advanced_migrations():
+            log_to_firebase("ERROR", "Advanced migrations failed")
             return False
         
         print(f"✅ [SimpleMigrations] Applied {pending_count} migrations successfully")
+        log_to_firebase("INFO", "Full migration process completed successfully",
+                       total_applied=pending_count)
         return True
     
     def _apply_pending_migrations(self, applied):
@@ -313,11 +417,15 @@ class SimpleMigrations:
     def handle_sales_table_migration(self):
         """Handle the complex sales table migration separately"""
         print("🔄 [SimpleMigrations] Handling sales table schema changes")
+        log_to_firebase("INFO", "Starting sales table migration",
+                       migration_type="sales_table_schema_change")
         
         try:
             # Check if the migration is needed
             if not self.check_table_exists('sales'):
                 print("ℹ️ [SimpleMigrations] Sales table doesn't exist, skipping migration")
+                log_to_firebase("INFO", "Sales table not found - skipping migration",
+                               table_name="sales", status="skipped")
                 return True
             
             # Check if consumer_id column already exists
@@ -326,6 +434,9 @@ class SimpleMigrations:
             
             if 'consumer_id' not in sales_columns:
                 print("📦 [SimpleMigrations] Adding consumer_id and donator_id to sales table")
+                log_to_firebase("INFO", "Adding new columns to sales table",
+                               new_columns=["consumer_id", "donator_id"],
+                               existing_columns=sales_columns)
                 
                 with self.engine.begin() as conn:
                     # Add new columns
@@ -334,16 +445,25 @@ class SimpleMigrations:
                     
                     # Backfill consumer_id from user_id if it exists
                     if 'user_id' in sales_columns:
-                        conn.execute(text("UPDATE sales SET consumer_id = user_id WHERE user_id IS NOT NULL"))
+                        result = conn.execute(text("UPDATE sales SET consumer_id = user_id WHERE user_id IS NOT NULL"))
+                        updated_rows = result.rowcount
+                        log_to_firebase("INFO", "Backfilled consumer_id from user_id",
+                                       updated_rows=updated_rows)
                     
                     print("✅ [SimpleMigrations] Sales table migration completed")
+                    log_to_firebase("INFO", "Sales table migration completed successfully",
+                                   columns_added=["consumer_id", "donator_id"])
             else:
                 print("ℹ️ [SimpleMigrations] Sales table already migrated")
+                log_to_firebase("INFO", "Sales table migration already completed",
+                               status="already_migrated")
             
             return True
                 
         except Exception as e:
             print(f"❌ [SimpleMigrations] Sales table migration failed: {e}")
+            log_to_firebase("ERROR", "Sales table migration failed",
+                           error=str(e), error_type=type(e).__name__)
             # Don't raise - this is a non-critical migration that might have already been applied
             return True  # Return True to continue with other migrations
     
@@ -450,14 +570,22 @@ class SimpleMigrations:
                     # Mark as applied only if successful
                     self._mark_advanced_migration_applied(migration_name)
                     print(f"✅ [SimpleMigrations] Advanced migration '{migration_name}' completed")
+                    log_to_firebase("INFO", f"Advanced migration '{migration_name}' completed successfully",
+                                   migration_name=migration_name, status="completed")
                 else:
                     print(f"❌ [SimpleMigrations] Advanced migration '{migration_name}' failed")
+                    log_to_firebase("ERROR", f"Advanced migration '{migration_name}' failed",
+                                   migration_name=migration_name, status="failed")
                     return False
             
+            log_to_firebase("INFO", "All advanced migrations completed successfully",
+                           total_advanced_migrations=len(advanced_migrations))
             return True
             
         except Exception as e:
             print(f"❌ [SimpleMigrations] Advanced migrations failed: {e}")
+            log_to_firebase("ERROR", "Advanced migrations encountered critical error",
+                           error=str(e), error_type=type(e).__name__)
             return False
     
     def _handle_user_id_removal(self):

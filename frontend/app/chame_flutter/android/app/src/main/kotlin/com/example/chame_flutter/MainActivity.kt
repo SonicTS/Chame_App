@@ -10,6 +10,7 @@ import com.chaquo.python.android.AndroidPlatform
 class MainActivity : FlutterActivity() {
 
     private val CHANNEL = "samples.flutter.dev/chame/python"
+    private var flutterMethodChannel: MethodChannel? = null
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -19,11 +20,26 @@ class MainActivity : FlutterActivity() {
             Python.start(AndroidPlatform(this))
         }
         val py = Python.getInstance()
+        
+        // Set environment variable to indicate Flutter environment for logging
+        try {
+            val os = py.getModule("os")
+            os?.get("environ")?.callAttr("__setitem__", "FLUTTER_ENV", "true")
+            
+            // Set up activity reference for the firebase logger
+            val main = py.getModule("__main__")
+            main?.put("activity", this)
+        } catch (e: Exception) {
+            android.util.Log.w("MainActivity", "Failed to set FLUTTER_ENV or activity: ${e.message}")
+        }
 
-        MethodChannel(
+        // Store reference to the method channel for reverse calls
+        flutterMethodChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             CHANNEL
-        ).setMethodCallHandler { call, result ->
+        )
+
+        flutterMethodChannel?.setMethodCallHandler { call, result ->
 
             when (call.method) {
                 "ping" -> {
@@ -596,9 +612,392 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 
+                // ========== DELETION MANAGEMENT ROUTES ==========
+                "check_deletion_dependencies" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val entityType = call.argument<String>("entity_type")
+                        val entityId = call.argument<Number>("entity_id")
+                        
+                        if (entityType == null || entityId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing entity_type or entity_id for check_deletion_dependencies", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val pyResult = pyModule.callAttr("check_deletion_dependencies", entityType, entityId.toInt())
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "safe_delete_user" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val userId = call.argument<Number>("user_id")
+                        val force = call.argument<Boolean>("force") ?: false
+                        
+                        if (userId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing user_id for safe_delete_user", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val pyResult = pyModule.callAttr("safe_delete_user", userId.toInt(), force)
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "safe_delete_product" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val productId = call.argument<Number>("product_id")
+                        val force = call.argument<Boolean>("force") ?: false
+                        
+                        if (productId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing product_id for safe_delete_product", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val pyResult = pyModule.callAttr("safe_delete_product", productId.toInt(), force)
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "safe_delete_ingredient" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val ingredientId = call.argument<Number>("ingredient_id")
+                        val force = call.argument<Boolean>("force") ?: false
+                        
+                        if (ingredientId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing ingredient_id for safe_delete_ingredient", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val pyResult = pyModule.callAttr("safe_delete_ingredient", ingredientId.toInt(), force)
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "delete_sale_record" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val saleId = call.argument<Number>("sale_id")
+                        val adminUserId = call.argument<Number>("admin_user_id")
+                        
+                        if (saleId == null || adminUserId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing sale_id or admin_user_id for delete_sale_record", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val pyResult = pyModule.callAttr("delete_sale_record", saleId.toInt(), adminUserId.toInt())
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "change_user_role" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val userId = call.argument<Number>("user_id")
+                        val newRole = call.argument<String>("new_role")
+                        
+                        if (userId == null || newRole == null) {
+                            result.error("ARGUMENT_ERROR", "Missing user_id or new_role for change_user_role", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        pyModule.callAttr("change_user_role", userId.toInt(), newRole)
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "soft_delete_user" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val userId = call.argument<Number>("user_id")
+                        val deletedBy = call.argument<String>("deleted_by") ?: "admin"
+                        
+                        if (userId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing user_id for soft_delete_user", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        pyModule.callAttr("soft_delete_user", userId.toInt(), deletedBy)
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "soft_delete_product" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val productId = call.argument<Number>("product_id")
+                        val deletedBy = call.argument<String>("deleted_by") ?: "admin"
+                        
+                        if (productId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing product_id for soft_delete_product", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        pyModule.callAttr("soft_delete_product", productId.toInt(), deletedBy)
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "soft_delete_ingredient" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val ingredientId = call.argument<Number>("ingredient_id")
+                        val deletedBy = call.argument<String>("deleted_by") ?: "admin"
+                        
+                        if (ingredientId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing ingredient_id for soft_delete_ingredient", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        pyModule.callAttr("soft_delete_ingredient", ingredientId.toInt(), deletedBy)
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "restore_user" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val userId = call.argument<Number>("user_id")
+                        
+                        if (userId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing user_id for restore_user", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        pyModule.callAttr("restore_user", userId.toInt())
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "restore_product" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val productId = call.argument<Number>("product_id")
+                        
+                        if (productId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing product_id for restore_product", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        pyModule.callAttr("restore_product", productId.toInt())
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "restore_ingredient" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val ingredientId = call.argument<Number>("ingredient_id")
+                        
+                        if (ingredientId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing ingredient_id for restore_ingredient", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        pyModule.callAttr("restore_ingredient", ingredientId.toInt())
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+
+                "get_deleted_users" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val deletedUsers = pyModule.callAttr("get_deleted_users")
+                        val jsonString = py.getModule("json").callAttr("dumps", deletedUsers).toString()
+                        result.success(jsonString)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+
+                "get_deleted_products" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val deletedProducts = pyModule.callAttr("get_deleted_products")
+                        val jsonString = py.getModule("json").callAttr("dumps", deletedProducts).toString()
+                        result.success(jsonString)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+
+                "get_deleted_ingredients" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val deletedIngredients = pyModule.callAttr("get_deleted_ingredients")
+                        val jsonString = py.getModule("json").callAttr("dumps", deletedIngredients).toString()
+                        result.success(jsonString)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
                 else -> result.notImplemented()
             }
             
+        }
+    }
+
+    // ========== REVERSE BRIDGE METHODS (Python → Flutter) ==========
+    
+    /**
+     * Method to call Flutter from Python
+     * This is called by Python code through Chaquopy
+     */
+    fun logToFirebase(level: String, message: String, metadata: Map<String, Any> = emptyMap()) {
+        runOnUiThread {
+            try {
+                flutterMethodChannel?.invokeMethod("log_to_firebase", mapOf(
+                    "level" to level,
+                    "message" to message,
+                    "metadata" to metadata
+                ))
+            } catch (e: Exception) {
+                println("Failed to call Flutter logToFirebase: ${e.message}")
+            }
+        }
+    }
+    
+    /**
+     * Generic method to call any Flutter method from Python
+     */
+    fun callFlutterMethod(method: String, arguments: Map<String, Any> = emptyMap()) {
+        runOnUiThread {
+            try {
+                flutterMethodChannel?.invokeMethod(method, arguments)
+            } catch (e: Exception) {
+                println("Failed to call Flutter method '$method': ${e.message}")
+            }
+        }
+    }
+    
+    /**
+     * Show progress updates from Python operations
+     */
+    fun updateProgress(progress: Double, message: String = "") {
+        runOnUiThread {
+            try {
+                flutterMethodChannel?.invokeMethod("update_progress", mapOf(
+                    "progress" to progress,
+                    "message" to message
+                ))
+            } catch (e: Exception) {
+                println("Failed to update progress: ${e.message}")
+            }
+        }
+    }
+    
+    /**
+     * Show notifications from Python
+     */
+    fun showNotification(title: String, message: String, type: String = "info") {
+        runOnUiThread {
+            try {
+                flutterMethodChannel?.invokeMethod("show_notification", mapOf(
+                    "title" to title,
+                    "message" to message,
+                    "type" to type
+                ))
+            } catch (e: Exception) {
+                println("Failed to show notification: ${e.message}")
+            }
         }
     }
 }

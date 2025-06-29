@@ -14,6 +14,8 @@ from models.transaction_table import Transaction
 from models.bank_table import Bank, BankTransaction
 from chame_app.database import Base
 from sqlalchemy.orm import joinedload
+from sqlalchemy import text
+from utils.firebase_logger import log_info, log_warn, log_error, log_debug
 
 
 BANK_NOT_FOUND_MSG = "Bank account not found"
@@ -22,6 +24,9 @@ USER_NOT_FOUND_MSG = "User not found"
 class Database:
     def __init__(self, apply_migrations: bool = True):
         self.session = get_session()
+        # Run migrations to ensure database is up to date
+        if apply_migrations:
+            self._ensure_migrations_applied()
         bank = self.session.query(Bank).filter_by(account_id=1).first()
         if not bank:
             bank = Bank()
@@ -37,9 +42,7 @@ class Database:
             product.update_stock()
         self.session.close()
         
-        # Run migrations to ensure database is up to date
-        if apply_migrations:
-            self._ensure_migrations_applied()
+        
 
     def _ensure_migrations_applied(self):
         """Ensure database migrations are applied if needed"""
@@ -72,7 +75,7 @@ class Database:
             session = self.get_session()
             close_session = True
         try:
-            user = session.query(User).options(
+            user = User.active_only(session.query(User)).options(
                 joinedload(User.sales)
             ).filter(User.name == username).first()
             if not user:
@@ -207,7 +210,13 @@ class Database:
                 bank.costs_reserved -= total_cost
                 bank.revenue_funds -= total_cost
             bank.profit_total = bank.revenue_total - bank.costs_total
-            description = "Restock: " + ", ".join([f"{self.get_ingredient_by_id(item['id'], session).name} ({item['restock']}): {item.get('price', self.get_ingredient_by_id(item['id'], session).price_per_package)}€" for item in _list])
+            description = "Restock: "
+            for item in _list:
+                ingredient = self.get_ingredient_by_id(item['id'], session)
+                price = item.get('price') if item.get('price') is not None else ingredient.price_per_package
+                pfand = ingredient.pfand if ingredient.pfand else 0.0
+                print(f"DEBUG: Ingredient {ingredient.name} restock={item['restock']}, price={price}, pfand={pfand}")
+                description += f"{ingredient.name} x{item['restock']}: {price}(+{pfand})€ = {item['restock'] * (price + pfand)}\n"
             transaction = BankTransaction(amount=total_cost, type="withdraw", description=description)
             session.add(transaction)
             if close_session:
@@ -281,13 +290,16 @@ class Database:
                     raise ValueError("Toaster space must be at least 1")
             else:
                 toaster_space = 0
+            log_debug(f"Adding product {name} with price={price}, category={category}, toaster_space={toaster_space}, ingredients={ingredients}")
             cost_per_unit = 0.0
             for ingredient_obj, quantity in ingredients:
                 ingredient_quantity = extend_float_precision(float(quantity))
                 if ingredient_quantity <= 0:
                     raise ValueError(f"Ingredient quantity must be greater than 0 (ingredient={ingredient_obj.name})")
                 cost_per_unit += ingredient_obj.price_per_unit * ingredient_quantity
+                log_debug(f"Ingredient {ingredient_obj.name} contributes {ingredient_obj.price_per_unit} * {ingredient_quantity} = {ingredient_obj.price_per_unit * ingredient_quantity} to cost")
             profit_per_unit = price - cost_per_unit
+            log_debug(f"Calculated cost_per_unit={cost_per_unit}, profit_per_unit={profit_per_unit} for product {name}")
             product = Product(name=name, price_per_unit=price, category=category, 
                               toaster_space=toaster_space, cost_per_unit=cost_per_unit, profit_per_unit=profit_per_unit)
             session.add(product)
@@ -310,12 +322,19 @@ class Database:
             raise RuntimeError(f"add_product failed for Product={name}: {e}") from e
 
     def add_user(self, username: str, password: str, role: str = "user", balance: float = 0.0, session=None):
+        print("🔥 [DATABASE] Logging user creation to Firebase...")
+        log_info("User creation initiated", {"operation": "add_user", "username": username, "role": role, "balance": balance})
+        print("✅ [DATABASE] User creation initiation logged to Firebase")
+        
         close_session = False
         try:
             if session is None:
                 session = self.get_session()
                 close_session = True
             if username == "bank":
+                print("⚠️ [DATABASE] Logging reserved username attempt to Firebase...")
+                log_warn("Reserved username attempted", {"operation": "add_user", "username": username, "error": "Username 'bank' is reserved"})
+                print("✅ [DATABASE] Reserved username warning logged to Firebase")
                 raise ValueError("Username 'bank' is reserved and cannot be used")
             balance = float(balance)
             user = User(name=username, balance=balance, password_hash=password, role=role.lower())
@@ -333,7 +352,16 @@ class Database:
                     session.refresh(transaction)
                 session.refresh(user)
                 session.close()
+                
+            print("🔥 [DATABASE] Logging successful user creation to Firebase...")
+            log_info("User created successfully", {"operation": "add_user", "username": username, "user_id": user.user_id, "role": role, "balance": balance})
+            print("✅ [DATABASE] User creation success logged to Firebase")
+            
         except Exception as e:
+            print("❌ [DATABASE] Logging user creation failure to Firebase...")
+            log_error("User creation failed", {"operation": "add_user", "username": username, "role": role, "error": str(e)})
+            print("✅ [DATABASE] User creation failure logged to Firebase")
+            
             if session:
                 session.rollback()
                 if close_session:
@@ -415,6 +443,11 @@ class Database:
             raise RuntimeError(f"return_deposit failed for User={user_name}, Product={product_name}, quantity={quantity}: {e}") from e
 
     def make_purchase(self, consumer_id: int, product_id: int, quantity: int, session=None, toast_round_id: int = 0, donator_id: Optional[int] = None) -> Sale:
+        # Firebase logging with debug output
+        print("🔥 [DATABASE] Logging purchase initiation to Firebase...")
+        log_info("Purchase initiated", {"operation": "make_purchase", "consumer_id": consumer_id, "product_id": product_id, "quantity": quantity})
+        print("✅ [DATABASE] Purchase initiation logged to Firebase")
+        
         close_session = False
         product_name = "404"
         payer_name = "404"
@@ -426,6 +459,9 @@ class Database:
             product = self.get_product_by_id(product_id, session)
             product_name = product.name
             if quantity <= 0:
+                print("⚠️ [DATABASE] Logging invalid purchase quantity to Firebase...")
+                log_warn("Invalid purchase quantity", {"operation": "make_purchase", "consumer_id": consumer_id, "product": product_name, "quantity": quantity})
+                print("✅ [DATABASE] Invalid quantity warning logged to Firebase")
                 raise ValueError("make_purchase: Quantity must be greater than 0")
             payer_id = consumer_id
             if donator_id is not None:
@@ -438,6 +474,9 @@ class Database:
             payer = self.get_user_by_id(payer_id, session=session)
             payer_name = payer.name
             if payer.balance < total_cost:
+                print("⚠️ [DATABASE] Logging insufficient balance to Firebase...")
+                log_warn("Insufficient balance for purchase", {"operation": "make_purchase", "consumer_id": consumer_id, "product": product_name, "payer": payer_name, "required": total_cost, "balance": payer.balance})
+                print("✅ [DATABASE] Insufficient balance warning logged to Firebase")
                 raise ValueError(f"Insufficient balance: {payer.balance}")
             purchase = Sale(consumer_id=consumer_id, donator_id=donator_id, product_id=product_id, quantity=quantity, total_price=total_cost, timestamp=datetime.datetime.now().replace(second=0, microsecond=0), toast_round_id=toast_round_id)
             if product.get_pfand() > 0:
@@ -464,8 +503,17 @@ class Database:
                 session.commit()
                 session.refresh(purchase)
                 session.close()
+            
+            print("🔥 [DATABASE] Logging successful purchase to Firebase...")
+            log_info("Purchase completed successfully", {"operation": "make_purchase", "consumer_id": consumer_id, "product": product_name, "quantity": quantity, "total_cost": total_cost, "payer": payer_name, "sale_id": purchase.sale_id})
+            print("✅ [DATABASE] Purchase success logged to Firebase")
+            
             return purchase
         except Exception as e:
+            print("❌ [DATABASE] Logging purchase failure to Firebase...")
+            log_error("Purchase failed", {"operation": "make_purchase", "consumer_id": consumer_id, "product": product_name, "quantity": quantity, "payer": payer_name, "error": str(e)})
+            print("✅ [DATABASE] Purchase failure logged to Firebase")
+            
             if session:
                 session.rollback()
                 if close_session:
@@ -473,6 +521,10 @@ class Database:
             raise RuntimeError(f"make_purchase failed for User={payer_name}, Product={product_name}, quantity={quantity}: {e}") from e
 
     def deposit_cash(self, user_id: int, amount: float, session=None):
+        print("🔥 [DATABASE] Logging cash deposit to Firebase...")
+        log_info("Cash deposit initiated", {"operation": "deposit_cash", "user_id": user_id, "amount": amount})
+        print("✅ [DATABASE] Cash deposit initiation logged to Firebase")
+        
         close_session = False
         user_name = "404"
         try:
@@ -484,7 +536,12 @@ class Database:
             user_name = user.name
             amount = float(amount)
             if amount <= 0:
+                print("⚠️ [DATABASE] Logging invalid deposit amount to Firebase...")
+                log_warn("Invalid deposit amount", {"operation": "deposit_cash", "user_id": user_id, "username": user_name, "amount": amount})
+                print("✅ [DATABASE] Invalid amount warning logged to Firebase")
                 raise ValueError("Amount must be greater than 0 ")
+            
+            old_balance = user.balance
             user.balance += amount
             bank.total_balance += amount
             bank.customer_funds += amount
@@ -494,7 +551,16 @@ class Database:
                 session.commit()
                 session.refresh(user)
                 session.close()
+                
+            print("🔥 [DATABASE] Logging successful cash deposit to Firebase...")
+            log_info("Cash deposit completed successfully", {"operation": "deposit_cash", "user_id": user_id, "username": user_name, "amount": amount, "old_balance": old_balance, "new_balance": user.balance})
+            print("✅ [DATABASE] Cash deposit success logged to Firebase")
+            
         except Exception as e:
+            print("❌ [DATABASE] Logging cash deposit failure to Firebase...")
+            log_error("Cash deposit failed", {"operation": "deposit_cash", "user_id": user_id, "username": user_name, "amount": amount, "error": str(e)})
+            print("✅ [DATABASE] Cash deposit failure logged to Firebase")
+            
             if session:
                 session.rollback()
                 if close_session:
@@ -644,62 +710,89 @@ class Database:
 
     def get_all_users(self, session=None) -> 'List[User]':
         """Get all users with eager loading of sales."""
-        close_session = False
-        if session is None:
-            session = self.get_session()
-            close_session = True
         try:
-            users = session.query(User).options(
-                joinedload(User.sales)
-            ).all()
-            return users
+            log_debug("Fetching all active users")
+            
+            close_session = False
+            if session is None:
+                session = self.get_session()
+                close_session = True
+            try:
+                users = User.active_only(session.query(User)).options(
+                    joinedload(User.sales)
+                ).all()
+                
+                log_debug(f"Retrieved {len(users)} active users")
+                return users
+            except Exception as e:
+                log_error("Failed to fetch all users", exception=e)
+                raise RuntimeError(f"get_all_users failed: {e}") from e
+            finally:
+                if close_session:
+                    session.close()
         except Exception as e:
-            raise RuntimeError(f"get_all_users failed: {e}") from e
-        finally:
-            if close_session:
-                session.close()
+            log_error("Critical error in get_all_users", exception=e)
+            raise
 
     def get_all_products(self, session=None) -> 'List[Product]':
         """Get all products with ingredients and sales eager loaded."""
-        close_session = False
-        if session is None:
-            session = self.get_session()
-            close_session = True
         try:
-            products = session.query(Product).options(
-                joinedload(Product.product_ingredients).joinedload(ProductIngredient.ingredient),
-                joinedload(Product.sales),
-                joinedload(Product.product_toast_rounds).joinedload(ProductToastround.toast_round)
-            ).all()
-            return products
+            log_debug("Fetching all active products with relationships")
+            
+            close_session = False
+            if session is None:
+                session = self.get_session()
+                close_session = True
+            try:
+                products = Product.active_only(session.query(Product)).options(
+                    joinedload(Product.product_ingredients).joinedload(ProductIngredient.ingredient),
+                    joinedload(Product.sales),
+                    joinedload(Product.product_toast_rounds).joinedload(ProductToastround.toast_round)
+                ).all()
+                
+                log_debug(f"Retrieved {len(products)} active products")
+                return products
+            except Exception as e:
+                log_error("Failed to fetch all products", exception=e)
+                raise RuntimeError(f"get_all_products failed: {e}") from e
+            finally:
+                if close_session:
+                    session.close()
         except Exception as e:
-            raise RuntimeError(f"get_all_products failed: {e}") from e
-        finally:
-            if close_session:
-                session.close()
+            log_error("Critical error in get_all_products", exception=e)
+            raise
 
     def get_all_ingredients(self, eager_load=False, session=None) -> 'List[Ingredient]':
         """Get all ingredients, with optional eager loading of products."""
-        close_session = False
-        if session is None:
-            session = self.get_session()
-            close_session = True
         try:
-            query = session.query(Ingredient)
-            if eager_load:
-                query = query.options(
-                    joinedload(Ingredient.ingredient_products)
-                    .joinedload(ProductIngredient.product)
-                    .joinedload(Product.product_ingredients)
-                    .joinedload(ProductIngredient.ingredient)
-                )
-            ingredients = query.all()
-            return ingredients
+            log_debug(f"Fetching all active ingredients (eager_load={eager_load})")
+            
+            close_session = False
+            if session is None:
+                session = self.get_session()
+                close_session = True
+            try:
+                query = Ingredient.active_only(session.query(Ingredient))
+                if eager_load:
+                    query = query.options(
+                        joinedload(Ingredient.ingredient_products)
+                        .joinedload(ProductIngredient.product)
+                        .joinedload(Product.product_ingredients)
+                        .joinedload(ProductIngredient.ingredient)
+                    )
+                ingredients = query.all()
+                
+                log_debug(f"Retrieved {len(ingredients)} active ingredients")
+                return ingredients
+            except Exception as e:
+                log_error(f"Failed to fetch all ingredients (eager_load={eager_load})", exception=e)
+                raise RuntimeError(f"get_all_ingredients failed (eager_load={eager_load}): {e}") from e
+            finally:
+                if close_session:
+                    session.close()
         except Exception as e:
-            raise RuntimeError(f"get_all_ingredients failed (eager_load={eager_load}): {e}") from e
-        finally:
-            if close_session:
-                session.close()
+            log_error("Critical error in get_all_ingredients", exception=e)
+            raise
 
 
     def get_all_pfand_history(self, session=None) -> 'List[PfandHistory]':
@@ -731,7 +824,7 @@ class Database:
             session = self.get_session()
             close_session = True
         try:
-            ingredient = session.query(Ingredient).filter(Ingredient.ingredient_id == ingredient_id).first()
+            ingredient = Ingredient.active_only(session.query(Ingredient)).filter(Ingredient.ingredient_id == ingredient_id).first()
             if not ingredient:
                 raise ValueError(f"Ingredient not found (ingredient_id={ingredient_id})")
             return ingredient
@@ -748,7 +841,7 @@ class Database:
             session = self.get_session()
             close_session = True
         try:
-            ingredients = session.query(Ingredient).filter(Ingredient.ingredient_id.in_(ingredient_ids)).all()
+            ingredients = Ingredient.active_only(session.query(Ingredient)).filter(Ingredient.ingredient_id.in_(ingredient_ids)).all()
             if not ingredients:
                 raise ValueError(f"No ingredients found (ingredient_ids={ingredient_ids})")
             return ingredients
@@ -765,7 +858,7 @@ class Database:
             session = self.get_session()
             close_session = True
         try:
-            user = session.query(User).filter(User.user_id == user_id).first()
+            user = User.active_only(session.query(User)).filter(User.user_id == user_id).first()
             if not user:
                 raise ValueError(f"{USER_NOT_FOUND_MSG} (user_id={user_id})")
             return user
@@ -782,7 +875,7 @@ class Database:
             session = self.get_session()
             close_session = True
         try:
-            product = session.query(Product).filter(Product.product_id == product_id).first()
+            product = Product.active_only(session.query(Product)).filter(Product.product_id == product_id).first()
             if not product:
                 raise ValueError(f"Product not found (product_id={product_id})")
             return product
@@ -799,7 +892,7 @@ class Database:
             session = self.get_session()
             close_session = True
         try:
-            products = session.query(Product).options(
+            products = Product.active_only(session.query(Product)).options(
                 joinedload(Product.product_ingredients).joinedload(ProductIngredient.ingredient)
             ).filter(Product.category == category).all()
             return products
@@ -816,7 +909,7 @@ class Database:
             session = self.get_session()
             close_session = True
         try:
-            products = session.query(Product).options(
+            products = Product.active_only(session.query(Product)).options(
                 joinedload(Product.product_ingredients).joinedload(ProductIngredient.ingredient),
                 joinedload(Product.sales),
                 joinedload(Product.product_toast_rounds).joinedload(ProductToastround.toast_round)
@@ -958,7 +1051,7 @@ class Database:
             session = self.get_session()
             close_session = True
         try:
-            ingredient = session.query(Ingredient).filter(Ingredient.name == name).first()
+            ingredient = Ingredient.active_only(session.query(Ingredient)).filter(Ingredient.name == name).first()
             return ingredient is not None
         except Exception as e:
             raise RuntimeError(f"exists_ingredient_with_name failed for name={name}: {e}") from e
@@ -973,10 +1066,55 @@ class Database:
             session = self.get_session()
             close_session = True
         try:
-            product = session.query(Product).filter(Product.name == name).first()
+            product = Product.active_only(session.query(Product)).filter(Product.name == name).first()
             return product is not None
         except Exception as e:
             raise RuntimeError(f"exists_product_with_name failed for name={name}: {e}") from e
+        finally:
+            if close_session:
+                session.close()
+
+    def get_deleted_users(self, session=None) -> 'List[User]':
+        """Get all soft-deleted users."""
+        close_session = False
+        if session is None:
+            session = self.get_session()
+            close_session = True
+        try:
+            users = User.deleted_only(session.query(User)).all()
+            return users
+        except Exception as e:
+            raise RuntimeError(f"get_deleted_users failed: {e}") from e
+        finally:
+            if close_session:
+                session.close()
+
+    def get_deleted_products(self, session=None) -> 'List[Product]':
+        """Get all soft-deleted products."""
+        close_session = False
+        if session is None:
+            session = self.get_session()
+            close_session = True
+        try:
+            products = Product.deleted_only(session.query(Product)).all()
+            return products
+        except Exception as e:
+            raise RuntimeError(f"get_deleted_products failed: {e}") from e
+        finally:
+            if close_session:
+                session.close()
+
+    def get_deleted_ingredients(self, session=None) -> 'List[Ingredient]':
+        """Get all soft-deleted ingredients."""
+        close_session = False
+        if session is None:
+            session = self.get_session()
+            close_session = True
+        try:
+            ingredients = Ingredient.deleted_only(session.query(Ingredient)).all()
+            return ingredients
+        except Exception as e:
+            raise RuntimeError(f"get_deleted_ingredients failed: {e}") from e
         finally:
             if close_session:
                 session.close()
@@ -1156,6 +1294,275 @@ class Database:
         except Exception as e:
             print(f"⚠️ Warning: Failed to reset database connection: {e}")
 
+# ========== DELETION METHODS ==========
+    
+    def check_deletion_dependencies(self, entity_type: str, entity_id: int):
+        """Check what depends on an entity before deletion"""
+        try:
+            from services.deletion_service import DeletionService
+            
+            deletion_service = DeletionService(self.get_session())
+            
+            if entity_type == "user":
+                return deletion_service.check_user_dependencies(entity_id)
+            elif entity_type == "product":
+                return deletion_service.check_product_dependencies(entity_id)
+            elif entity_type == "ingredient":
+                return deletion_service.check_ingredient_dependencies(entity_id)
+            else:
+                raise ValueError(f"Unknown entity type: {entity_type}")
+                
+        except Exception as e:
+            print(f"check_deletion_dependencies error: {e}")
+            raise RuntimeError(f"Failed to check dependencies: {e}") from e
+
+    def soft_delete_user(self, user_id: int, deleted_by: str = "api"):
+        """Soft delete a user (marks as deleted, preserves data)"""
+        try:
+            log_info(f"Attempting to soft delete user {user_id}", {"user_id": user_id, "deleted_by": deleted_by})
+            
+            from services.deletion_service import DeletionService
+            
+            deletion_service = DeletionService(self.get_session())
+            result = deletion_service.soft_delete_user(user_id, deleted_by_user=deleted_by)
+            
+            if result['success']:
+                log_info(f"Successfully soft deleted user {user_id}", {"user_id": user_id, "result": result})
+                return {
+                    'success': True,
+                    'message': result['message'],
+                    'details': result['details']
+                }
+            else:
+                log_error(f"Failed to soft delete user {user_id}: {result['message']}", {"user_id": user_id, "result": result})
+                raise RuntimeError(result['message'])
+                
+        except Exception as e:
+            log_error(f"Soft delete user {user_id} error", {"user_id": user_id, "deleted_by": deleted_by}, exception=e)
+            print(f"soft_delete_user error: {e}")
+            raise RuntimeError(f"Failed to soft delete user: {e}") from e
+
+    def soft_delete_product(self, product_id: int, deleted_by: str = "api"):
+        """Soft delete a product (marks as deleted, preserves data)"""
+        try:
+            log_info(f"Attempting to soft delete product {product_id}", {"product_id": product_id, "deleted_by": deleted_by})
+            
+            from services.deletion_service import DeletionService
+            
+            deletion_service = DeletionService(self.get_session())
+            result = deletion_service.soft_delete_product(product_id, deleted_by_user=deleted_by)
+            
+            if result['success']:
+                log_info(f"Successfully soft deleted product {product_id}", {"product_id": product_id, "result": result})
+                return {
+                    'success': True,
+                    'message': result['message'],
+                    'details': result['details']
+                }
+            else:
+                log_error(f"Failed to soft delete product {product_id}: {result['message']}", {"product_id": product_id, "result": result})
+                raise RuntimeError(result['message'])
+                
+        except Exception as e:
+            log_error(f"Soft delete product {product_id} error", {"product_id": product_id, "deleted_by": deleted_by}, exception=e)
+            print(f"soft_delete_product error: {e}")
+            raise RuntimeError(f"Failed to soft delete product: {e}") from e
+
+    def soft_delete_ingredient(self, ingredient_id: int, deleted_by: str = "api"):
+        """Soft delete an ingredient (marks as deleted, preserves data)"""
+        try:
+            log_info(f"Attempting to soft delete ingredient {ingredient_id}", {"ingredient_id": ingredient_id, "deleted_by": deleted_by})
+            
+            from services.deletion_service import DeletionService
+            
+            deletion_service = DeletionService(self.get_session())
+            result = deletion_service.soft_delete_ingredient(ingredient_id, deleted_by_user=deleted_by)
+            
+            if result['success']:
+                log_info(f"Successfully soft deleted ingredient {ingredient_id}", {"ingredient_id": ingredient_id, "result": result})
+                return {
+                    'success': True,
+                    'message': result['message'],
+                    'details': result['details']
+                }
+            else:
+                log_error(f"Failed to soft delete ingredient {ingredient_id}: {result['message']}", {"ingredient_id": ingredient_id, "result": result})
+                raise RuntimeError(result['message'])
+                
+        except Exception as e:
+            log_error(f"Soft delete ingredient {ingredient_id} error", {"ingredient_id": ingredient_id, "deleted_by": deleted_by}, exception=e)
+            print(f"soft_delete_ingredient error: {e}")
+            raise RuntimeError(f"Failed to soft delete ingredient: {e}") from e
+
+    def restore_user(self, user_id: int):
+        """Restore a soft-deleted user"""
+        try:
+            log_info(f"Attempting to restore user {user_id}", {"user_id": user_id})
+            
+            from services.deletion_service import DeletionService
+            
+            deletion_service = DeletionService(self.get_session())
+            result = deletion_service.restore_user(user_id)
+            
+            if result['success']:
+                log_info(f"Successfully restored user {user_id}", {"user_id": user_id, "result": result})
+                return {
+                    'success': True,
+                    'message': result['message']
+                }
+            else:
+                log_error(f"Failed to restore user {user_id}: {result['message']}", {"user_id": user_id, "result": result})
+                raise RuntimeError(result['message'])
+                
+        except Exception as e:
+            log_error(f"Restore user {user_id} error", {"user_id": user_id}, exception=e)
+            print(f"restore_user error: {e}")
+            raise RuntimeError(f"Failed to restore user: {e}") from e
+
+    def restore_product(self, product_id: int):
+        """Restore a soft-deleted product"""
+        try:
+            log_info(f"Attempting to restore product {product_id}", {"product_id": product_id})
+            
+            from services.deletion_service import DeletionService
+            
+            deletion_service = DeletionService(self.get_session())
+            result = deletion_service.restore_product(product_id)
+            
+            if result['success']:
+                log_info(f"Successfully restored product {product_id}", {"product_id": product_id, "result": result})
+                return {
+                    'success': True,
+                    'message': result['message']
+                }
+            else:
+                log_error(f"Failed to restore product {product_id}: {result['message']}", {"product_id": product_id, "result": result})
+                raise RuntimeError(result['message'])
+                
+        except Exception as e:
+            log_error(f"Restore product {product_id} error", {"product_id": product_id}, exception=e)
+            print(f"restore_product error: {e}")
+            raise RuntimeError(f"Failed to restore product: {e}") from e
+
+    def restore_ingredient(self, ingredient_id: int):
+        """Restore a soft-deleted ingredient"""
+        try:
+            log_info(f"Attempting to restore ingredient {ingredient_id}", {"ingredient_id": ingredient_id})
+            
+            from services.deletion_service import DeletionService
+            
+            deletion_service = DeletionService(self.get_session())
+            result = deletion_service.restore_ingredient(ingredient_id)
+            
+            if result['success']:
+                log_info(f"Successfully restored ingredient {ingredient_id}", {"ingredient_id": ingredient_id, "result": result})
+                return {
+                    'success': True,
+                    'message': result['message']
+                }
+            else:
+                log_error(f"Failed to restore ingredient {ingredient_id}: {result['message']}", {"ingredient_id": ingredient_id, "result": result})
+                raise RuntimeError(result['message'])
+                
+        except Exception as e:
+            log_error(f"Restore ingredient {ingredient_id} error", {"ingredient_id": ingredient_id}, exception=e)
+            print(f"restore_ingredient error: {e}")
+            raise RuntimeError(f"Failed to restore ingredient: {e}") from e
+
+    def delete_sale_record(self, sale_id: int, admin_user_id: int):
+        """Delete a specific sale record (admin only)"""
+        try:
+            with self.get_session() as session:
+                # Check if sale exists
+                sale = session.execute(text(
+                    "SELECT * FROM sales WHERE sale_id = :sale_id"
+                ), {"sale_id": sale_id}).fetchone()
+                
+                if not sale:
+                    raise ValueError("Sale record not found")
+                
+                # Delete the sale
+                deleted_count = session.execute(text(
+                    "DELETE FROM sales WHERE sale_id = :sale_id"
+                ), {"sale_id": sale_id}).rowcount
+                
+                if deleted_count > 0:
+                    session.commit()
+                    return {
+                        'success': True,
+                        'message': f'Sale record {sale_id} deleted successfully',
+                        'deleted_by': admin_user_id
+                    }
+                else:
+                    raise RuntimeError("Failed to delete sale record")
+                    
+        except Exception as e:
+            print(f"delete_sale_record error: {e}")
+            raise RuntimeError(f"Failed to delete sale record: {e}") from e
+
+    def safe_delete_user(self, user_id: int, force: bool = False):
+        """Safely delete a user with dependency checks"""
+        try:
+            from services.deletion_service import DeletionService
+            
+            deletion_service = DeletionService(self.get_session())
+            result = deletion_service.safe_delete_user(user_id, force=force)
+            
+            if result['success']:
+                return {
+                    'success': True,
+                    'message': result['message'],
+                    'details': result['details']
+                }
+            else:
+                raise RuntimeError(result['message'])
+                
+        except Exception as e:
+            print(f"safe_delete_user error: {e}")
+            raise RuntimeError(f"Failed to delete user: {e}") from e
+
+    def safe_delete_product(self, product_id: int, force: bool = False):
+        """Safely delete a product with dependency checks"""
+        try:
+            from services.deletion_service import DeletionService
+            
+            deletion_service = DeletionService(self.get_session())
+            result = deletion_service.safe_delete_product(product_id, force=force)
+            
+            if result['success']:
+                return {
+                    'success': True,
+                    'message': result['message'],
+                    'details': result['details']
+                }
+            else:
+                raise RuntimeError(result['message'])
+                
+        except Exception as e:
+            print(f"safe_delete_product error: {e}")
+            raise RuntimeError(f"Failed to delete product: {e}") from e
+
+    def safe_delete_ingredient(self, ingredient_id: int, force: bool = False):
+        """Safely delete an ingredient with dependency checks"""
+        try:
+            from services.deletion_service import DeletionService
+            
+            deletion_service = DeletionService(self.get_session())
+            result = deletion_service.safe_delete_ingredient(ingredient_id, force=force)
+            
+            if result['success']:
+                return {
+                    'success': True,
+                    'message': result['message'],
+                    'details': result['details']
+                }
+            else:
+                raise RuntimeError(result['message'])
+                
+        except Exception as e:
+            print(f"safe_delete_ingredient error: {e}")
+            raise RuntimeError(f"Failed to delete ingredient: {e}") from e
+
 def extend_float_precision(value: float, precision: int = 16) -> float:
     """
     Extends the last digit of a float's decimal part to the specified precision.
@@ -1170,6 +1577,7 @@ def extend_float_precision(value: float, precision: int = 16) -> float:
     last_digit = dec_part[-1]
     extended_dec = dec_part + last_digit * (precision - len(dec_part))
     extended_str = f"{int_part}.{extended_dec[:precision]}"
+
     return float(extended_str)
 
 # Initialize database instance when module is imported

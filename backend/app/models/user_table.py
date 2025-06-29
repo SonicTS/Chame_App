@@ -2,9 +2,11 @@ from sqlalchemy import Column, Integer, String, Float
 from chame_app.database import Base
 from sqlalchemy.orm import relationship
 from models.sales_table import Sale
+from models.soft_delete_mixin import SoftDeleteMixin
 from passlib.context import CryptContext
+from utils.firebase_logger import log_debug, log_error
 
-class User(Base):
+class User(Base, SoftDeleteMixin):
     __tablename__ = "users"  # Name of the table in the database
 
     user_id = Column(Integer, primary_key=True, index=True)  # Primary Key
@@ -33,23 +35,66 @@ class User(Base):
         return f"<User(name={self.name}, balance={self.balance}, role={self.role})>"
 
     def to_dict(self, include_sales=False):
-        def _round(val):
-            return round(val, 2) if isinstance(val, float) and val is not None else val
-        data = {
-            "user_id": self.user_id,
-            "name": self.name,
-            "balance": _round(self.balance),
-            "role": self.role,
-        }
-        if include_sales:
-            data["sales"] = [sale.to_dict() for sale in self.sales]
-        return data
+        try:
+            log_debug(f"Converting User {self.user_id} to dict", {"user_id": self.user_id, "include_sales": include_sales})
+            
+            def _round(val):
+                return round(val, 2) if isinstance(val, float) and val is not None else val
+            
+            data = {
+                "user_id": self.user_id,
+                "name": self.name,
+                "balance": _round(self.balance),
+                "role": self.role,
+            }
+            
+            if include_sales:
+                try:
+                    if self.sales is None:
+                        log_debug(f"User {self.user_id} has None sales relationship")
+                        data["sales"] = []
+                    else:
+                        sales_data = []
+                        for sale in self.sales:
+                            if sale is None:
+                                log_debug(f"Found None sale in User {self.user_id} sales relationship")
+                                continue
+                            try:
+                                sales_data.append(sale.to_dict())
+                            except Exception as e:
+                                log_error(f"Error converting sale to dict for User {self.user_id}", 
+                                         {"user_id": self.user_id, "sale_id": getattr(sale, 'sale_id', 'unknown')}, 
+                                         exception=e)
+                        data["sales"] = sales_data
+                except Exception as e:
+                    log_error(f"Error processing sales for User {self.user_id}", 
+                             {"user_id": self.user_id}, 
+                             exception=e)
+                    data["sales"] = []
+            
+            log_debug(f"Successfully converted User {self.user_id} to dict")
+            return data
+            
+        except Exception as e:
+            log_error(f"Critical error in User.to_dict for user {getattr(self, 'user_id', 'unknown')}", 
+                     {"user_id": getattr(self, 'user_id', None)}, 
+                     exception=e)
+            # Return minimal safe data on error
+            return {
+                "user_id": getattr(self, 'user_id', None),
+                "name": getattr(self, 'name', 'Unknown'),
+                "balance": 0.0,
+                "role": getattr(self, 'role', 'user'),
+                "sales": [] if include_sales else None
+            }
     
     def hash_password(self, plain_password: str) -> str:
         """
         Returns an encoded hash, embedding salt & parameters:
         $argon2id$v=19$m=65536,t=3,p=1$<base64salt>$<base64hash>
         """
+        if plain_password == "":
+            plain_password = "default"
         return self.pwd_ctx.hash(plain_password)
     
     def verify_password(self, plain_password: str) -> bool:
@@ -57,6 +102,8 @@ class User(Base):
         if self.role.lower == 'User':
             # Normal users should not be able to login
             return False
+        if plain_password == "":
+            plain_password = "default"
         return self.pwd_ctx.verify(plain_password, self.password_hash)
 
 

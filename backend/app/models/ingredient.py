@@ -2,8 +2,10 @@ from sqlalchemy import Table, Column, Integer, String, Float, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column, Integer
 from chame_app.database import Base
+from models.soft_delete_mixin import SoftDeleteMixin
+from utils.firebase_logger import log_debug, log_error
 
-class Ingredient(Base):
+class Ingredient(Base, SoftDeleteMixin):
     __tablename__ = "ingredients"
 
     ingredient_id = Column(Integer, primary_key=True, index=True)
@@ -17,7 +19,7 @@ class Ingredient(Base):
 
     # Relationship back to Product (via the ProductIngredient table)
     ingredient_products = relationship("ProductIngredient", back_populates="ingredient")
-    def __init__(self, name, price_per_package=None, number_of_units=None, price_per_unit=None, pfand=0.0, stock_quantity=0):
+    def __init__(self, name, price_per_package, number_of_units, price_per_unit, pfand=0.0, stock_quantity=0):
         self.name = name
         self.pfand = pfand
         self.price_per_package = price_per_package
@@ -29,21 +31,69 @@ class Ingredient(Base):
         return f"<Ingredient(name={self.name}, price={self.price_per_unit}, number_of_units={self.number_of_units}, stock={self.stock_quantity}), pfand={self.pfand})>"
 
     def to_dict(self, include_products=False):
-        def _round(val):
-            return round(val, 2) if isinstance(val, float) and val is not None else val
-        data = {
-            "ingredient_id": self.ingredient_id,
-            "name": self.name,
-            "price_per_package": _round(self.price_per_package),
-            "number_of_units": self.number_of_units,
-            "price_per_unit": _round(self.price_per_unit),
-            "stock_quantity": _round(self.stock_quantity),
-            "pfand": _round(self.pfand)
-        }
-        if include_products:
-            # Avoid circular imports; import here if needed
-            data["products"] = [ip.product.to_dict() for ip in self.ingredient_products]
-        return data
+        try:
+            log_debug(f"Converting Ingredient {self.ingredient_id} to dict", {
+                "ingredient_id": self.ingredient_id, 
+                "include_products": include_products
+            })
+            
+            def _round(val):
+                return round(val, 2) if isinstance(val, float) and val is not None else val
+            
+            data = {
+                "ingredient_id": self.ingredient_id,
+                "name": self.name,
+                "price_per_package": _round(self.price_per_package),
+                "number_of_units": self.number_of_units,
+                "price_per_unit": _round(self.price_per_unit),
+                "stock_quantity": _round(self.stock_quantity),
+                "pfand": _round(self.pfand)
+            }
+            
+            if include_products:
+                try:
+                    if self.ingredient_products is None:
+                        log_debug(f"Ingredient {self.ingredient_id} has None ingredient_products relationship")
+                        data["products"] = []
+                    else:
+                        products_data = []
+                        for ip in self.ingredient_products:
+                            if ip is None:
+                                log_debug(f"Found None ingredient_product in Ingredient {self.ingredient_id}")
+                                continue
+                            if ip.product is None:
+                                log_error(f"Ingredient {self.ingredient_id} has ingredient_product with None product", 
+                                         {"ingredient_id": self.ingredient_id, "ip_id": getattr(ip, 'id', 'unknown')})
+                                continue
+                            try:
+                                products_data.append(ip.product.to_dict())
+                            except Exception as e:
+                                log_error(f"Error converting product to dict for Ingredient {self.ingredient_id}", 
+                                         {"ingredient_id": self.ingredient_id, "product_id": getattr(ip.product, 'product_id', 'unknown')}, 
+                                         exception=e)
+                        data["products"] = products_data
+                except Exception as e:
+                    log_error(f"Error processing products for Ingredient {self.ingredient_id}", 
+                             {"ingredient_id": self.ingredient_id}, exception=e)
+                    data["products"] = []
+            
+            log_debug(f"Successfully converted Ingredient {self.ingredient_id} to dict")
+            return data
+            
+        except Exception as e:
+            log_error(f"Critical error in Ingredient.to_dict for ingredient {getattr(self, 'ingredient_id', 'unknown')}", 
+                     {"ingredient_id": getattr(self, 'ingredient_id', None)}, exception=e)
+            # Return minimal safe data on error
+            return {
+                "ingredient_id": getattr(self, 'ingredient_id', None),
+                "name": getattr(self, 'name', 'Unknown'),
+                "price_per_package": 0.0,
+                "number_of_units": 0,
+                "price_per_unit": 0.0,
+                "stock_quantity": 0.0,
+                "pfand": 0.0,
+                "products": [] if include_products else None
+            }
 
 
 def main():

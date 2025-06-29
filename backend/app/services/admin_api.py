@@ -1,13 +1,10 @@
 # admin_api.py
 # Bare Python functions for business logic, callable from other Python code or via FFI for Flutter integration.
 
-
-from models.ingredient import Ingredient
 from chame_app.database_instance import Database
 from chame_app.simple_migrations import SimpleMigrations
 import logging
-from typing import Dict, List, Optional
-import os
+from typing import Dict, List
 import traceback
 
 database = None
@@ -44,9 +41,11 @@ def create_database(apply_migration: bool = True) -> Database:
     return database
 
 def login(username, password):
-    if not username or not password:
+    if not username:
         raise ValueError("Username and password cannot be empty")
     user = database.get_user_by_username(username)
+    if not password:
+        password = ""
     if user and user.verify_password(password):
         return user.to_dict(True)
     else:
@@ -131,6 +130,13 @@ def make_purchase(consumer_id, product_id, quantity, donator_id=None):
     if not consumer_id or not product_id or not quantity:
         raise ValueError("Invalid input")
     return database.make_purchase(consumer_id=consumer_id, donator_id=donator_id, product_id=product_id, quantity=quantity)
+
+def change_user_role(user_id, new_role):
+    if not user_id or not new_role:
+        raise ValueError("Invalid input")
+    if new_role.lower() not in ["user", "admin", "wirt"]:
+        raise ValueError("Role must be 'user', 'admin', or 'wirt'")
+    return database.change_user_role(user_id=user_id, new_role=new_role.lower())
 
 # Toast round logic
 def add_toast_round(product_ids, consumer_selections, donator_selections):
@@ -262,75 +268,110 @@ def delete_backup(backup_filename):
         print(f"delete_backup error: {e}")
         raise RuntimeError(f"Failed to delete backup: {e}") from e
 
-def export_data(format="json", include_sensitive=False):
-    """Export database data in various formats"""
-    try:
-        result = database.export_data(format=format, include_sensitive=include_sensitive)
-        
-        if result['success']:
-            return {
-                'success': True,
-                'export_path': result['export_path'],
-                'format': result['format'],
-                'message': result['message']
-            }
-        else:
-            raise RuntimeError(result['message'])
-            
-    except Exception as e:
-        print(f"export_data error: {e}")
-        raise RuntimeError(f"Failed to export data: {e}") from e
+# ========== DELETION FUNCTIONS ==========
 
-def cleanup_old_backups(daily_keep=7, weekly_keep=4):
-    """Clean up old backups based on retention policy"""
-    try:
-        result = database.cleanup_old_backups(daily_keep=daily_keep, weekly_keep=weekly_keep)
-        
-        if result['success']:
-            return {
-                'success': True,
-                'deleted_count': result['deleted_count'],
-                'message': result['message']
-            }
-        else:
-            raise RuntimeError(result['message'])
-            
-    except Exception as e:
-        print(f"cleanup_old_backups error: {e}")
-        raise RuntimeError(f"Failed to cleanup backups: {e}") from e
+def check_deletion_dependencies(entity_type, entity_id):
+    """Check what depends on an entity before deletion"""
+    return database.check_deletion_dependencies(entity_type, entity_id)
 
-def get_backup_system_info():
-    """Get backup system information"""
+def soft_delete_user(user_id, deleted_by="api"):
+    """Soft delete a user (marks as deleted, preserves data)"""
+    return database.soft_delete_user(user_id, deleted_by)
+
+def soft_delete_product(product_id, deleted_by="api"):
+    """Soft delete a product (marks as deleted, preserves data)"""
+    return database.soft_delete_product(product_id, deleted_by)
+
+def soft_delete_ingredient(ingredient_id, deleted_by="api"):
+    """Soft delete an ingredient (marks as deleted, preserves data)"""
+    return database.soft_delete_ingredient(ingredient_id, deleted_by)
+
+def restore_user(user_id):
+    """Restore a soft-deleted user"""
+    return database.restore_user(user_id)
+
+def restore_product(product_id):
+    """Restore a soft-deleted product"""
+    return database.restore_product(product_id)
+
+def restore_ingredient(ingredient_id):
+    """Restore a soft-deleted ingredient"""
+    return database.restore_ingredient(ingredient_id)
+
+def get_deleted_users():
+    """Get all soft-deleted users"""
     try:
-        from services.database_backup import DatabaseBackupManager
-        
-        manager = DatabaseBackupManager()
-        backups = manager.list_backups()
-        
-        # Calculate backup statistics
-        backup_counts = {}
-        total_size = 0
-        
-        for backup in backups:
-            backup_type = backup['type']
-            backup_counts[backup_type] = backup_counts.get(backup_type, 0) + 1
-            total_size += backup['size']
-        
-        db_path = manager._get_database_path()
-        
-        return {
-            'backup_directory': str(manager.backup_dir),
-            'database_path': str(db_path),
-            'database_exists': db_path.exists(),
-            'database_size': db_path.stat().st_size if db_path.exists() else 0,
-            'database_version': manager._get_database_version(),
-            'backup_counts': backup_counts,
-            'total_backup_size': total_size,
-            'total_backups': len(backups)
-        }
+        users = database.get_deleted_users()
+        return [{
+            'user_id': user.user_id,
+            'name': user.name,
+            'balance': float(user.balance),
+            'role': user.role,
+            'deleted_at': user.deleted_at.isoformat() if user.deleted_at else None,
+            'deleted_by': user.deleted_by
+        } for user in users]
     except Exception as e:
-        raise RuntimeError(f"get_backup_system_info failed: {e}") from e
+        raise RuntimeError(f"Failed to get deleted users: {e}") from e
+
+def get_deleted_products():
+    """Get all soft-deleted products"""
+    try:
+        products = database.get_deleted_products()
+        return [{
+            'product_id': product.product_id,
+            'name': product.name,
+            'category': product.category,
+            'price_per_unit': float(product.price_per_unit),
+            'cost_per_unit': float(product.cost_per_unit),
+            'profit_per_unit': float(product.profit_per_unit),
+            'stock_quantity': product.stock_quantity,
+            'toaster_space': product.toaster_space,
+            'deleted_at': product.deleted_at.isoformat() if product.deleted_at else None,
+            'deleted_by': product.deleted_by
+        } for product in products]
+    except Exception as e:
+        raise RuntimeError(f"Failed to get deleted products: {e}") from e
+
+def get_deleted_ingredients():
+    """Get all soft-deleted ingredients"""
+    try:
+        ingredients = database.get_deleted_ingredients()
+        return [{
+            'ingredient_id': ingredient.ingredient_id,
+            'name': ingredient.name,
+            'price_per_package': float(ingredient.price_per_package),
+            'number_of_units': ingredient.number_of_units,
+            'price_per_unit': float(ingredient.price_per_unit),
+            'stock_quantity': ingredient.stock_quantity,
+            'pfand': float(ingredient.pfand),
+            'deleted_at': ingredient.deleted_at.isoformat() if ingredient.deleted_at else None,
+            'deleted_by': ingredient.deleted_by
+        } for ingredient in ingredients]
+    except Exception as e:
+        raise RuntimeError(f"Failed to get deleted ingredients: {e}") from e
+    
+def safe_delete_user(user_id, force):
+    """Safely delete a user (hard delete if no dependencies)"""
+    print("DEBUG: safe_delete_user called with:", user_id, "and force:", force)
+    if not user_id:
+        raise ValueError("User ID cannot be empty")
+    return database.safe_delete_user(user_id, force)
+
+def safe_delete_product(product_id, force):
+    """Safely delete a product (hard delete if no dependencies)"""
+    print("DEBUG: safe_delete_product called with:", product_id, "and force:", force)
+    if not product_id:
+        raise ValueError("Product ID cannot be empty")
+    return database.safe_delete_product(product_id, force)
+
+def safe_delete_ingredient(ingredient_id, force):
+    """Safely delete an ingredient (hard delete if no dependencies)"""
+    print("DEBUG: safe_delete_ingredient called with:", ingredient_id, "and force:", force)
+    if not ingredient_id:
+        raise ValueError("Ingredient ID cannot be empty")
+    return database.safe_delete_ingredient(ingredient_id, force)
+
 
 #Create a global database instance
 
-database = create_database()
+#database = create_database()

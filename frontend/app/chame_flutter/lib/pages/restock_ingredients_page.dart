@@ -14,6 +14,20 @@ class _RestockIngredientsPageState extends State<RestockIngredientsPage> {
   List<Map<String, dynamic>> ingredients = [];
   Set<String> removedIngredientNames = {};
   bool _loading = true;
+  Map<int, TextEditingController> _restockControllers = {};
+  Map<int, TextEditingController> _priceControllers = {};
+
+  @override
+  void dispose() {
+    // Dispose all controllers
+    for (var controller in _restockControllers.values) {
+      controller.dispose();
+    }
+    for (var controller in _priceControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -24,13 +38,34 @@ class _RestockIngredientsPageState extends State<RestockIngredientsPage> {
   Future<void> _fetchIngredients() async {
     setState(() => _loading = true);
     final fetched = await PyBridge().getIngredients();
+    
+    // Dispose old controllers and create new ones
+    for (var controller in _restockControllers.values) {
+      controller.dispose();
+    }
+    for (var controller in _priceControllers.values) {
+      controller.dispose();
+    }
+    _restockControllers.clear();
+    _priceControllers.clear();
+    
     setState(() {
       ingredients = fetched.map((i) => {
         'ingredient_id': i['ingredient_id'], // internal use only
         'name': i['name'],
+        'price_per_package': i['price_per_package'],
+        'pfand': i['pfand'],
         'restock': '',
+        'price': '',
         'removed': removedIngredientNames.contains(i['name']),
       }).toList();
+      
+      // Create controllers for each ingredient
+      for (int i = 0; i < ingredients.length; i++) {
+        _restockControllers[i] = TextEditingController();
+        _priceControllers[i] = TextEditingController();
+      }
+      
       _loading = false;
     });
   }
@@ -93,12 +128,88 @@ class _RestockIngredientsPageState extends State<RestockIngredientsPage> {
     return true;
   }
 
+  double _getEffectivePrice(Map<String, dynamic> ingredient) {
+    final priceText = ingredient['price']?.toString() ?? '';
+    if (priceText.isNotEmpty) {
+      return double.tryParse(priceText) ?? (ingredient['price_per_package'] ?? 0.0);
+    }
+    return ingredient['price_per_package'] ?? 0.0;
+  }
+
+  double _calculateTotal() {
+    double total = 0.0;
+    for (final ingredient in visibleIngredients) {
+      final restock = int.tryParse(ingredient['restock']?.toString() ?? '0') ?? 0;
+      final effectivePrice = _getEffectivePrice(ingredient);
+      final pfand = ingredient['pfand'] ?? 0.0;
+      total += restock * (effectivePrice + pfand);
+    }
+    return total;
+  }
+
+  Future<bool> _showConfirmationDialog() async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm Restock'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('List:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                ...visibleIngredients.map((ingredient) {
+                  final restock = int.tryParse(ingredient['restock']?.toString() ?? '0') ?? 0;
+                  final effectivePrice = _getEffectivePrice(ingredient);
+                  final pfand = ingredient['pfand'] ?? 0.0;
+                  final lineTotal = restock * (effectivePrice + pfand);
+                  
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Text(
+                      '${ingredient['name']} x$restock: €${effectivePrice.toStringAsFixed(2)}${pfand > 0 ? ' (+€${pfand.toStringAsFixed(2)})' : ''} = €${lineTotal.toStringAsFixed(2)}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  );
+                }).toList(),
+                const SizedBox(height: 16),
+                Text(
+                  'Total sum: €${_calculateTotal().toStringAsFixed(2)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+  }
+
   Future<void> submitRestock() async {
+    // Show confirmation dialog first
+    final confirmed = await _showConfirmationDialog();
+    if (!confirmed) return;
+
     // Only send id and restock to backend
     final restockData = visibleIngredients.map((i) => {
       'id': i['ingredient_id'],
       'restock': int.tryParse(i['restock'].toString()) ?? 0,
-      'price': i['price'] != null ? double.tryParse(i['price'].toString()) : null,
+      'price': i['price'] != null && i['price'].toString().isNotEmpty 
+          ? double.tryParse(i['price'].toString()) 
+          : null,
     }).toList();
     try {
       final error = await PyBridge().restockIngredients(restockData);
@@ -109,6 +220,14 @@ class _RestockIngredientsPageState extends State<RestockIngredientsPage> {
         setState(() {
           for (var i in ingredients) {
             i['restock'] = '';
+            i['price'] = '';
+          }
+          // Clear all text controllers
+          for (var controller in _restockControllers.values) {
+            controller.clear();
+          }
+          for (var controller in _priceControllers.values) {
+            controller.clear();
           }
         });
       } else {
@@ -154,6 +273,7 @@ class _RestockIngredientsPageState extends State<RestockIngredientsPage> {
                                     SizedBox(
                                       width: 80,
                                       child: TextField(
+                                        controller: _restockControllers[realIndex],
                                         decoration: const InputDecoration(
                                           labelText: 'Restock',
                                         ),
@@ -164,8 +284,9 @@ class _RestockIngredientsPageState extends State<RestockIngredientsPage> {
                                     SizedBox(
                                       width: 80,
                                       child: TextField(
-                                        decoration: const InputDecoration(
-                                          labelText: 'Price',
+                                        controller: _priceControllers[realIndex],
+                                        decoration: InputDecoration(
+                                          labelText: '€${(ingredient['price_per_package'] ?? 0.0).toStringAsFixed(2)}',
                                         ),
                                         keyboardType: TextInputType.number,
                                         onChanged: (val) => _onPriceChanged(realIndex, val),

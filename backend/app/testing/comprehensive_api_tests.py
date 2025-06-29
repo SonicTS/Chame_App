@@ -375,6 +375,9 @@ class ComprehensiveAPITester:
         # Test authentication functions
         self._test_authentication_functions(test_results)
         
+        # Test soft delete and deletion functions
+        self._test_soft_delete_functions(test_results)
+        
         return test_results
     
     def _test_function(self, func_name, func_call, test_results, expect_error=False):
@@ -639,6 +642,179 @@ class ComprehensiveAPITester:
             self._test_function("change_password (invalid - wrong old password)", 
                               lambda: api.change_password(admin_user["user_id"], "wrong_old", "newpassword123"), test_results, expect_error=True)
     
+    def _test_soft_delete_functions(self, test_results):
+        """Test soft delete and deletion management functions"""
+        print("\n🗑️ Testing soft delete functions...")
+        
+        # First, get initial data to work with
+        users = api.get_all_users()
+        products = api.get_all_products()
+        ingredients = api.get_all_ingredients()
+        
+        # Test dependency checking functions first
+        if users:
+            test_user = users[0]  # Use first user for testing
+            self._test_function("check_dependencies (user)", 
+                              lambda: api.check_deletion_dependencies("user", test_user["user_id"]), test_results)
+        
+        if products:
+            test_product = products[0]  # Use first product for testing
+            self._test_function("check_dependencies (product)", 
+                              lambda: api.check_deletion_dependencies("product", test_product["product_id"]), test_results)
+        
+        if ingredients:
+            test_ingredient = ingredients[0]  # Use first ingredient for testing
+            self._test_function("check_dependencies (ingredient)", 
+                              lambda: api.check_deletion_dependencies("ingredient", test_ingredient["ingredient_id"]), test_results)
+        
+        # Test soft delete functions (create test records first)
+        print("  📝 Creating test records for soft delete...")
+        
+        # Create test user for soft delete
+        try:
+            test_user_result = api.add_user("test_soft_delete_user", 50.0, "user")
+            if test_user_result:
+                test_user_id = test_user_result.get("user_id") if isinstance(test_user_result, dict) else test_user_result.user_id
+                
+                # Test soft delete user
+                self._test_function("soft_delete_user", 
+                                  lambda: api.soft_delete_user(test_user_id, "test_admin"), test_results)
+                
+                # Verify user is soft deleted (should not appear in get_all_users)
+                users_after_delete = api.get_all_users()
+                user_found = any(u["user_id"] == test_user_id for u in users_after_delete)
+                if not user_found:
+                    test_results['passed'] += 1
+                    print(f"  ✅ soft_delete_user verification: User correctly filtered from get_all_users")
+                else:
+                    test_results['failed'] += 1
+                    test_results['errors'].append("soft_delete_user verification: User still appears in get_all_users")
+                    print(f"  ❌ soft_delete_user verification: User still appears in get_all_users")
+                
+                # Test restore user
+                self._test_function("restore_user", 
+                                  lambda: api.restore_user(test_user_id), test_results)
+                
+                # Verify user is restored (should appear in get_all_users again)
+                users_after_restore = api.get_all_users()
+                user_found_after_restore = any(u["user_id"] == test_user_id for u in users_after_restore)
+                if user_found_after_restore:
+                    test_results['passed'] += 1
+                    print(f"  ✅ restore_user verification: User correctly restored to get_all_users")
+                else:
+                    test_results['failed'] += 1
+                    test_results['errors'].append("restore_user verification: User not found after restore")
+                    print(f"  ❌ restore_user verification: User not found after restore")
+                
+                # Test safe delete user (should do soft delete if no dependencies)
+                self._test_function("safe_delete_user (soft)", 
+                                  lambda: api.safe_delete_user(test_user_id, force=False), test_results)
+        
+        except Exception as e:
+            print(f"  ⚠️ Could not create test user for soft delete: {e}")
+        
+        # Create test ingredient for soft delete
+        try:
+            test_ingredient_result = api.add_ingredient("test_soft_delete_ingredient", 2.0, 10, 5, 0.25)
+            if test_ingredient_result:
+                test_ingredient_id = test_ingredient_result.get("ingredient_id") if isinstance(test_ingredient_result, dict) else test_ingredient_result.ingredient_id
+                
+                # Test soft delete ingredient
+                self._test_function("soft_delete_ingredient", 
+                                  lambda: api.soft_delete_ingredient(test_ingredient_id, "test_admin"), test_results)
+                
+                # Verify ingredient is soft deleted
+                ingredients_after_delete = api.get_all_ingredients()
+                ingredient_found = any(i["ingredient_id"] == test_ingredient_id for i in ingredients_after_delete)
+                if not ingredient_found:
+                    test_results['passed'] += 1
+                    print(f"  ✅ soft_delete_ingredient verification: Ingredient correctly filtered from get_all_ingredients")
+                else:
+                    test_results['failed'] += 1
+                    test_results['errors'].append("soft_delete_ingredient verification: Ingredient still appears in get_all_ingredients")
+                    print(f"  ❌ soft_delete_ingredient verification: Ingredient still appears in get_all_ingredients")
+                
+                # Test safe delete ingredient (should do soft delete if no dependencies)
+                self._test_function("safe_delete_ingredient (soft)", 
+                                  lambda: api.safe_delete_ingredient(test_ingredient_id, force=False), test_results)
+        
+        except Exception as e:
+            print(f"  ⚠️ Could not create test ingredient for soft delete: {e}")
+        
+        # Create test product for soft delete (more complex due to ingredient dependencies)
+        try:
+            # First ensure we have at least one ingredient
+            if ingredients:
+                available_ingredient = ingredients[0]
+                ingredient_id = available_ingredient["ingredient_id"]
+                
+                test_product_result = api.add_product("test_soft_delete_product", "test", 5.0, [ingredient_id], [1], 1)
+                if test_product_result:
+                    test_product_id = test_product_result.get("product_id") if isinstance(test_product_result, dict) else test_product_result.product_id
+                    
+                    # Test soft delete product
+                    self._test_function("soft_delete_product", 
+                                      lambda: api.soft_delete_product(test_product_id, "test_admin"), test_results)
+                    
+                    # Verify product is soft deleted
+                    products_after_delete = api.get_all_products()
+                    product_found = any(p["product_id"] == test_product_id for p in products_after_delete)
+                    if not product_found:
+                        test_results['passed'] += 1
+                        print(f"  ✅ soft_delete_product verification: Product correctly filtered from get_all_products")
+                    else:
+                        test_results['failed'] += 1
+                        test_results['errors'].append("soft_delete_product verification: Product still appears in get_all_products")
+                        print(f"  ❌ soft_delete_product verification: Product still appears in get_all_products")
+                    
+                    # Test safe delete product (should do soft delete if no dependencies)
+                    self._test_function("safe_delete_product (soft)", 
+                                      lambda: api.safe_delete_product(test_product_id, force=False), test_results)
+        
+        except Exception as e:
+            print(f"  ⚠️ Could not create test product for soft delete: {e}")
+        
+        # Test error cases
+        print("  🔍 Testing soft delete error cases...")
+        
+        # Test soft delete with invalid IDs
+        self._test_function("soft_delete_user (invalid ID)", 
+                          lambda: api.soft_delete_user(99999, "test_admin"), test_results, expect_error=True)
+        self._test_function("soft_delete_product (invalid ID)", 
+                          lambda: api.soft_delete_product(99999, "test_admin"), test_results, expect_error=True)
+        self._test_function("soft_delete_ingredient (invalid ID)", 
+                          lambda: api.soft_delete_ingredient(99999, "test_admin"), test_results, expect_error=True)
+        
+        # Test check dependencies with invalid IDs
+        self._test_function("check_dependencies (invalid entity type)", 
+                          lambda: api.check_deletion_dependencies("invalid_type", 1), test_results, expect_error=True)
+        
+        # Test checking dependencies for non-existent IDs - these should succeed but indicate the entity doesn't exist
+        result = self._test_function("check_dependencies (invalid user ID)", 
+                          lambda: api.check_deletion_dependencies("user", 99999), test_results, expect_error=False)
+        
+        # Verify the result indicates the user doesn't exist
+        if result and isinstance(result, dict):
+            if not result.get('can_delete') and 'error' in result and 'does not exist' in result['error']:
+                test_results['passed'] += 1
+                print("  ✅ check_dependencies (invalid user ID) verification: Correctly detected non-existent user")
+            else:
+                test_results['failed'] += 1
+                test_results['errors'].append("check_dependencies (invalid user ID): Should indicate user doesn't exist")
+                print(f"  ❌ check_dependencies (invalid user ID): Expected error about non-existent user, got: {result}")
+        
+        self._test_function("check_dependencies (invalid product ID)", 
+                          lambda: api.check_deletion_dependencies("product", 99999), test_results, expect_error=False)
+        
+        self._test_function("check_dependencies (invalid ingredient ID)", 
+                          lambda: api.check_deletion_dependencies("ingredient", 99999), test_results, expect_error=False)
+        
+        # Test restore with invalid ID
+        self._test_function("restore_user (invalid ID)", 
+                          lambda: api.restore_user(99999), test_results, expect_error=True)
+        
+        print("  📊 Soft delete tests completed")
+
     def test_edge_cases(self):
         """Test specific edge cases and boundary conditions"""
         print("\n🔬 Testing edge cases...")
@@ -702,7 +878,7 @@ class ComprehensiveAPITester:
             # Combined results
             total_passed = main_results['passed'] + edge_results['passed']
             total_failed = main_results['failed'] + edge_results['failed']
-            total_tests = total_passed + total_failed;
+            total_tests = total_passed + total_failed
             
             print("\n" + "=" * 60)
             print("📊 FINAL RESULTS")

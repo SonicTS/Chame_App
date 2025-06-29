@@ -19,7 +19,7 @@ class _UsersPageState extends State<UsersPage> {
   final _balanceController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  String _role = 'User';
+  String _role = 'user';
   bool _isSubmitting = false;
   final Map<int, TextEditingController> _depositControllers = {};
   final Map<int, TextEditingController> _withdrawControllers = {};
@@ -52,11 +52,11 @@ class _UsersPageState extends State<UsersPage> {
       _showDialog('Error', 'Please select a role!');
       return;
     }
-    if (_role == 'Wirt' && (_passwordController.text.isEmpty || _confirmPasswordController.text.isEmpty || _passwordController.text.length < 4)) {
+    if (_role == 'wirt' && (_passwordController.text.isEmpty || _confirmPasswordController.text.isEmpty || _passwordController.text.length < 4)) {
       _showDialog('Error', 'Password must be at least 4 characters long!');
       return;
     }
-    if (_role == 'Admin' && (_passwordController.text.isEmpty || _confirmPasswordController.text.isEmpty || _passwordController.text.length < 8)) {
+    if (_role == 'admin' && (_passwordController.text.isEmpty || _confirmPasswordController.text.isEmpty || _passwordController.text.length < 8)) {
       _showDialog('Error', 'Password must be at least 8 characters long!');
       return;
     }
@@ -69,7 +69,7 @@ class _UsersPageState extends State<UsersPage> {
       name: _nameController.text.trim(),
       balance: double.parse(_balanceController.text),
       role: _role,
-      password: _role == 'Wirt' || _role == 'Admin' ? _passwordController.text : null,
+      password: _role == 'wirt' || _role == 'admin' ? _passwordController.text : null,
     );
     setState(() => _isSubmitting = false);
     if (error != null) {
@@ -80,7 +80,7 @@ class _UsersPageState extends State<UsersPage> {
       _balanceController.clear();
       _passwordController.clear();
       _confirmPasswordController.clear();
-      setState(() => _role = 'User');
+      setState(() => _role = 'user');
       _reload();
     }
   }
@@ -114,6 +114,88 @@ class _UsersPageState extends State<UsersPage> {
       _showDialog('Success', 'Withdraw successful!');
       controller.clear();
       _reload();
+    }
+  }
+
+  // Show restore dialog with deleted users
+  void _showRestoreUsersDialog(BuildContext context) async {
+    try {
+      final deletedUsers = await PyBridge().getDeletedUsers();
+      
+      if (!context.mounted) return;
+      
+      if (deletedUsers.isEmpty) {
+        _showDialog('No Deleted Users', 'There are no deleted users to restore.');
+        return;
+      }
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Restore Deleted Users'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 400,
+            child: ListView.builder(
+              itemCount: deletedUsers.length,
+              itemBuilder: (context, index) {
+                final user = deletedUsers[index];
+                return Card(
+                  child: ListTile(
+                    title: Text(user['name']?.toString() ?? 'Unknown'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Role: ${user['role']?.toString() ?? 'N/A'}'),
+                        Text('Balance: ${user['balance']?.toString() ?? 'N/A'}'),
+                        Text('Deleted: ${user['deleted_at']?.toString().split('T')[0] ?? 'N/A'}'),
+                        Text('By: ${user['deleted_by']?.toString() ?? 'Unknown'}'),
+                      ],
+                    ),
+                    trailing: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _performUserRestore(
+                          context,
+                          user['user_id'] as int,
+                          user['name']?.toString() ?? 'Unknown',
+                        );
+                      },
+                      child: const Text('Restore'),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        _showDialog('Error', 'Failed to load deleted users: $e');
+      }
+    }
+  }
+
+  // Perform user restoration
+  Future<void> _performUserRestore(BuildContext context, int userId, String userName) async {
+    try {
+      final error = await PyBridge().restoreUser(userId: userId);
+      
+      if (error != null) {
+        _showDialog('Error', 'Failed to restore user: $error');
+      } else {
+        _showDialog('Success', 'User "$userName" restored successfully!');
+        _reload();
+      }
+    } catch (e) {
+      _showDialog('Error', 'Failed to restore user: $e');
     }
   }
 
@@ -168,6 +250,27 @@ class _UsersPageState extends State<UsersPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // 1. USERS TABLE SECTION HEADER
+                if (auth.role == 'admin')
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Expanded(
+                          child: Text('Users', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => _showRestoreUsersDialog(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                          child: const Text('Restore', style: TextStyle(color: Colors.white, fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                  ),
                 // 1. USERS TABLE SECTION
                 UsersTableSection(
                   usersFuture: _usersFuture,
@@ -179,6 +282,8 @@ class _UsersPageState extends State<UsersPage> {
                   userTableNameFilter: _userTableNameFilter,
                   horizontalScrollController: _usersTableHorizontalController,
                   verticalScrollController: _usersTableVerticalController,
+                  authService: auth,
+                  onReload: _reload,
                 ),
                 const SizedBox(height: 24),
                 // --- USER ADD / FILTER CONTROLS ---
@@ -205,9 +310,9 @@ class _UsersPageState extends State<UsersPage> {
                       DropdownButton<String>(
                         value: _role,
                         items: const [
-                          DropdownMenuItem(value: 'User', child: Text('User')),
-                          DropdownMenuItem(value: 'Admin', child: Text('Admin')),
-                          DropdownMenuItem(value: 'Wirt', child: Text('Wirt')),
+                          DropdownMenuItem(value: 'user', child: Text('User')),
+                          DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                          DropdownMenuItem(value: 'wirt', child: Text('Wirt')),
                         ],
                         onChanged: (val) => setState(() => _role = val!),
                       ),
@@ -215,14 +320,14 @@ class _UsersPageState extends State<UsersPage> {
                   ),
                   Row(
                     children: [
-                      if (_role == 'Wirt' || _role == 'Admin') ...[
+                      if (_role == 'wirt' || _role == 'admin') ...[
                         SizedBox(
                           width: 100,
                           child: TextField(
                             controller: _passwordController,
                             decoration: const InputDecoration(labelText: 'Password'),
                             obscureText: true,
-                            enabled: _role == 'Wirt' || _role == 'Admin',
+                            enabled: _role == 'wirt' || _role == 'admin',
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -232,7 +337,7 @@ class _UsersPageState extends State<UsersPage> {
                             controller: _confirmPasswordController,
                             decoration: const InputDecoration(labelText: 'Confirm Password'),
                             obscureText: true,
-                            enabled: _role == 'Wirt' || _role == 'Admin',
+                            enabled: _role == 'wirt' || _role == 'admin',
                           ),
                         ),
                       ],
@@ -344,6 +449,8 @@ class UsersTableSection extends StatelessWidget {
   final String userTableNameFilter;
   final ScrollController horizontalScrollController;
   final ScrollController verticalScrollController;
+  final AuthService authService;
+  final VoidCallback onReload;
 
   const UsersTableSection({
     super.key,
@@ -356,7 +463,180 @@ class UsersTableSection extends StatelessWidget {
     required this.userTableNameFilter,
     required this.horizontalScrollController,
     required this.verticalScrollController,
+    required this.authService,
+    required this.onReload,
   });
+
+  // Static method to show dialog
+  static void _showDialog(BuildContext context, String title, String content) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+      ),
+    );
+  }
+
+  // Show role change confirmation dialog
+  void _showRoleChangeConfirmation(BuildContext context, int userId, String userName, String newRole) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm Role Change'),
+        content: Text('Are you sure you want to change the role of "$userName" to "$newRole"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _changeUserRole(context, userId, newRole);
+            },
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Change user role
+  Future<void> _changeUserRole(BuildContext context, int userId, String newRole) async {
+    try {
+      final error = await PyBridge().changeUserRole(userId: userId, newRole: newRole);
+      if (error != null) {
+        _showDialog(context, 'Error', error);
+      } else {
+        _showDialog(context, 'Success', 'Role changed successfully!');
+        onReload();
+      }
+    } catch (e) {
+      _showDialog(context, 'Error', 'Failed to change role: $e');
+    }
+  }
+
+  // Show deletion dialog
+  void _showDeletionDialog(BuildContext context, int userId, String userName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete User'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('What would you like to do with user "$userName"?'),
+            const SizedBox(height: 16),
+            const Text('Soft Delete: Hide user but keep data'),
+            const Text('Safe Delete: Check dependencies first'),
+            const Text('Force Delete: Delete permanently (dangerous!)'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _performDeletion(context, userId, userName, 'soft');
+            },
+            child: const Text('Soft Delete'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _performDeletion(context, userId, userName, 'safe');
+            },
+            child: const Text('Safe Delete'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showForceDeleteConfirmation(context, userId, userName);
+            },
+            child: const Text('Force Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Show force delete confirmation
+  void _showForceDeleteConfirmation(BuildContext context, int userId, String userName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('⚠️ Force Delete Warning'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('You are about to PERMANENTLY delete user "$userName".'),
+            const SizedBox(height: 8),
+            const Text('This action cannot be undone and may break data integrity!'),
+            const SizedBox(height: 16),
+            const Text('Are you absolutely sure?', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _performDeletion(context, userId, userName, 'force');
+            },
+            child: const Text('Yes, Force Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Perform deletion
+  Future<void> _performDeletion(BuildContext context, int userId, String userName, String deletionType) async {
+    try {
+      String? error;
+      String successMessage;
+
+      switch (deletionType) {
+        case 'soft':
+          error = await PyBridge().softDeleteUser(userId: userId, deletedBy: 'admin');
+          successMessage = 'User soft deleted successfully!';
+          break;
+        case 'safe':
+          final result = await PyBridge().safeDeleteUser(userId: userId, force: false);
+          error = result['success'] == true ? null : result['message']?.toString();
+          successMessage = 'User safely deleted!';
+          break;
+        case 'force':
+          final result = await PyBridge().safeDeleteUser(userId: userId, force: true);
+          error = result['success'] == true ? null : result['message']?.toString();
+          successMessage = 'User force deleted!';
+          break;
+        default:
+          error = 'Invalid deletion type';
+          successMessage = '';
+      }
+
+      if (error != null) {
+        _showDialog(context, 'Error', error);
+      } else {
+        _showDialog(context, 'Success', successMessage);
+        onReload();
+      }
+    } catch (e) {
+      _showDialog(context, 'Error', 'Failed to delete user: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -380,17 +660,16 @@ class UsersTableSection extends StatelessWidget {
           // Only build scrollable content if we have data
           if (filteredUsers.isEmpty) {
             return const Center(child: Text('No users found.'));
-          }
-
-          return Scrollbar(
-            thumbVisibility: true,
-            controller: horizontalScrollController,
-            child: SingleChildScrollView(
-              controller: horizontalScrollController,
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                // minimum width for horizontal scroll; adjust as needed
-                width: 700,                  child: Scrollbar(
+          }              return Scrollbar(
+                thumbVisibility: true,
+                controller: horizontalScrollController,
+                child: SingleChildScrollView(
+                  controller: horizontalScrollController,
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    // Increased width to accommodate new columns
+                    width: 1000,
+                    child: Scrollbar(
                     thumbVisibility: true,
                     controller: verticalScrollController,
                     child: SingleChildScrollView(
@@ -403,22 +682,42 @@ class UsersTableSection extends StatelessWidget {
                         DataColumn(label: Text('Role')),
                         DataColumn(label: Text('Deposit')),
                         DataColumn(label: Text('Withdraw')),
+                        DataColumn(label: Text('Actions')),
                       ],
                       rows: filteredUsers.map((user) {
                         final userId = user['user_id'] as int;
+                        final userRole = user['role']?.toString() ?? 'user';
                         depositControllers.putIfAbsent(userId, () => TextEditingController());
                         withdrawControllers.putIfAbsent(userId, () => TextEditingController());
                         return DataRow(cells: [
                           DataCell(Text(user['name']?.toString() ?? '')),
                           DataCell(Text(user['balance']?.toString() ?? '')),
-                          DataCell(Text(user['role']?.toString() ?? '')),
+                          // Role dropdown (only for admin users)
+                          DataCell(
+                            authService.role == 'admin' 
+                              ? DropdownButton<String>(
+                                  value: userRole,
+                                  isDense: true,
+                                  items: const [
+                                    DropdownMenuItem(value: 'user', child: Text('User')),
+                                    DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                                    DropdownMenuItem(value: 'wirt', child: Text('Wirt')),
+                                  ],
+                                  onChanged: (newRole) {
+                                    if (newRole != null && newRole != userRole) {
+                                      _showRoleChangeConfirmation(context, userId, user['name']?.toString() ?? '', newRole);
+                                    }
+                                  },
+                                )
+                              : Text(userRole)
+                          ),
                           DataCell(Row(
                             children: [
                               SizedBox(
                                 width: 70,
                                 child: TextField(
                                   controller: depositControllers[userId],
-                                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                   decoration: const InputDecoration(hintText: 'Amount', isDense: true),
                                 ),
                               ),
@@ -435,7 +734,7 @@ class UsersTableSection extends StatelessWidget {
                                 width: 70,
                                 child: TextField(
                                   controller: withdrawControllers[userId],
-                                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                   decoration: const InputDecoration(hintText: 'Amount', isDense: true),
                                 ),
                               ),
@@ -446,6 +745,18 @@ class UsersTableSection extends StatelessWidget {
                               ),
                             ],
                           )),
+                          // Actions column (only for admin users)
+                          DataCell(
+                            authService.role == 'admin'
+                              ? IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  tooltip: 'Delete User',
+                                  onPressed: isSubmitting 
+                                    ? null 
+                                    : () => _showDeletionDialog(context, userId, user['name']?.toString() ?? ''),
+                                )
+                              : const SizedBox.shrink()
+                          ),
                         ]);
                       }).toList(),
                     ),
