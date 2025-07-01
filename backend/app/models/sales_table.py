@@ -33,9 +33,10 @@ class Sale(Base):
     def __repr__(self):
         return f"<Sale(consumer_id={self.consumer_id}, product_id={self.product_id}, quantity={self.quantity}, total_price={self.total_price}, timestamp={self.timestamp}, toast_round_id={self.toast_round_id}, donator_id={self.donator_id})>"
 
-    def to_dict(self, include_user=False, include_product=False, include_toast_round=False):
+    def to_dict(self, include_user=False, include_product=False, include_toast_round=False, show_deleted_entities=False):
         def _round(val):
             return round(val, 2) if isinstance(val, float) and val is not None else val
+        
         data = {
             "sale_id": self.sale_id,
             "consumer_id": self.consumer_id,
@@ -46,13 +47,54 @@ class Sale(Base):
             "toast_round_id": self.toast_round_id,
             "donator_id": self.donator_id
         }
-        if include_user and self.consumer:
-            data["consumer"] = self.consumer.to_dict()
-            print("DEBUG: Has donator", self.donator)
-            if self.donator:
-                data["donator"] = self.donator.to_dict()
-        if include_product and self.product:
-            data["product"] = self.product.to_dict()
-        if include_toast_round and self.toast_round:
-            data["toast_round"] = self.toast_round.to_dict()
+        
+        if include_user:
+            self._add_user_data(data)
+        
+        if include_product:
+            self._add_product_data(data)
+        
+        if include_toast_round:
+            self._add_toast_round_data(data)
+        
         return data
+
+    def _add_user_data(self, data: dict):
+        """Add user data with availability status"""
+        # Handle consumer
+        data.update(self._get_entity_data("consumer", self.consumer, required=True))
+        # Handle donator  
+        data.update(self._get_entity_data("donator", self.donator, required=False))
+
+    def _add_product_data(self, data: dict):
+        """Add product data with availability status"""
+        data.update(self._get_entity_data("product", self.product, required=True))
+
+    def _add_toast_round_data(self, data: dict):
+        """Add toast round data with availability status"""
+        data.update(self._get_entity_data("toast_round", self.toast_round, required=False))
+
+    def _get_entity_data(self, entity_name: str, entity_obj, required: bool = True):
+        """Get entity data with availability status"""
+        result = {}
+        
+        if entity_obj:
+            is_available = getattr(entity_obj, 'is_available', True)
+            result[entity_name] = entity_obj.to_dict()
+            result[f"{entity_name}_available"] = is_available
+            
+            if not is_available:
+                is_deleted = getattr(entity_obj, 'is_deleted', False)
+                result[f"{entity_name}_status"] = "deleted" if is_deleted else "disabled"
+                
+                # Add reason for unavailability if available
+                disabled_reason = getattr(entity_obj, 'disabled_reason', None)
+                if disabled_reason:
+                    result[f"{entity_name}_unavailable_reason"] = disabled_reason
+        else:
+            result[entity_name] = None
+            result[f"{entity_name}_available"] = not required  # Missing optional entities are "available"
+            if required:
+                result[f"{entity_name}_status"] = "not_found"
+        
+        return result

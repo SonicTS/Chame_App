@@ -23,13 +23,13 @@ const MethodChannel _reverseBridgeChannel = MethodChannel('samples.flutter.dev/c
 // Setup reverse bridge listener for Python → Flutter calls
 void _setupReverseBridge() {
   try {
-    print('🌉 Setting up method call handler for reverse bridge...');
+  //print('🌉 Setting up method call handler for reverse bridge...');
     _reverseBridgeChannel.setMethodCallHandler(_handleReverseBridgeCall);
-    print('✅ Reverse bridge method call handler configured successfully');
-    print('   Channel: ${_reverseBridgeChannel.name}');
-    print('   Handler: _handleReverseBridgeCall');
+  //print('✅ Reverse bridge method call handler configured successfully');
+  //print('   Channel: ${_reverseBridgeChannel.name}');
+  //print('   Handler: _handleReverseBridgeCall');
   } catch (e) {
-    print('❌ Failed to setup reverse bridge: $e');
+  //print('❌ Failed to setup reverse bridge: $e');
     rethrow;
   }
 }
@@ -39,37 +39,37 @@ Future<void> _handleReverseBridgeCall(MethodCall call) async {
   final String callTimestamp = DateTime.now().toIso8601String();
   
   try {
-    print('📞 Received reverse bridge call at $callTimestamp');
-    print('   Method: ${call.method}');
-    print('   Arguments type: ${call.arguments?.runtimeType}');
+    // print('📞 Received reverse bridge call at $callTimestamp');
+    // print('   Method: ${call.method}');
+    // print('   Arguments type: ${call.arguments?.runtimeType}');
     
     switch (call.method) {
       case 'log_to_firebase':
-        print('🔥 Handling Firebase logging request...');
+        //print('🔥 Handling Firebase logging request...');
         await _handleFirebaseLog(call.arguments);
-        print('✅ Firebase logging request completed');
+        //print('✅ Firebase logging request completed');
         break;
       case 'update_progress':
-        print('📊 Handling progress update...');
+        //print('📊 Handling progress update...');
         await _handleProgressUpdate(call.arguments);
-        print('✅ Progress update completed');
+        //print('✅ Progress update completed');
         break;
       case 'show_notification':
-        print('🔔 Handling notification request...');
+        //print('🔔 Handling notification request...');
         await _handleShowNotification(call.arguments);
-        print('✅ Notification request completed');
+        //print('✅ Notification request completed');
         break;
       default:
-        print('❓ Unknown reverse bridge method called: ${call.method}');
-        print('   Available methods: log_to_firebase, update_progress, show_notification');
+        //print('❓ Unknown reverse bridge method called: ${call.method}');
+        //print('   Available methods: log_to_firebase, update_progress, show_notification');
     }
     
-    print('✅ Reverse bridge call ${call.method} processed successfully');
+    //print('✅ Reverse bridge call ${call.method} processed successfully');
     
   } catch (e, stackTrace) {
-    print('💥 Error handling reverse bridge call ${call.method}: $e');
-    print('📍 Stack trace: $stackTrace');
-    print('🔍 Call arguments: ${call.arguments}');
+    // print('💥 Error handling reverse bridge call ${call.method}: $e');
+    // print('📍 Stack trace: $stackTrace');
+    // print('🔍 Call arguments: ${call.arguments}');
     
     // Try to log this error to Firebase
     try {
@@ -84,9 +84,9 @@ Future<void> _handleReverseBridgeCall(MethodCall call) async {
           'Arguments: ${call.arguments}',
         ],
       );
-      print('🆘 Logged reverse bridge error to Firebase');
+      //print('🆘 Logged reverse bridge error to Firebase');
     } catch (logError) {
-      print('☠️ Failed to log reverse bridge error: $logError');
+      //print('☠️ Failed to log reverse bridge error: $logError');
     }
   }
 }
@@ -100,38 +100,38 @@ Future<void> _handleFirebaseLog(Map<dynamic, dynamic> arguments) async {
     final String message = arguments['message']?.toString() ?? '';
     final Map<String, dynamic> metadata = Map<String, dynamic>.from(arguments['metadata'] ?? {});
     
-    print('🚀 Starting Firebase log operation at $timestamp');
-    print('   Level: $level');
-    print('   Message: $message');
-    print('   Metadata keys: ${metadata.keys.toList()}');
+  //print('🚀 Starting Firebase log operation at $timestamp');
+  //print('   Level: $level');
+  //print('   Message: $message');
+  //print('   Metadata keys: ${metadata.keys.toList()}');
     
     // Log to Firebase Crashlytics with detailed logging
     try {
       FirebaseCrashlytics.instance.log('[$level] Python: $message');
-      print('✅ Successfully wrote to Firebase Crashlytics log');
+    //print('✅ Successfully wrote to Firebase Crashlytics log');
     } catch (logError) {
-      print('❌ Failed to write to Firebase Crashlytics log: $logError');
+    //print('❌ Failed to write to Firebase Crashlytics log: $logError');
       rethrow;
     }
     
     // Set custom keys for context with logging
     try {
-      print('📝 Setting ${metadata.length} custom keys...');
+    //print('📝 Setting ${metadata.length} custom keys...');
       metadata.forEach((key, value) {
         final keyName = 'python_$key';
         final keyValue = value.toString();
         FirebaseCrashlytics.instance.setCustomKey(keyName, keyValue);
-        print('   ✓ Set custom key: $keyName = $keyValue');
+      //print('   ✓ Set custom key: $keyName = $keyValue');
       });
-      print('✅ All custom keys set successfully');
+    //print('✅ All custom keys set successfully');
     } catch (keyError) {
-      print('❌ Failed to set custom keys: $keyError');
+    //print('❌ Failed to set custom keys: $keyError');
       rethrow;
     }
     
     // Record as non-fatal error for better visibility in Firebase Console
     try {
-      print('📊 Recording non-fatal error to Firebase...');
+    //print('📊 Recording non-fatal error to Firebase...');
       FirebaseCrashlytics.instance.recordError(
         'Python Log [$level]: $message',
         null,
@@ -144,33 +144,33 @@ Future<void> _handleFirebaseLog(Map<dynamic, dynamic> arguments) async {
           ...metadata.entries.map((e) => '${e.key}: ${e.value}'),
         ],
       );
-      print('✅ Successfully recorded non-fatal error to Firebase');
+    //print('✅ Successfully recorded non-fatal error to Firebase');
     } catch (recordError) {
-      print('❌ Failed to record error to Firebase: $recordError');
+    //print('❌ Failed to record error to Firebase: $recordError');
       rethrow;
     }
     
     // Set breadcrumb for tracking with logging
     try {
-      print('🍞 Setting breadcrumb data...');
+    //print('🍞 Setting breadcrumb data...');
       FirebaseCrashlytics.instance.setCustomKey('last_python_log', '[$level] $message');
       FirebaseCrashlytics.instance.setCustomKey('last_python_log_time', timestamp);
-      print('✅ Breadcrumb data set successfully');
+    //print('✅ Breadcrumb data set successfully');
     } catch (breadcrumbError) {
-      print('❌ Failed to set breadcrumb data: $breadcrumbError');
+    //print('❌ Failed to set breadcrumb data: $breadcrumbError');
       rethrow;
     }
     
-    print('🔥 Firebase log operation completed successfully');
-    print('   Final summary: [$level] Python: $message');
+  //print('🔥 Firebase log operation completed successfully');
+  //print('   Final summary: [$level] Python: $message');
     if (metadata.isNotEmpty) {
-      print('   📦 Metadata: $metadata');
+    //print('   📦 Metadata: $metadata');
     }
     
   } catch (e, stackTrace) {
-    print('💥 Critical error in _handleFirebaseLog: $e');
-    print('📍 Stack trace: $stackTrace');
-    print('🔍 Arguments received: $arguments');
+  //print('💥 Critical error in _handleFirebaseLog: $e');
+  //print('📍 Stack trace: $stackTrace');
+  //print('🔍 Arguments received: $arguments');
     
     // Try to log the error itself to Firebase
     try {
@@ -185,9 +185,9 @@ Future<void> _handleFirebaseLog(Map<dynamic, dynamic> arguments) async {
           'Error_occurred_while: Processing Python Firebase log',
         ],
       );
-      print('🆘 Successfully logged the logging error to Firebase');
+    //print('🆘 Successfully logged the logging error to Firebase');
     } catch (metaError) {
-      print('☠️ Failed to log the logging error: $metaError');
+    //print('☠️ Failed to log the logging error: $metaError');
     }
   }
 }
@@ -200,16 +200,16 @@ Future<void> _handleProgressUpdate(Map<dynamic, dynamic> arguments) async {
     final double progress = (arguments['progress'] as num?)?.toDouble() ?? 0.0;
     final String message = arguments['message']?.toString() ?? '';
     
-    print('📊 Progress update received at $timestamp');
-    print('   Progress: ${(progress * 100).toStringAsFixed(1)}%');
-    print('   Message: $message');
+  //print('📊 Progress update received at $timestamp');
+  //print('   Progress: ${(progress * 100).toStringAsFixed(1)}%');
+  //print('   Message: $message');
     
     // You can emit this to a stream or update UI state here
-    print('✅ Progress update processed successfully');
+  //print('✅ Progress update processed successfully');
     
   } catch (e) {
-    print('❌ Error processing progress update: $e');
-    print('🔍 Arguments: $arguments');
+  //print('❌ Error processing progress update: $e');
+  //print('🔍 Arguments: $arguments');
   }
 }
 
@@ -222,38 +222,38 @@ Future<void> _handleShowNotification(Map<dynamic, dynamic> arguments) async {
     final String message = arguments['message']?.toString() ?? '';
     final String type = arguments['type']?.toString() ?? 'info';
     
-    print('🔔 Notification received at $timestamp');
-    print('   Type: $type');
-    print('   Title: $title');
-    print('   Message: $message');
+  //print('🔔 Notification received at $timestamp');
+  //print('   Type: $type');
+  //print('   Title: $title');
+  //print('   Message: $message');
     
     // You can show actual notifications here using flutter_local_notifications
-    print('✅ Notification processed successfully');
+  //print('✅ Notification processed successfully');
     
   } catch (e) {
-    print('❌ Error processing notification: $e');
-    print('🔍 Arguments: $arguments');
+  //print('❌ Error processing notification: $e');
+  //print('🔍 Arguments: $arguments');
   }
 }
 
 // Initialize Python backend asynchronously to avoid blocking main thread
 void _initializePythonBackend() {
   final String initTimestamp = DateTime.now().toIso8601String();
-  print('🐍 Starting Python backend initialization at $initTimestamp');
+//print('🐍 Starting Python backend initialization at $initTimestamp');
   
   Future.microtask(() async {
     try {
-      print('📡 Attempting to ping Python backend...');
+    //print('📡 Attempting to ping Python backend...');
       await PyBridge().ping();
-      print('✅ Python backend ping successful!');
+    //print('✅ Python backend ping successful!');
       
       // Test logging immediately with detailed logging
       try {
-        print('📝 Writing success log to Firebase Crashlytics...');
+      //print('📝 Writing success log to Firebase Crashlytics...');
         FirebaseCrashlytics.instance.log('Python backend connection successful');
-        print('✅ Successfully wrote connection log to Firebase');
+      //print('✅ Successfully wrote connection log to Firebase');
         
-        print('📊 Recording success event to Firebase...');
+      //print('📊 Recording success event to Firebase...');
         FirebaseCrashlytics.instance.recordError(
           'Python Backend Status: Connected',
           null,
@@ -265,20 +265,20 @@ void _initializePythonBackend() {
             'Status: SUCCESS',
           ],
         );
-        print('✅ Successfully recorded connection event to Firebase');
+      //print('✅ Successfully recorded connection event to Firebase');
         
       } catch (logError) {
-        print('❌ Failed to log success to Firebase: $logError');
+      //print('❌ Failed to log success to Firebase: $logError');
       }
       
     } catch (e, stack) {
-      print('❌ Failed to ping Python backend:');
-      print('   Error: $e');
-      print('   Stack: $stack');
+    //print('❌ Failed to ping Python backend:');
+    //print('   Error: $e');
+    //print('   Stack: $stack');
       
       // Log the failure to Firebase with detailed logging
       try {
-        print('🆘 Logging backend failure to Firebase...');
+      //print('🆘 Logging backend failure to Firebase...');
         FirebaseCrashlytics.instance.recordError(
           'Python Backend Connection Failed',
           StackTrace.current,
@@ -292,10 +292,10 @@ void _initializePythonBackend() {
             'Status: FAILED',
           ],
         );
-        print('✅ Successfully logged backend failure to Firebase');
+      //print('✅ Successfully logged backend failure to Firebase');
         
       } catch (logError) {
-        print('💥 Critical: Failed to log backend failure to Firebase: $logError');
+      //print('💥 Critical: Failed to log backend failure to Firebase: $logError');
       }
     }
   });
@@ -303,43 +303,43 @@ void _initializePythonBackend() {
 
 void main() async {
   final String appStartTimestamp = DateTime.now().toIso8601String();
-  print('🚀 App startup initiated at $appStartTimestamp');
+//print('🚀 App startup initiated at $appStartTimestamp');
   
   WidgetsFlutterBinding.ensureInitialized();
-  print('✅ Flutter widgets binding initialized');
+//print('✅ Flutter widgets binding initialized');
   
   // Initialize Firebase with detailed logging
   try {
-    print('🔥 Initializing Firebase...');
+  //print('🔥 Initializing Firebase...');
     await Firebase.initializeApp();
-    print('✅ Firebase initialized successfully');
+  //print('✅ Firebase initialized successfully');
     
-    print('📊 Setting up Firebase error handling...');
+  //print('📊 Setting up Firebase error handling...');
     FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-    print('✅ Firebase error handling configured');
+  //print('✅ Firebase error handling configured');
     
   } catch (firebaseError, stackTrace) {
-    print('💥 Critical: Firebase initialization failed!');
-    print('   Error: $firebaseError');
-    print('   Stack: $stackTrace');
+  //print('💥 Critical: Firebase initialization failed!');
+  //print('   Error: $firebaseError');
+  //print('   Stack: $stackTrace');
     // Continue anyway, but log to console
   }
   
   // Setup reverse bridge for Python logging with logging
   try {
-    print('🌉 Setting up reverse bridge for Python logging...');
+  //print('🌉 Setting up reverse bridge for Python logging...');
     _setupReverseBridge();
-    print('✅ Reverse bridge setup completed');
+  //print('✅ Reverse bridge setup completed');
   } catch (bridgeError) {
-    print('❌ Failed to setup reverse bridge: $bridgeError');
+  //print('❌ Failed to setup reverse bridge: $bridgeError');
   }
   
   // Test Firebase logging immediately with detailed logging
   try {
-    print('🧪 Testing Firebase logging functionality...');
+  //print('🧪 Testing Firebase logging functionality...');
     
     FirebaseCrashlytics.instance.log('App starting - Firebase logging test');
-    print('✅ Firebase log test completed');
+  //print('✅ Firebase log test completed');
     
     FirebaseCrashlytics.instance.recordError(
       'Test Firebase Integration',
@@ -352,24 +352,24 @@ void main() async {
         'Test_type: Initial_connectivity',
       ],
     );
-    print('✅ Firebase recordError test completed');
+  //print('✅ Firebase recordError test completed');
     
   } catch (testError) {
-    print('❌ Firebase logging test failed: $testError');
+  //print('❌ Firebase logging test failed: $testError');
   }
   
   // Initialize Python backend asynchronously to avoid ANR
-  print('🐍 Scheduling Python backend initialization...');
+//print('🐍 Scheduling Python backend initialization...');
   _initializePythonBackend();
   
-  print('🎯 Starting Flutter app...');
+//print('🎯 Starting Flutter app...');
   runApp(
     ChangeNotifierProvider(
       create: (_) => AuthService(),
       child: ChameApp(),
     ),
   );
-  print('✅ Flutter app started successfully');
+//print('✅ Flutter app started successfully');
 }
 
 class AuthGate extends StatelessWidget {
@@ -547,7 +547,7 @@ class _LoginScreenState extends State<LoginScreen> {
           _error = true;
           _usersLoaded = true;
         });
-        print('Error loading users: $e');
+      //print('Error loading users: $e');
         
         // Fallback: show error but allow typing username
         ScaffoldMessenger.of(context).showSnackBar(

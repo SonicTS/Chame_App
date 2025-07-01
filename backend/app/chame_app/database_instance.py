@@ -6,7 +6,6 @@ from chame_app.database import get_session
 from models.ingredient import Ingredient
 from models.product_ingredient_table import ProductIngredient
 from models.product_table import Product
-from models.product_toastround_table import ProductToastround
 from models.sales_table import Sale
 from models.toast_round import ToastRound
 from models.user_table import User
@@ -661,9 +660,6 @@ class Database:
                 toast_round.sales.append(sale)
                 buyer_str = f"{donator.name}({consumer.name})" if donator else f"{consumer.name}"
                 name_list.append(f"{buyer_str} bought {product.name}")
-            for product_id in unique_products:
-                product_toast_round = ProductToastround(product_id=product_id, toast_round_id=toast_round.toast_round_id)
-                session.add(product_toast_round)
             if close_session:
                 session.commit()
                 session.close()
@@ -747,7 +743,6 @@ class Database:
                 products = Product.active_only(session.query(Product)).options(
                     joinedload(Product.product_ingredients).joinedload(ProductIngredient.ingredient),
                     joinedload(Product.sales),
-                    joinedload(Product.product_toast_rounds).joinedload(ProductToastround.toast_round)
                 ).all()
                 
                 log_debug(f"Retrieved {len(products)} active products")
@@ -912,7 +907,6 @@ class Database:
             products = Product.active_only(session.query(Product)).options(
                 joinedload(Product.product_ingredients).joinedload(ProductIngredient.ingredient),
                 joinedload(Product.sales),
-                joinedload(Product.product_toast_rounds).joinedload(ProductToastround.toast_round)
             ).filter(Product.category == "toast").all()
             return products
         except Exception as e:
@@ -934,10 +928,6 @@ class Database:
                 joinedload(ToastRound.sales).joinedload(Sale.product)
                     .joinedload(Product.product_ingredients)
                     .joinedload(ProductIngredient.ingredient),
-                joinedload(ToastRound.toast_round_products)
-                    .joinedload(ProductToastround.product)
-                    .joinedload(Product.product_ingredients)
-                    .joinedload(ProductIngredient.ingredient)
             ).all()
             return toast_rounds
         except Exception as e:

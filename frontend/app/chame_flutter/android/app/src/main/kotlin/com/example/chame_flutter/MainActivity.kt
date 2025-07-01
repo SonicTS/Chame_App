@@ -928,6 +928,155 @@ class MainActivity : FlutterActivity() {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
                     }
                 }
+                "enhanced_delete_user" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val userId = call.argument<Number>("user_id")
+                        val deletedByUser = call.argument<String>("deleted_by_user") ?: "admin"
+                        val hardDelete = call.argument<Boolean>("hard_delete") ?: false
+                        val cascadeChoicesJson = call.argument<String>("cascade_choices") ?: "{}"
+                        
+                        if (userId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing user_id for enhanced_delete_user", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val json = py.getModule("json")
+                        val cascadeChoices = json.callAttr("loads", cascadeChoicesJson)
+                        
+                        val pyResult = pyModule.callAttr("enhanced_delete_user", userId.toInt(), deletedByUser, hardDelete, cascadeChoices)
+                        val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                        result.success(jsonString)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "enhanced_delete_product" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val productId = call.argument<Number>("product_id")
+                        val deletedByUser = call.argument<String>("deleted_by_user") ?: "admin"
+                        val hardDelete = call.argument<Boolean>("hard_delete") ?: false
+                        val cascadeChoicesJson = call.argument<String>("cascade_choices") ?: "{}"
+                        
+                        if (productId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing product_id for enhanced_delete_product", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val json = py.getModule("json")
+                        val cascadeChoices = json.callAttr("loads", cascadeChoicesJson)
+                        
+                        val pyResult = pyModule.callAttr("enhanced_delete_product", productId.toInt(), deletedByUser, hardDelete, cascadeChoices)
+                        val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                        result.success(jsonString)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "enhanced_delete_ingredient" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val ingredientId = call.argument<Number>("ingredient_id")
+                        val deletedByUser = call.argument<String>("deleted_by_user") ?: "admin"
+                        val hardDelete = call.argument<Boolean>("hard_delete") ?: false
+                        val cascadeChoicesJson = call.argument<String>("cascade_choices") ?: "{}"
+                        
+                        if (ingredientId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing ingredient_id for enhanced_delete_ingredient", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val json = py.getModule("json")
+                        val cascadeChoices = json.callAttr("loads", cascadeChoicesJson)
+                        
+                        val pyResult = pyModule.callAttr("enhanced_delete_ingredient", ingredientId.toInt(), deletedByUser, hardDelete, cascadeChoices)
+                        val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                        result.success(jsonString)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "get_deletion_impact_analysis" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val entityType = call.argument<String>("entity_type")
+                        val entityId = call.argument<Number>("entity_id")
+                        if (entityType == null || entityId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing entity_type or entity_id for get_deletion_impact_analysis", null)
+                            return@setMethodCallHandler
+                        }
+                        val pyResult = pyModule.callAttr("get_deletion_impact_analysis", entityType, entityId.toInt())
+                        val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                        result.success(jsonString)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                // ========== NEW SIMPLIFIED DELETION SYSTEM ==========
+                "analyze_deletion_impact" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val entityType = call.argument<String>("entity_type")
+                        val entityId = call.argument<Number>("entity_id")
+                        
+                        if (entityType == null || entityId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing entity_type or entity_id for analyze_deletion_impact", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val pyResult = pyModule.callAttr("analyze_deletion_impact", entityType, entityId.toInt())
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            result.success(pyResult.toString())
+                        }
+                    } catch (e: Exception) {
+                        result.error("ANALYZE_ERROR", "Failed to analyze deletion impact: ${e.localizedMessage}", null)
+                    }
+                }
+                
+                "execute_deletion" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val entityType = call.argument<String>("entity_type")
+                        val entityId = call.argument<Number>("entity_id")
+                        val deletedBy = call.argument<String>("deleted_by") ?: "flutter_admin"
+                        
+                        if (entityType == null || entityId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing entity_type or entity_id for execute_deletion", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val pyResult = pyModule.callAttr("execute_deletion", entityType, entityId.toInt(), deletedBy)
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            result.success(pyResult.toString())
+                        }
+                    } catch (e: Exception) {
+                        result.error("DELETE_ERROR", "Failed to execute deletion: ${e.localizedMessage}", null)
+                    }
+                }
                 
                 else -> result.notImplemented()
             }

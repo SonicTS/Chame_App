@@ -1,13 +1,47 @@
 from sqlalchemy import Column, Integer, String, Float
 from chame_app.database import Base
 from sqlalchemy.orm import relationship
-from models.sales_table import Sale
-from models.soft_delete_mixin import SoftDeleteMixin
+from models.enhanced_soft_delete_mixin import EnhancedSoftDeleteMixin, SoftDeleteCascadeRule, HardDeleteCascadeRule
 from passlib.context import CryptContext
 from utils.firebase_logger import log_debug, log_error
 
-class User(Base, SoftDeleteMixin):
+class User(Base, EnhancedSoftDeleteMixin):
     __tablename__ = "users"  # Name of the table in the database
+
+    # Define cascade rules for users
+    _cascade_rules = [
+        SoftDeleteCascadeRule(
+            "sales", 
+            SoftDeleteCascadeRule.CASCADE_IGNORE  # Keep sales history
+        ),
+        SoftDeleteCascadeRule(
+            "donated_sales", 
+            SoftDeleteCascadeRule.CASCADE_IGNORE  # Keep donation history
+        ),
+        SoftDeleteCascadeRule(
+            "pfand_history", 
+            SoftDeleteCascadeRule.CASCADE_IGNORE  # Keep pfand history
+        )
+    ]
+    
+    # Define hard delete rules for users
+    _hard_delete_rules = [
+        HardDeleteCascadeRule(
+            "sales",
+            HardDeleteCascadeRule.CASCADE_NULLIFY,  # Nullify consumer_id in sales
+            cascade_order=1
+        ),
+        HardDeleteCascadeRule(
+            "donated_sales",
+            HardDeleteCascadeRule.CASCADE_NULLIFY,  # Nullify donator_id in sales
+            cascade_order=1
+        ),
+        HardDeleteCascadeRule(
+            "pfand_history",
+            HardDeleteCascadeRule.CASCADE_NULLIFY,  # Nullify user_id in pfand history
+            cascade_order=1
+        )
+    ]
 
     user_id = Column(Integer, primary_key=True, index=True)  # Primary Key
     name = Column(String, index=True)  # Name column
@@ -46,6 +80,12 @@ class User(Base, SoftDeleteMixin):
                 "name": self.name,
                 "balance": _round(self.balance),
                 "role": self.role,
+                # Add soft delete fields for restore functionality
+                "is_deleted": getattr(self, 'is_deleted', False),
+                "deleted_at": self.deleted_at.isoformat() if getattr(self, 'deleted_at', None) else None,
+                "deleted_by": getattr(self, 'deleted_by', None),
+                "is_disabled": getattr(self, 'is_disabled', False),
+                "disabled_reason": getattr(self, 'disabled_reason', None),
             }
             
             if include_sales:

@@ -1,6 +1,7 @@
 import 'package:chame_flutter/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:chame_flutter/data/py_bride.dart';
+import 'package:chame_flutter/widgets/simple_deletion_dialog.dart';
 import 'package:provider/provider.dart';
 
 class ProductsPage extends StatefulWidget {
@@ -26,123 +27,19 @@ class _ProductsPageState extends State<ProductsPage> {
     });
   }
 
-  // Show deletion dialog for products
-  void _showProductDeletionDialog(BuildContext context, int productId, String productName) {
-    showDialog(
+  // Show simplified deletion dialog for products
+  void _showProductDeletionDialog(BuildContext context, int productId, String productName) async {
+    final result = await showSimpleDeletionDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Product'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('What would you like to do with product "$productName"?'),
-            const SizedBox(height: 16),
-            const Text('Soft Delete: Hide product but keep data'),
-            const Text('Safe Delete: Check dependencies first'),
-            const Text('Force Delete: Delete permanently (dangerous!)'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _performProductDeletion(context, productId, productName, 'soft');
-            },
-            child: const Text('Soft Delete'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _performProductDeletion(context, productId, productName, 'safe');
-            },
-            child: const Text('Safe Delete'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _showForceDeleteConfirmation(context, productId, productName, 'product');
-            },
-            child: const Text('Force Delete', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+      entityType: 'product',
+      entityId: productId,
+      entityName: productName,
+      deletedBy: 'flutter_admin',
     );
-  }
-
-  // Show force delete confirmation
-  void _showForceDeleteConfirmation(BuildContext context, int entityId, String entityName, String entityType) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('⚠️ Force Delete Warning'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('You are about to PERMANENTLY delete $entityType "$entityName".'),
-            const SizedBox(height: 8),
-            const Text('This action cannot be undone and may break data integrity!'),
-            const SizedBox(height: 16),
-            const Text('Are you absolutely sure?', style: TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _performProductDeletion(context, entityId, entityName, 'force');
-            },
-            child: const Text('Yes, Force Delete', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Perform product deletion
-  Future<void> _performProductDeletion(BuildContext context, int productId, String productName, String deletionType) async {
-    try {
-      String? error;
-      String successMessage;
-
-      switch (deletionType) {
-        case 'soft':
-          error = await PyBridge().softDeleteProduct(productId: productId, deletedBy: 'admin');
-          successMessage = 'Product soft deleted successfully!';
-          break;
-        case 'safe':
-          final result = await PyBridge().safeDeleteProduct(productId: productId, force: false);
-          error = result['success'] == true ? null : result['message']?.toString();
-          successMessage = 'Product safely deleted!';
-          break;
-        case 'force':
-          final result = await PyBridge().safeDeleteProduct(productId: productId, force: true);
-          error = result['success'] == true ? null : result['message']?.toString();
-          successMessage = 'Product force deleted!';
-          break;
-        default:
-          error = 'Invalid deletion type';
-          successMessage = '';
-      }
-
-      if (error != null) {
-        _showDialog(context, 'Error', error);
-      } else {
-        _showDialog(context, 'Success', successMessage);
-        _reloadProducts();
-      }
-    } catch (e) {
-      _showDialog(context, 'Error', 'Failed to delete product: $e');
+    
+    if (result == true) {
+      // Deletion was successful, reload the products
+      _reloadProducts();
     }
   }
 
@@ -231,7 +128,7 @@ class _ProductsPageState extends State<ProductsPage> {
       final error = await PyBridge().restoreProduct(productId: productId);
       
       if (error != null) {
-        _showDialog(context, 'Error', 'Failed to restore product: $error');
+        _showDialog(context, 'Error', error);
       } else {
         _showDialog(context, 'Success', 'Product "$productName" restored successfully!');
         _reloadProducts();
@@ -277,32 +174,30 @@ class _ProductsPageState extends State<ProductsPage> {
                             const Expanded(
                               child: Text('Products', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                             ),
-                            if (auth.role == "admin") 
-                              Wrap(
-                                spacing: 8,
-                                children: [
-                                  ElevatedButton(
-                                    onPressed: () => _showRestoreProductsDialog(context),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.orange,
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    ),
-                                    child: const Text('Restore', style: TextStyle(color: Colors.white, fontSize: 12)),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: () async {
-                                      final result = await Navigator.pushNamed(context, '/add_product');
-                                      if (result == true) {
-                                        _reloadProducts();
-                                      }
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    ),
-                                    child: const Text('Add New', style: TextStyle(fontSize: 12)),
-                                  ),
-                                ],
+                            if (auth.role == "admin") ...[
+                              ElevatedButton(
+                                onPressed: () => _showRestoreProductsDialog(context),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  backgroundColor: Colors.orange,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('Restore', style: TextStyle(fontSize: 12)),
                               ),
+                              const SizedBox(width: 8),
+                              ElevatedButton(
+                                onPressed: () async {
+                                  final result = await Navigator.pushNamed(context, '/add_product');
+                                  if (result == true) {
+                                    _reloadProducts();
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                ),
+                                child: const Text('Add New', style: TextStyle(fontSize: 12)),
+                              ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 16),

@@ -1,6 +1,7 @@
 import 'package:chame_flutter/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:chame_flutter/data/py_bride.dart';
+import 'package:chame_flutter/widgets/simple_deletion_dialog.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import 'package:collection/collection.dart';
 import 'package:provider/provider.dart';
@@ -189,7 +190,14 @@ class _UsersPageState extends State<UsersPage> {
       final error = await PyBridge().restoreUser(userId: userId);
       
       if (error != null) {
-        _showDialog('Error', 'Failed to restore user: $error');
+        // Check if this is a dependency-related error and show appropriate message
+        if (error.toLowerCase().contains('cannot be restored') || 
+            error.toLowerCase().contains('dependency') ||
+            error.toLowerCase().contains('required')) {
+          _showDialog('Cannot Restore User', error);
+        } else {
+          _showDialog('Error', 'Failed to restore user: $error');
+        }
       } else {
         _showDialog('Success', 'User "$userName" restored successfully!');
         _reload();
@@ -518,123 +526,18 @@ class UsersTableSection extends StatelessWidget {
     }
   }
 
-  // Show deletion dialog
-  void _showDeletionDialog(BuildContext context, int userId, String userName) {
-    showDialog(
+  // Show simple deletion dialog for users
+  void _showDeletionDialog(BuildContext context, int userId, String userName) async {
+    final result = await showSimpleDeletionDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete User'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('What would you like to do with user "$userName"?'),
-            const SizedBox(height: 16),
-            const Text('Soft Delete: Hide user but keep data'),
-            const Text('Safe Delete: Check dependencies first'),
-            const Text('Force Delete: Delete permanently (dangerous!)'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _performDeletion(context, userId, userName, 'soft');
-            },
-            child: const Text('Soft Delete'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _performDeletion(context, userId, userName, 'safe');
-            },
-            child: const Text('Safe Delete'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _showForceDeleteConfirmation(context, userId, userName);
-            },
-            child: const Text('Force Delete', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+      entityType: 'user',
+      entityId: userId,
+      entityName: userName,
     );
-  }
-
-  // Show force delete confirmation
-  void _showForceDeleteConfirmation(BuildContext context, int userId, String userName) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('⚠️ Force Delete Warning'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('You are about to PERMANENTLY delete user "$userName".'),
-            const SizedBox(height: 8),
-            const Text('This action cannot be undone and may break data integrity!'),
-            const SizedBox(height: 16),
-            const Text('Are you absolutely sure?', style: TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _performDeletion(context, userId, userName, 'force');
-            },
-            child: const Text('Yes, Force Delete', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Perform deletion
-  Future<void> _performDeletion(BuildContext context, int userId, String userName, String deletionType) async {
-    try {
-      String? error;
-      String successMessage;
-
-      switch (deletionType) {
-        case 'soft':
-          error = await PyBridge().softDeleteUser(userId: userId, deletedBy: 'admin');
-          successMessage = 'User soft deleted successfully!';
-          break;
-        case 'safe':
-          final result = await PyBridge().safeDeleteUser(userId: userId, force: false);
-          error = result['success'] == true ? null : result['message']?.toString();
-          successMessage = 'User safely deleted!';
-          break;
-        case 'force':
-          final result = await PyBridge().safeDeleteUser(userId: userId, force: true);
-          error = result['success'] == true ? null : result['message']?.toString();
-          successMessage = 'User force deleted!';
-          break;
-        default:
-          error = 'Invalid deletion type';
-          successMessage = '';
-      }
-
-      if (error != null) {
-        _showDialog(context, 'Error', error);
-      } else {
-        _showDialog(context, 'Success', successMessage);
-        onReload();
-      }
-    } catch (e) {
-      _showDialog(context, 'Error', 'Failed to delete user: $e');
+    
+    if (result == true) {
+      // Deletion was successful, reload the users
+      onReload();
     }
   }
 
@@ -660,22 +563,24 @@ class UsersTableSection extends StatelessWidget {
           // Only build scrollable content if we have data
           if (filteredUsers.isEmpty) {
             return const Center(child: Text('No users found.'));
-          }              return Scrollbar(
-                thumbVisibility: true,
-                controller: horizontalScrollController,
-                child: SingleChildScrollView(
-                  controller: horizontalScrollController,
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    // Increased width to accommodate new columns
-                    width: 1000,
-                    child: Scrollbar(
-                    thumbVisibility: true,
+          }
+          
+          return Scrollbar(
+            thumbVisibility: true,
+            controller: horizontalScrollController,
+            child: SingleChildScrollView(
+              controller: horizontalScrollController,
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                // Increased width to accommodate new columns
+                width: 1000,
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  controller: verticalScrollController,
+                  child: SingleChildScrollView(
                     controller: verticalScrollController,
-                    child: SingleChildScrollView(
-                      controller: verticalScrollController,
-                      scrollDirection: Axis.vertical,
-                      child: DataTable(
+                    scrollDirection: Axis.vertical,
+                    child: DataTable(
                       columns: const [
                         DataColumn(label: Text('Name')),
                         DataColumn(label: Text('Balance')),

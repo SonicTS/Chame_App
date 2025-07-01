@@ -1,0 +1,9 @@
+{
+  "timestamp": "2025-06-29T22:42:53.393893",
+  "backup_type": "manual",
+  "database_version": "0",
+  "file_size": 102400,
+  "checksum": "3fdaeae39cd3efe1ba6eaece636778e5",
+  "description": "Pre-migration backup (v0 -> v5)",
+  "created_by": "migration_system"
+}

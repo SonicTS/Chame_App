@@ -287,12 +287,68 @@ def soft_delete_ingredient(ingredient_id, deleted_by="api"):
     return database.soft_delete_ingredient(ingredient_id, deleted_by)
 
 def restore_user(user_id):
-    """Restore a soft-deleted user"""
-    return database.restore_user(user_id)
+    """Restore a soft-deleted user - no dependencies to check for users"""
+    try:
+        from models.user_table import User
+        
+        # Check if user exists and is soft-deleted
+        user = database.session.query(User).filter(
+            User.user_id == user_id,
+            User.deleted_at.isnot(None)
+        ).first()
+        
+        if not user:
+            return "User not found or not deleted"
+        
+        # Users typically don't have restoration dependencies
+        # (sales/transactions are preserved history, not blocking dependencies)
+        return database.restore_user(user_id)
+        
+    except Exception as e:
+        print(f"Error in restore_user: {e}")
+        return f"Failed to restore user: {str(e)}"
 
 def restore_product(product_id):
-    """Restore a soft-deleted product"""
-    return database.restore_product(product_id)
+    """Restore a soft-deleted product - but only if all its ingredients are active"""
+    try:
+        # Check if product exists and is soft-deleted
+        from models.product_table import Product
+        
+        product = database.session.query(Product).filter(
+            Product.product_id == product_id,
+            Product.is_deleted.is_(True)
+        ).first()
+        
+        if not product:
+            raise RuntimeError("Product not found or not deleted")
+        
+        # Check if any required ingredients are still soft-deleted
+        from models.product_ingredient_table import ProductIngredient
+        from models.ingredient import Ingredient
+        
+        product_ingredients = database.session.query(ProductIngredient).filter(
+            ProductIngredient.product_id == product_id
+        ).all()
+        
+        deleted_ingredients = []
+        for pi in product_ingredients:
+            ingredient = database.session.query(Ingredient).filter(
+                Ingredient.ingredient_id == pi.ingredient_id,
+                Ingredient.is_deleted.is_(True)
+            ).first()
+            
+            if ingredient:
+                deleted_ingredients.append(ingredient.name)
+        
+        if deleted_ingredients:
+            ingredient_list = ", ".join(deleted_ingredients)
+            raise RuntimeError(f"Cannot restore product '{product.name}' because required ingredients are still deleted: {ingredient_list}. Restore these ingredients first.")
+        
+        # All ingredients are active, proceed with restoration
+        return database.restore_product(product_id)
+        
+    except Exception as e:
+        raise RuntimeError(str(e)) from e
 
 def restore_ingredient(ingredient_id):
     """Restore a soft-deleted ingredient"""
@@ -371,7 +427,315 @@ def safe_delete_ingredient(ingredient_id, force):
         raise ValueError("Ingredient ID cannot be empty")
     return database.safe_delete_ingredient(ingredient_id, force)
 
+def get_deletion_impact_analysis(entity_type, entity_id):
+    """Get impact analysis for deletion - what will be affected"""
+    try:
+        from services.flexible_deletion_service import FlexibleDeletionService
+        deletion_service = FlexibleDeletionService(database.session)
+        plan = deletion_service.analyze_deletion_impact(entity_type, entity_id)
+        
+        # Convert the plan to a serializable format
+        result = {
+            'can_proceed': True,
+            'dependencies': [],
+            'warnings': plan.warnings,
+            'errors': plan.errors
+        }
+        
+        for dep in plan.dependencies:
+            dep_data = {
+                'relationship_name': dep.relationship_name,
+                'table_name': dep.table_name,
+                'count': dep.count,
+                'is_critical': dep.is_critical,
+                'description': dep.description,
+                'available_actions': [action.value for action in dep.available_actions],
+                'default_action': dep.default_action.value if dep.default_action else None,
+                'sample_records': dep.sample_records
+            }
+            result['dependencies'].append(dep_data)
+        
+        return result
+    except Exception as e:
+        print(f"Error in get_deletion_impact_analysis: {e}")
+        return {
+            'can_proceed': False,
+            'dependencies': [],
+            'warnings': [],
+            'errors': [str(e)]
+        }
 
-#Create a global database instance
+def enhanced_delete_user(user_id, deleted_by_user="admin", hard_delete=False, cascade_choices=None):
+    """
+    Enhanced deletion with user-configurable cascade options.
+    
+    Args:
+        user_id: ID of user to delete
+        deleted_by_user: Who is performing the deletion
+        hard_delete: Whether to hard delete or soft delete
+        cascade_choices: Dict mapping dependency relationship_name to action ("hard", "soft", "nullify")
+    """
+    try:
+        from services.flexible_deletion_service import FlexibleDeletionService, CascadeAction
+        deletion_service = FlexibleDeletionService(database.session)
+        plan = deletion_service.analyze_deletion_impact('user', user_id)
+        plan.deletion_type = 'hard' if hard_delete else 'soft'
+        
+        # Apply user choices for cascade actions
+        if cascade_choices:
+            try:
+                # Handle different types of input (dict, HashMap from Java/Kotlin, etc.)
+                choices_dict = {}
+                if hasattr(cascade_choices, 'items'):
+                    # Standard dict or dict-like object
+                    choices_dict = dict(cascade_choices.items())
+                elif hasattr(cascade_choices, '__iter__'):
+                    # Handle iterables like lists of tuples
+                    choices_dict = dict(cascade_choices)
+                else:
+                    # Try to convert to dict directly
+                    choices_dict = dict(cascade_choices)
+                
+                # Process the choices
+                for relationship_name, action_str in choices_dict.items():
+                    try:
+                        action = CascadeAction(action_str)
+                        plan.user_choices[relationship_name] = action
+                    except ValueError:
+                        plan.warnings.append(f"Unknown cascade action: {action_str}")
+            except Exception as convert_error:
+                print(f"Warning: Failed to process cascade_choices: {convert_error}")
+                print(f"Type of cascade_choices: {type(cascade_choices)}")
+                # Try to inspect the object
+                try:
+                    print(f"cascade_choices attributes: {dir(cascade_choices)}")
+                except Exception:
+                    pass
+                    
+        # Enforce soft delete reversibility
+        if not hard_delete:
+            for dep in plan.dependencies:
+                if dep.relationship_name not in plan.user_choices:
+                    # Default: soft delete or nullify+broken for soft delete
+                    if CascadeAction.soft_delete in dep.available_actions:
+                        plan.user_choices[dep.relationship_name] = CascadeAction.soft_delete
+                    elif CascadeAction.nullify in dep.available_actions:
+                        plan.user_choices[dep.relationship_name] = CascadeAction.nullify
+                        
+        # For hard delete, allow more aggressive actions
+        if hard_delete:
+            for dep in plan.dependencies:
+                if dep.relationship_name not in plan.user_choices:
+                    if CascadeAction.hard_delete in dep.available_actions:
+                        plan.user_choices[dep.relationship_name] = CascadeAction.hard_delete
+                    elif CascadeAction.soft_delete in dep.available_actions:
+                        plan.user_choices[dep.relationship_name] = CascadeAction.soft_delete
+                    elif CascadeAction.nullify in dep.available_actions:
+                        plan.user_choices[dep.relationship_name] = CascadeAction.nullify
+        
+        # Execute the deletion
+        result = deletion_service.execute_deletion_plan(plan, deleted_by_user)
+        return result
+    except Exception as e:
+        print(f"Error in enhanced_delete_user: {e}")
+        return {"success": False, "message": str(e)}
 
-#database = create_database()
+def enhanced_delete_product(product_id, deleted_by_user="admin", hard_delete=False, cascade_choices=None):
+    """Enhanced deletion with user-configurable cascade options (see enhanced_delete_user for logic)"""
+    try:
+        from services.flexible_deletion_service import FlexibleDeletionService, CascadeAction
+        deletion_service = FlexibleDeletionService(database.session)
+        plan = deletion_service.analyze_deletion_impact('product', product_id)
+        plan.deletion_type = 'hard' if hard_delete else 'soft'
+        
+        if cascade_choices:
+            try:
+                # Handle different types of input (dict, HashMap from Java/Kotlin, etc.)
+                choices_dict = {}
+                if hasattr(cascade_choices, 'items'):
+                    # Standard dict or dict-like object
+                    choices_dict = dict(cascade_choices.items())
+                elif hasattr(cascade_choices, '__iter__'):
+                    # Handle iterables like lists of tuples
+                    choices_dict = dict(cascade_choices)
+                else:
+                    # Try to convert to dict directly
+                    choices_dict = dict(cascade_choices)
+                
+                # Process the choices
+                for relationship_name, action_str in choices_dict.items():
+                    try:
+                        action = CascadeAction(action_str)
+                        plan.user_choices[relationship_name] = action
+                    except ValueError:
+                        plan.warnings.append(f"Unknown cascade action: {action_str}")
+            except Exception as convert_error:
+                print(f"Warning: Failed to process cascade_choices: {convert_error}")
+                print(f"Type of cascade_choices: {type(cascade_choices)}")
+                # Try to inspect the object
+                try:
+                    print(f"cascade_choices attributes: {dir(cascade_choices)}")
+                except Exception:
+                    pass
+                    
+        # Enforce soft delete reversibility
+        if not hard_delete:
+            for dep in plan.dependencies:
+                if dep.relationship_name not in plan.user_choices:
+                    if CascadeAction.soft_delete in dep.available_actions:
+                        plan.user_choices[dep.relationship_name] = CascadeAction.soft_delete
+                    elif CascadeAction.nullify in dep.available_actions:
+                        plan.user_choices[dep.relationship_name] = CascadeAction.nullify
+                        
+        # For hard delete, allow more aggressive actions
+        if hard_delete:
+            for dep in plan.dependencies:
+                if dep.relationship_name not in plan.user_choices:
+                    if CascadeAction.hard_delete in dep.available_actions:
+                        plan.user_choices[dep.relationship_name] = CascadeAction.hard_delete
+                    elif CascadeAction.soft_delete in dep.available_actions:
+                        plan.user_choices[dep.relationship_name] = CascadeAction.soft_delete
+                    elif CascadeAction.nullify in dep.available_actions:
+                        plan.user_choices[dep.relationship_name] = CascadeAction.nullify
+        
+        result = deletion_service.execute_deletion_plan(plan, deleted_by_user)
+        return result
+    except Exception as e:
+        print(f"Error in enhanced_delete_product: {e}")
+        return {"success": False, "message": str(e)}
+
+def enhanced_delete_ingredient(ingredient_id, deleted_by_user="admin", hard_delete=False, cascade_choices=None):
+    """Enhanced deletion with user-configurable cascade options (see enhanced_delete_user for logic)"""
+    try:
+        from services.flexible_deletion_service import FlexibleDeletionService, CascadeAction
+        deletion_service = FlexibleDeletionService(database.session)
+        plan = deletion_service.analyze_deletion_impact('ingredient', ingredient_id)
+        plan.deletion_type = 'hard' if hard_delete else 'soft'
+        
+        if cascade_choices:
+            try:
+                # Handle different types of input (dict, HashMap from Java/Kotlin, etc.)
+                choices_dict = {}
+                if hasattr(cascade_choices, 'items'):
+                    # Standard dict or dict-like object
+                    choices_dict = dict(cascade_choices.items())
+                elif hasattr(cascade_choices, '__iter__'):
+                    # Handle iterables like lists of tuples
+                    choices_dict = dict(cascade_choices)
+                else:
+                    # Try to convert to dict directly
+                    choices_dict = dict(cascade_choices)
+                
+                # Process the choices
+                for relationship_name, action_str in choices_dict.items():
+                    try:
+                        action = CascadeAction(action_str)
+                        plan.user_choices[relationship_name] = action
+                    except ValueError:
+                        plan.warnings.append(f"Unknown cascade action: {action_str}")
+            except Exception as convert_error:
+                print(f"Warning: Failed to process cascade_choices: {convert_error}")
+                print(f"Type of cascade_choices: {type(cascade_choices)}")
+                # Try to inspect the object
+                try:
+                    print(f"cascade_choices attributes: {dir(cascade_choices)}")
+                except Exception:
+                    pass
+                    
+        # Enforce soft delete reversibility
+        if not hard_delete:
+            for dep in plan.dependencies:
+                if dep.relationship_name not in plan.user_choices:
+                    if CascadeAction.soft_delete in dep.available_actions:
+                        plan.user_choices[dep.relationship_name] = CascadeAction.soft_delete
+                    elif CascadeAction.nullify in dep.available_actions:
+                        plan.user_choices[dep.relationship_name] = CascadeAction.nullify
+                        
+        # For hard delete, allow more aggressive actions
+        if hard_delete:
+            for dep in plan.dependencies:
+                if dep.relationship_name not in plan.user_choices:
+                    if CascadeAction.hard_delete in dep.available_actions:
+                        plan.user_choices[dep.relationship_name] = CascadeAction.hard_delete
+                    elif CascadeAction.soft_delete in dep.available_actions:
+                        plan.user_choices[dep.relationship_name] = CascadeAction.soft_delete
+                    elif CascadeAction.nullify in dep.available_actions:
+                        plan.user_choices[dep.relationship_name] = CascadeAction.nullify
+        
+        result = deletion_service.execute_deletion_plan(plan, deleted_by_user)
+        return result
+    except Exception as e:
+        print(f"Error in enhanced_delete_ingredient: {e}")
+        return {"success": False, "message": str(e)}
+
+def analyze_deletion_impact(entity_type, entity_id):
+    """
+    Analyze what would be impacted by deleting an entity
+    Returns information about whether hard or soft deletion will be used
+    """
+    try:
+        import json
+        from services.flexible_deletion_service import FlexibleDeletionService
+        
+        deletion_service = FlexibleDeletionService(database.session)
+        plan = deletion_service.analyze_deletion_impact(entity_type, entity_id)
+        
+        result = {
+            'entity_type': plan.entity_type,
+            'entity_id': plan.entity_id,
+            'entity_name': plan.entity_name,
+            'deletion_type': plan.deletion_type,  # 'hard' or 'soft'
+            'can_proceed': plan.can_proceed,
+            'warnings': plan.warnings,
+            'errors': plan.errors,
+            'dependencies': [
+                {
+                    'table_name': dep.table_name,
+                    'relationship_name': dep.relationship_name,
+                    'count': dep.count,
+                    'sample_records': dep.sample_records[:3],  # Limit samples for API
+                    'description': dep.description,
+                    'is_critical': dep.is_critical
+                }
+                for dep in plan.dependencies
+            ]
+        }
+        return json.dumps(result)
+    except Exception as e:
+        print(f"analyze_deletion_impact error: {e}")
+        raise RuntimeError(f"Failed to analyze deletion impact: {e}") from e
+
+def execute_deletion(entity_type, entity_id, deleted_by="api"):
+    """
+    Execute deletion with simplified logic:
+    - Hard delete if no dependencies
+    - Soft delete if dependencies exist
+    - For ingredients: soft delete cascades to products
+    """
+    try:
+        import json
+        from services.flexible_deletion_service import FlexibleDeletionService
+        
+        deletion_service = FlexibleDeletionService(database.session)
+        
+        # First analyze the impact
+        plan = deletion_service.analyze_deletion_impact(entity_type, entity_id)
+        
+        if not plan.can_proceed:
+            result = {
+                'success': False,
+                'message': f"Cannot delete {entity_type}: {'; '.join(plan.errors)}",
+                'deletion_type': plan.deletion_type,
+                'affected_records': {}
+            }
+            return json.dumps(result)
+        
+        # Execute the deletion
+        result = deletion_service.execute_deletion_plan(plan, deleted_by)
+        result['deletion_type'] = plan.deletion_type  # Add deletion type to result
+        
+        return json.dumps(result)
+        
+    except Exception as e:
+        print(f"execute_deletion error: {e}")
+        raise RuntimeError(f"Failed to execute deletion: {e}") from e

@@ -1,12 +1,30 @@
-from sqlalchemy import Table, Column, Integer, String, Float, ForeignKey
+from sqlalchemy import Column, Integer, String, Float
 from sqlalchemy.orm import relationship
-from sqlalchemy import Column, Integer
 from chame_app.database import Base
-from models.soft_delete_mixin import SoftDeleteMixin
+from models.enhanced_soft_delete_mixin import EnhancedSoftDeleteMixin, SoftDeleteCascadeRule, HardDeleteCascadeRule
 from utils.firebase_logger import log_debug, log_error
 
-class Ingredient(Base, SoftDeleteMixin):
+class Ingredient(Base, EnhancedSoftDeleteMixin):
     __tablename__ = "ingredients"
+
+    # Define cascade rules for ingredients
+    _cascade_rules = [
+        SoftDeleteCascadeRule(
+            "ingredient_products", 
+            SoftDeleteCascadeRule.CASCADE_DISABLE,
+            condition_callback=lambda pi: hasattr(pi, 'product') and pi.product and pi.product.is_available
+        )
+    ]
+    
+    # Define hard delete rules for ingredients
+    _hard_delete_rules = [
+        HardDeleteCascadeRule(
+            "ingredient_products",
+            HardDeleteCascadeRule.CASCADE_RESTRICT,  # Prevent deletion if products use this ingredient
+            condition_callback=lambda pi: pi.product and pi.product.is_available,
+            cascade_order=0
+        )
+    ]
 
     ingredient_id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
@@ -47,7 +65,13 @@ class Ingredient(Base, SoftDeleteMixin):
                 "number_of_units": self.number_of_units,
                 "price_per_unit": _round(self.price_per_unit),
                 "stock_quantity": _round(self.stock_quantity),
-                "pfand": _round(self.pfand)
+                "pfand": _round(self.pfand),
+                # Add soft delete fields for restore functionality
+                "is_deleted": getattr(self, 'is_deleted', False),
+                "deleted_at": self.deleted_at.isoformat() if getattr(self, 'deleted_at', None) else None,
+                "deleted_by": getattr(self, 'deleted_by', None),
+                "is_disabled": getattr(self, 'is_disabled', False),
+                "disabled_reason": getattr(self, 'disabled_reason', None),
             }
             
             if include_products:

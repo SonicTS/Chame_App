@@ -87,6 +87,27 @@ class SimpleMigrations:
                 UPDATE ingredients SET deleted_at = NULL WHERE deleted_at IS NULL;
                 UPDATE ingredients SET deleted_by = NULL WHERE deleted_by IS NULL;
             """,
+            "004_add_enhanced_soft_delete_columns": """
+                -- Add enhanced soft delete columns to users table
+                ALTER TABLE users ADD COLUMN is_disabled BOOLEAN DEFAULT FALSE NOT NULL;
+                ALTER TABLE users ADD COLUMN disabled_reason VARCHAR(255);
+                
+                -- Add enhanced soft delete columns to products table
+                ALTER TABLE products ADD COLUMN is_disabled BOOLEAN DEFAULT FALSE NOT NULL;
+                ALTER TABLE products ADD COLUMN disabled_reason VARCHAR(255);
+                
+                -- Add enhanced soft delete columns to ingredients table
+                ALTER TABLE ingredients ADD COLUMN is_disabled BOOLEAN DEFAULT FALSE NOT NULL;
+                ALTER TABLE ingredients ADD COLUMN disabled_reason VARCHAR(255);
+                
+                -- Update existing records to have is_disabled = FALSE (default value should handle this, but ensure it)
+                UPDATE users SET is_disabled = FALSE WHERE is_disabled IS NULL;
+                UPDATE users SET disabled_reason = NULL WHERE disabled_reason IS NULL;
+                UPDATE products SET is_disabled = FALSE WHERE is_disabled IS NULL;
+                UPDATE products SET disabled_reason = NULL WHERE disabled_reason IS NULL;
+                UPDATE ingredients SET is_disabled = FALSE WHERE is_disabled IS NULL;
+                UPDATE ingredients SET disabled_reason = NULL WHERE disabled_reason IS NULL;
+            """,
             # Add more migrations here as needed
         }
     

@@ -106,6 +106,21 @@ class PyBridge {
     }
   }
 
+  Future<String?> changeUserRole({
+    required int userId,
+    required String newRole,
+  }) async {
+    try {
+      await _chan.invokeMethod('change_user_role', {
+        'user_id': userId,
+        'new_role': newRole,
+      });
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   Future<String?> withdraw({
     required int userId,
     required double amount,
@@ -473,236 +488,263 @@ class PyBridge {
     }
   }
 
-  Future<Map<String, dynamic>> safeDeleteUser({
+  // ========== ENHANCED DELETION METHODS ==========
+
+  Future<Map<String, dynamic>> enhancedDeleteUser({
     required int userId,
-    bool force = false,
+    String deletedByUser = "admin",
+    bool hardDelete = false,
+    Map<String, String>? cascadeChoices,
   }) async {
     try {
-      final result = await _chan.invokeMethod('safe_delete_user', {
+      final result = await _chan.invokeMethod('enhanced_delete_user', {
         'user_id': userId,
-        'force': force,
+        'deleted_by_user': deletedByUser,
+        'hard_delete': hardDelete,
+        'cascade_choices': jsonEncode(cascadeChoices ?? {}),
       });
       if (result == null || result == 'null') {
-        throw Exception('Failed to delete user: No response from backend');
+        return {'success': false, 'message': 'No response from server'};
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in safeDeleteUser: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
-      rethrow;
+      print('Error in enhancedDeleteUser: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      return {'success': false, 'message': e.toString()};
     }
   }
 
-  Future<Map<String, dynamic>> safeDeleteProduct({
+  Future<Map<String, dynamic>> enhancedDeleteProduct({
     required int productId,
-    bool force = false,
+    String deletedByUser = "admin",
+    bool hardDelete = false,
+    Map<String, String>? cascadeChoices,
   }) async {
     try {
-      final result = await _chan.invokeMethod('safe_delete_product', {
+      final result = await _chan.invokeMethod('enhanced_delete_product', {
         'product_id': productId,
-        'force': force,
+        'deleted_by_user': deletedByUser,
+        'hard_delete': hardDelete,
+        'cascade_choices': jsonEncode(cascadeChoices ?? {}),
       });
       if (result == null || result == 'null') {
-        throw Exception('Failed to delete product: No response from backend');
+        return {'success': false, 'message': 'No response from server'};
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in safeDeleteProduct: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
-      rethrow;
+      print('Error in enhancedDeleteProduct: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      return {'success': false, 'message': e.toString()};
     }
   }
 
-  Future<Map<String, dynamic>> safeDeleteIngredient({
+  Future<Map<String, dynamic>> enhancedDeleteIngredient({
     required int ingredientId,
-    bool force = false,
+    String deletedByUser = "admin",
+    bool hardDelete = false,
+    Map<String, String>? cascadeChoices,
   }) async {
     try {
-      final result = await _chan.invokeMethod('safe_delete_ingredient', {
+      final result = await _chan.invokeMethod('enhanced_delete_ingredient', {
         'ingredient_id': ingredientId,
-        'force': force,
+        'deleted_by_user': deletedByUser,
+        'hard_delete': hardDelete,
+        'cascade_choices': jsonEncode(cascadeChoices ?? {}),
       });
       if (result == null || result == 'null') {
-        throw Exception('Failed to delete ingredient: No response from backend');
+        return {'success': false, 'message': 'No response from server'};
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in safeDeleteIngredient: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
-      rethrow;
+      print('Error in enhancedDeleteIngredient: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      return {'success': false, 'message': e.toString()};
     }
   }
 
-  Future<Map<String, dynamic>> deleteSaleRecord({
-    required int saleId,
-    required int adminUserId,
+  Future<Map<String, dynamic>> getDeletionImpactAnalysis({
+    required String entityType,
+    required int entityId,
   }) async {
     try {
-      final result = await _chan.invokeMethod('delete_sale_record', {
-        'sale_id': saleId,
-        'admin_user_id': adminUserId,
+      final result = await _chan.invokeMethod('get_deletion_impact_analysis', {
+        'entity_type': entityType,
+        'entity_id': entityId,
       });
       if (result == null || result == 'null') {
-        throw Exception('Failed to delete sale record: No response from backend');
+        return {};
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in deleteSaleRecord: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print('Error in getDeletionImpactAnalysis: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
       rethrow;
     }
   }
 
-  // Change user role
-  Future<String?> changeUserRole({
-    required int userId,
-    required String newRole,
-  }) async {
-    try {
-      await _chan.invokeMethod('change_user_role', {
-        'user_id': userId,
-        'new_role': newRole,
-      });
-      return null; // Success, no error
-    } catch (e, stack) {
-      print('Error in changeUserRole: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
-      return e.toString();
-    }
-  }
+  // ========== RESTORE METHODS ==========
 
-  // Soft delete user
-  Future<String?> softDeleteUser({
-    required int userId,
-    required String deletedBy,
-  }) async {
-    try {
-      await _chan.invokeMethod('soft_delete_user', {
-        'user_id': userId,
-        'deleted_by': deletedBy,
-      });
-      return null; // Success, no error
-    } catch (e, stack) {
-      print('Error in softDeleteUser: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
-      return e.toString();
-    }
-  }
-
-  // Soft delete product
-  Future<String?> softDeleteProduct({
-    required int productId,
-    required String deletedBy,
-  }) async {
-    try {
-      await _chan.invokeMethod('soft_delete_product', {
-        'product_id': productId,
-        'deleted_by': deletedBy,
-      });
-      return null; // Success, no error
-    } catch (e, stack) {
-      print('Error in softDeleteProduct: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
-      return e.toString();
-    }
-  }
-
-  // Soft delete ingredient
-  Future<String?> softDeleteIngredient({
-    required int ingredientId,
-    required String deletedBy,
-  }) async {
-    try {
-      await _chan.invokeMethod('soft_delete_ingredient', {
-        'ingredient_id': ingredientId,
-        'deleted_by': deletedBy,
-      });
-      return null; // Success, no error
-    } catch (e, stack) {
-      print('Error in softDeleteIngredient: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
-      return e.toString();
-    }
-  }
-
-  // Restore user
-  Future<String?> restoreUser({
-    required int userId,
-  }) async {
-    try {
-      await _chan.invokeMethod('restore_user', {
-        'user_id': userId,
-      });
-      return null; // Success, no error
-    } catch (e, stack) {
-      print('Error in restoreUser: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
-      return e.toString();
-    }
-  }
-
-  // Restore product
-  Future<String?> restoreProduct({
-    required int productId,
-  }) async {
-    try {
-      await _chan.invokeMethod('restore_product', {
-        'product_id': productId,
-      });
-      return null; // Success, no error
-    } catch (e, stack) {
-      print('Error in restoreProduct: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
-      return e.toString();
-    }
-  }
-
-  // Restore ingredient
-  Future<String?> restoreIngredient({
-    required int ingredientId,
-  }) async {
-    try {
-      await _chan.invokeMethod('restore_ingredient', {
-        'ingredient_id': ingredientId,
-      });
-      return null; // Success, no error
-    } catch (e, stack) {
-      print('Error in restoreIngredient: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
-      return e.toString();
-    }
-  }
-
-  // Get deleted users
-  Future<List<Map<String, dynamic>>> getDeletedUsers() async {
-    try {
-      final result = await _chan.invokeMethod('get_deleted_users');
-      if (result == null || result == 'null') {
-        return <Map<String, dynamic>>[];
-      }
-      final List<dynamic> decoded = jsonDecode(result as String);
-      return decoded.cast<Map<String, dynamic>>();
-    } catch (e, stack) {
-      print('Error in getDeletedUsers: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
-      rethrow;
-    }
-  }
-
-  // Get deleted products
   Future<List<Map<String, dynamic>>> getDeletedProducts() async {
     try {
       final result = await _chan.invokeMethod('get_deleted_products');
       if (result == null || result == 'null') {
-        return <Map<String, dynamic>>[];
+        throw Exception('Failed to get deleted products: No response from backend');
       }
-      final List<dynamic> decoded = jsonDecode(result as String);
-      return decoded.cast<Map<String, dynamic>>();
+      final List<dynamic> data = jsonDecode(result as String) as List<dynamic>;
+      return data.map((item) => item as Map<String, dynamic>).toList();
     } catch (e, stack) {
       print('Error in getDeletedProducts: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
       rethrow;
     }
   }
 
-  // Get deleted ingredients
   Future<List<Map<String, dynamic>>> getDeletedIngredients() async {
     try {
       final result = await _chan.invokeMethod('get_deleted_ingredients');
       if (result == null || result == 'null') {
-        return <Map<String, dynamic>>[];
+        throw Exception('Failed to get deleted ingredients: No response from backend');
       }
-      final List<dynamic> decoded = jsonDecode(result as String);
-      return decoded.cast<Map<String, dynamic>>();
+      final List<dynamic> data = jsonDecode(result as String) as List<dynamic>;
+      return data.map((item) => item as Map<String, dynamic>).toList();
     } catch (e, stack) {
       print('Error in getDeletedIngredients: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getDeletedUsers() async {
+    try {
+      final result = await _chan.invokeMethod('get_deleted_users');
+      if (result == null || result == 'null') {
+        throw Exception('Failed to get deleted users: No response from backend');
+      }
+      final List<dynamic> data = jsonDecode(result as String) as List<dynamic>;
+      return data.map((item) => item as Map<String, dynamic>).toList();
+    } catch (e, stack) {
+      print('Error in getDeletedUsers: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  Future<String?> restoreProduct({required int productId}) async {
+    try {
+      final result = await _chan.invokeMethod('restore_product', {
+        'product_id': productId,
+      });
+      if (result == null || result == 'null') {
+        return null;
+      }
+      return result as String;
+    } catch (e, stack) {
+      print('Error in restoreProduct: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      return 'Error restoring product: $e';
+    }
+  }
+
+  Future<String?> restoreIngredient({required int ingredientId}) async {
+    try {
+      final result = await _chan.invokeMethod('restore_ingredient', {
+        'ingredient_id': ingredientId,
+      });
+      if (result == null || result == 'null') {
+        return null;
+      }
+      return result as String;
+    } catch (e, stack) {
+      print('Error in restoreIngredient: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      return 'Error restoring ingredient: $e';
+    }
+  }
+
+  Future<String?> restoreUser({required int userId}) async {
+    try {
+      final result = await _chan.invokeMethod('restore_user', {
+        'user_id': userId,
+      });
+      if (result == null || result == 'null') {
+        return null;
+      }
+      return result as String;
+    } catch (e, stack) {
+      print('Error in restoreUser: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      return 'Error restoring user: $e';
+    }
+  }
+
+  // ========== SAFE DELETION METHODS ==========
+  
+  Future<Map<String, dynamic>> safeDeleteUser({
+    required int userId,
+    bool force = false,
+  }) async {
+    return await enhancedDeleteUser(
+      userId: userId,
+      hardDelete: force,
+    );
+  }
+
+  Future<Map<String, dynamic>> safeDeleteProduct({
+    required int productId,
+    bool force = false,
+  }) async {
+    return await enhancedDeleteProduct(
+      productId: productId,
+      hardDelete: force,
+    );
+  }
+
+  Future<Map<String, dynamic>> safeDeleteIngredient({
+    required int ingredientId,
+    bool force = false,
+  }) async {
+    return await enhancedDeleteIngredient(
+      ingredientId: ingredientId,
+      hardDelete: force,
+    );
+  }
+
+  // ========== NEW SIMPLIFIED DELETION SYSTEM ==========
+  
+  /// Analyze what would happen when deleting an entity
+  /// Returns information about whether hard or soft deletion will be used
+  Future<Map<String, dynamic>> analyzeDeletionImpact({
+    required String entityType,
+    required int entityId,
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('analyze_deletion_impact', {
+        'entity_type': entityType,
+        'entity_id': entityId,
+      });
+      
+      if (result == null || result == 'null') {
+        throw Exception('No response from backend');
+      }
+      
+      return jsonDecode(result as String) as Map<String, dynamic>;
+    } catch (e, stack) {
+      print('Error in analyzeDeletionImpact: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+  
+  /// Execute deletion with simplified logic
+  /// Automatically chooses hard vs soft deletion based on dependencies
+  Future<Map<String, dynamic>> executeDeletion({
+    required String entityType,
+    required int entityId,
+    String deletedBy = "flutter_admin",
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('execute_deletion', {
+        'entity_type': entityType,
+        'entity_id': entityId,
+        'deleted_by': deletedBy,
+      });
+      
+      if (result == null || result == 'null') {
+        throw Exception('No response from backend');
+      }
+      
+      return jsonDecode(result as String) as Map<String, dynamic>;
+    } catch (e, stack) {
+      print('Error in executeDeletion: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
       rethrow;
     }
   }
