@@ -346,6 +346,23 @@ class MainActivity : FlutterActivity() {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
                     }
                 }
+                "get_all_raw_products" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val pyResult = pyModule.callAttr("get_all_raw_products")
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
                 "get_all_toast_rounds" -> {
                     val pyModule = py.getModule("services.admin_api")
                         ?: return@setMethodCallHandler result.error(
@@ -1107,6 +1124,28 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 
+                "make_multiple_purchases" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val itemListJson = call.argument<String>("item_list")
+                        if (itemListJson == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for make_multiple_purchases", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        // Parse JSON to Python object
+                        val jsonModule = py.getModule("json")
+                        val itemList = jsonModule.callAttr("loads", itemListJson)
+                        
+                        pyModule.callAttr("make_multiple_purchases", itemList)
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
                 else -> result.notImplemented()
             }
             

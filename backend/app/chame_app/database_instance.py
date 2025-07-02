@@ -441,6 +441,33 @@ class Database:
                     session.close()
             raise RuntimeError(f"return_deposit failed for User={user_name}, Product={product_name}, quantity={quantity}: {e}") from e
 
+    def make_multiple_purchases(self, item_list: List[dict], session=None):
+        """Make multiple purchases in a single transaction."""
+        close_session = False
+        try:
+            if session is None:
+                session = self.get_session()
+                close_session = True
+            if not item_list or not isinstance(item_list, list):
+                raise ValueError("Invalid input: item_list must be a non-empty list")
+            for item in item_list:
+                if not isinstance(item, dict) or 'product_id' not in item or 'quantity' not in item or 'consumer_id' not in item:
+                    raise ValueError("Each item must be a dict with 'product_id', 'quantity', and 'consumer_id'")
+            purchases = []
+            for item in item_list:
+                purchase = self.make_purchase(item['consumer_id'], item['product_id'], item['quantity'], donator_id=item.get('donator_id', None), session=session)
+                purchases.append(purchase)
+            if close_session:
+                session.commit()
+                session.close()
+            return purchases
+        except Exception as e:           
+            if session:
+                session.rollback()
+                if close_session:
+                    session.close()
+            raise RuntimeError(f"make_multiple_purchases failed: {e}") from e
+
     def make_purchase(self, consumer_id: int, product_id: int, quantity: int, session=None, toast_round_id: int = 0, donator_id: Optional[int] = None) -> Sale:
         # Firebase logging with debug output
         print("🔥 [DATABASE] Logging purchase initiation to Firebase...")

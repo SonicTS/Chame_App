@@ -10,15 +10,783 @@ class PurchasePage extends StatefulWidget {
   State<PurchasePage> createState() => _PurchasePageState();
 }
 
+// User Selection Widget
+class _UserSelectionWidget extends StatelessWidget {
+  final List<Map<String, dynamic>> users;
+  final int? selectedUserId;
+  final Map<String, dynamic>? selectedUser;
+  final Function(Map<String, dynamic>?) onUserChanged;
+
+  const _UserSelectionWidget({
+    required this.users,
+    required this.selectedUserId,
+    required this.selectedUser,
+    required this.onUserChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownSearch<Map<String, dynamic>>(
+          items: (String? filter, _) {
+            final filtered = filter == null || filter.isEmpty
+                ? users
+                : users.where((u) => (u['name'] ?? '').toLowerCase().contains(filter.toLowerCase())).toList();
+            return Future.value(filtered);
+          },
+          selectedItem: users.firstWhereOrNull((u) => u['user_id'] == selectedUserId),
+          itemAsString: (u) => u['name'] ?? '',
+          compareFn: (a, b) => a['user_id'] == b['user_id'],
+          onChanged: onUserChanged,
+          popupProps: const PopupProps.menu(
+            showSearchBox: true,
+          ),
+          decoratorProps: const DropDownDecoratorProps(
+            decoration: InputDecoration(labelText: 'Select User'),
+          ),
+        ),
+        if (selectedUser != null) ...[
+          const SizedBox(height: 12),
+          _UserBalanceCard(balance: (selectedUser!['balance'] as num?)?.toDouble() ?? 0.0),
+        ],
+      ],
+    );
+  }
+}
+
+// User Balance Card Widget
+class _UserBalanceCard extends StatelessWidget {
+  final double balance;
+  final double? pendingDeduction;
+  final bool isProcessing;
+
+  const _UserBalanceCard({
+    required this.balance,
+    this.pendingDeduction,
+    this.isProcessing = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveBalance = pendingDeduction != null 
+        ? balance - pendingDeduction! 
+        : balance;
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isProcessing 
+            ? [Colors.orange.shade50, Colors.orange.shade100]
+            : [Colors.blue.shade50, Colors.blue.shade100],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isProcessing 
+            ? Colors.orange.shade300 
+            : Colors.blue.shade300, 
+          width: 2
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (isProcessing 
+              ? Colors.orange.shade200 
+              : Colors.blue.shade200).withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isProcessing 
+                ? Colors.orange.shade600 
+                : Colors.blue.shade600,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              isProcessing 
+                ? Icons.hourglass_empty 
+                : Icons.account_balance_wallet, 
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isProcessing ? 'Processing...' : 'Current Balance',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Text(
+                      '€${effectiveBalance.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 24,
+                        color: effectiveBalance > 0 ? Colors.green : Colors.red,
+                      ),
+                    ),
+                    if (pendingDeduction != null && !isProcessing) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        '(-€${pendingDeduction!.toStringAsFixed(2)})',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.red,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (isProcessing)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Icon(
+              effectiveBalance > 0 ? Icons.check_circle : Icons.warning,
+              color: effectiveBalance > 0 ? Colors.green : Colors.orange,
+              size: 20,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// Product Selection Widget
+class _ProductSelectionWidget extends StatelessWidget {
+  final List<Map<String, dynamic>> products;
+  final int? selectedProductId;
+  final int quantity;
+  final Function(Map<String, dynamic>?) onProductChanged;
+  final Function(int) onQuantityChanged;
+
+  const _ProductSelectionWidget({
+    required this.products,
+    required this.selectedProductId,
+    required this.quantity,
+    required this.onProductChanged,
+    required this.onQuantityChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownSearch<Map<String, dynamic>>(
+          items: (String? filter, _) {
+            final filtered = filter == null || filter.isEmpty
+                ? products
+                : products.where((p) => (p['name'] ?? '').toLowerCase().contains(filter.toLowerCase())).toList();
+            return Future.value(filtered);
+          },
+          selectedItem: products.firstWhereOrNull((p) => p['product_id'] == selectedProductId),
+          itemAsString: (p) => p['name'] ?? '',
+          compareFn: (a, b) => a['product_id'] == b['product_id'],
+          onChanged: onProductChanged,
+          popupProps: const PopupProps.menu(
+            showSearchBox: true,
+          ),
+          decoratorProps: const DropDownDecoratorProps(
+            decoration: InputDecoration(labelText: 'Select Product'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: 120,
+          child: TextFormField(
+            initialValue: quantity.toString(),
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'Quantity'),
+            onChanged: (v) => onQuantityChanged(int.tryParse(v) ?? 1),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Action Buttons Widget
+class _ActionButtonsWidget extends StatelessWidget {
+  final bool isSubmitting;
+  final bool canAddToCart;
+  final VoidCallback? onAddToCart;
+  final VoidCallback? onBuyNow;
+
+  const _ActionButtonsWidget({
+    required this.isSubmitting,
+    required this.canAddToCart,
+    this.onAddToCart,
+    this.onBuyNow,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 400) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ElevatedButton(
+                onPressed: canAddToCart ? onAddToCart : null,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: const Text('Add to Cart'),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: isSubmitting ? null : onBuyNow,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: isSubmitting
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Buy Now'),
+              ),
+            ],
+          );
+        } else {
+          return Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: canAddToCart ? onAddToCart : null,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Add to Cart'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: isSubmitting ? null : onBuyNow,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: isSubmitting
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Buy Now'),
+                ),
+              ),
+            ],
+          );
+        }
+      },
+    );
+  }
+}
+
+// Shopping Cart Item Widget
+class _CartItemWidget extends StatelessWidget {
+  final Map<String, dynamic> item;
+  final int index;
+  final Function(int) onRemove;
+  final Function(int, int) onQuantityChanged;
+
+  const _CartItemWidget({
+    required this.item,
+    required this.index,
+    required this.onRemove,
+    required this.onQuantityChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final product = item['product'] as Map<String, dynamic>;
+    final quantity = item['quantity'] as int;
+    final price = (product['price_per_unit'] as num?)?.toDouble() ?? 0.0;
+    final total = price * quantity;
+
+    return Padding(
+      padding: const EdgeInsets.all(12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  product['name'] ?? '',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () => onRemove(index),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '€${price.toStringAsFixed(2)} each',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _QuantityControls(
+                quantity: quantity,
+                onChanged: (newQuantity) => onQuantityChanged(index, newQuantity),
+              ),
+              Text(
+                '€${total.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: Colors.green,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Quantity Controls Widget
+class _QuantityControls extends StatelessWidget {
+  final int quantity;
+  final Function(int) onChanged;
+
+  const _QuantityControls({
+    required this.quantity,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.remove, size: 18),
+            onPressed: () => onChanged(quantity - 1),
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              '$quantity',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add, size: 18),
+            onPressed: () => onChanged(quantity + 1),
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Shopping Cart Widget
+class _ShoppingCartWidget extends StatelessWidget {
+  final List<Map<String, dynamic>> shoppingCart;
+  final double totalCost;
+  final bool isSubmitting;
+  final VoidCallback onPurchaseAll;
+  final VoidCallback onClearCart;
+  final Function(int) onRemoveItem;
+  final Function(int, int) onUpdateQuantity;
+
+  const _ShoppingCartWidget({
+    required this.shoppingCart,
+    required this.totalCost,
+    required this.isSubmitting,
+    required this.onPurchaseAll,
+    required this.onClearCart,
+    required this.onRemoveItem,
+    required this.onUpdateQuantity,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (shoppingCart.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Shopping Cart', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            children: [
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: shoppingCart.length,
+                separatorBuilder: (context, index) => const Divider(height: 1),
+                itemBuilder: (context, index) => _CartItemWidget(
+                  item: shoppingCart[index],
+                  index: index,
+                  onRemove: onRemoveItem,
+                  onQuantityChanged: onUpdateQuantity,
+                ),
+              ),
+              const Divider(),
+              _CartTotalWidget(
+                totalCost: totalCost,
+                isSubmitting: isSubmitting,
+                onPurchaseAll: onPurchaseAll,
+                onClearCart: onClearCart,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Cart Total Widget
+class _CartTotalWidget extends StatelessWidget {
+  final double totalCost;
+  final bool isSubmitting;
+  final VoidCallback onPurchaseAll;
+  final VoidCallback onClearCart;
+
+  const _CartTotalWidget({
+    required this.totalCost,
+    required this.isSubmitting,
+    required this.onPurchaseAll,
+    required this.onClearCart,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Total:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+              Text(
+                '€${totalCost.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                  color: Colors.green,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Column(
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: isSubmitting ? null : onPurchaseAll,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: isSubmitting
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Purchase All', style: TextStyle(fontSize: 16)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: onClearCart,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Clear Cart', style: TextStyle(fontSize: 16)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Sales Configuration Widget
+class _SalesConfigWidget extends StatelessWidget {
+  final String salesConfig;
+  final Function(String) onConfigChanged;
+
+  const _SalesConfigWidget({
+    required this.salesConfig,
+    required this.onConfigChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Text('Configure Sales Table:', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: DropdownButton<String>(
+            value: salesConfig,
+            isExpanded: true,
+            items: const [
+              DropdownMenuItem(value: 'all', child: Text('All')),
+              DropdownMenuItem(value: 'raw', child: Text('Raw')),
+              DropdownMenuItem(value: 'toast', child: Text('Toast')),
+            ],
+            onChanged: (val) => onConfigChanged(val!),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Sales Table Widget
+class _SalesTableWidget extends StatefulWidget {
+  final Future<List<Map<String, dynamic>>> salesFuture;
+  final String salesConfig;
+
+  const _SalesTableWidget({
+    required this.salesFuture,
+    required this.salesConfig,
+  });
+
+  @override
+  State<_SalesTableWidget> createState() => _SalesTableWidgetState();
+}
+
+class _SalesTableWidgetState extends State<_SalesTableWidget> {
+  final ScrollController _horizontalScrollController = ScrollController();
+  final ScrollController _verticalScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontalScrollController.dispose();
+    _verticalScrollController.dispose();
+    super.dispose();
+  }
+
+  String _formatTimestamp(dynamic ts) {
+    if (ts == null) return '';
+    if (ts is DateTime) return ts.toString();
+    if (ts is String) return ts;
+    return ts.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: widget.salesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final sales = snapshot.data ?? [];
+        final filteredSales = widget.salesConfig == 'all'
+            ? sales
+            : sales.where((s) => s['product']?['category'] == widget.salesConfig).toList();
+        
+        if (filteredSales.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Text('No sales found.'),
+            ),
+          );
+        }
+        
+        return Container(
+          height: 300,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Scrollbar(
+            controller: _horizontalScrollController,
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              controller: _horizontalScrollController,
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minWidth: MediaQuery.of(context).size.width - 32,
+                ),
+                child: Scrollbar(
+                  controller: _verticalScrollController,
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    controller: _verticalScrollController,
+                    scrollDirection: Axis.vertical,
+                    child: _buildDataTable(filteredSales),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDataTable(List<Map<String, dynamic>> sales) {
+    return DataTable(
+      columnSpacing: 12,
+      horizontalMargin: 12,
+      dataRowMinHeight: 48,
+      headingRowHeight: 48,
+      columns: const [
+        DataColumn(label: Text('ID', style: TextStyle(fontWeight: FontWeight.bold))),
+        DataColumn(label: Text('Consumer', style: TextStyle(fontWeight: FontWeight.bold))),
+        DataColumn(label: Text('Donator', style: TextStyle(fontWeight: FontWeight.bold))),
+        DataColumn(label: Text('Product', style: TextStyle(fontWeight: FontWeight.bold))),
+        DataColumn(label: Text('Qty', style: TextStyle(fontWeight: FontWeight.bold))),
+        DataColumn(label: Text('Price', style: TextStyle(fontWeight: FontWeight.bold))),
+        DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
+      ],
+      rows: sales.map((sale) => _buildDataRow(sale)).toList(),
+    );
+  }
+
+  DataRow _buildDataRow(Map<String, dynamic> sale) {
+    String consumer = '';
+    String donator = '';
+    String product = '';
+    
+    try {
+      final consumerField = sale['consumer'];
+      final donatorField = sale['donator'];
+      final productField = sale['product'];
+      
+      consumer = consumerField is Map && consumerField['name'] != null
+          ? consumerField['name'].toString()
+          : consumerField?.toString() ?? '';
+      donator = donatorField == null
+          ? ''
+          : (donatorField is Map && donatorField['name'] != null
+              ? donatorField['name'].toString()
+              : donatorField.toString());
+      product = productField is Map && productField['name'] != null
+          ? productField['name'].toString()
+          : productField?.toString() ?? '';
+    } catch (e) {
+      consumer = sale['consumer']?.toString() ?? '';
+      donator = sale['donator']?.toString() ?? '';
+      product = sale['product']?.toString() ?? '';
+    }
+    
+    String formattedDate = '';
+    try {
+      final timestamp = sale['timestamp'];
+      if (timestamp != null) {
+        final dateStr = _formatTimestamp(timestamp);
+        if (dateStr.isNotEmpty) {
+          final parts = dateStr.split(' ');
+          if (parts.length >= 2) {
+            final datePart = parts[0];
+            final timePart = parts[1].split(':').take(2).join(':');
+            formattedDate = '$datePart\n$timePart';
+          } else {
+            formattedDate = dateStr;
+          }
+        }
+      }
+    } catch (e) {
+      formattedDate = _formatTimestamp(sale['timestamp']);
+    }
+    
+    return DataRow(
+      key: ValueKey(sale['sale_id']),
+      cells: [
+        DataCell(Text(sale['sale_id']?.toString() ?? '', style: const TextStyle(fontSize: 12))),
+        DataCell(SizedBox(width: 80, child: Text(consumer, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis, maxLines: 2))),
+        DataCell(SizedBox(width: 80, child: Text(donator, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis, maxLines: 2))),
+        DataCell(SizedBox(width: 100, child: Text(product, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis, maxLines: 2))),
+        DataCell(Text(sale['quantity']?.toString() ?? '', style: const TextStyle(fontSize: 12))),
+        DataCell(Text('€${sale['total_price']?.toString() ?? ''}', style: const TextStyle(fontSize: 12))),
+        DataCell(SizedBox(width: 80, child: Text(formattedDate, style: const TextStyle(fontSize: 10), maxLines: 2, overflow: TextOverflow.ellipsis))),
+      ],
+    );
+  }
+}
+
 class _PurchasePageState extends State<PurchasePage> {
   late Future<List<Map<String, dynamic>>> _usersFuture;
   late Future<List<Map<String, dynamic>>> _productsFuture;
   late Future<List<Map<String, dynamic>>> _salesFuture;
   int? _selectedUserId;
+  Map<String, dynamic>? _selectedUser;
   int? _selectedProductId;
   int _quantity = 1;
   bool _isSubmitting = false;
   String _salesConfig = 'all';
+  
+  // Shopping cart functionality
+  List<Map<String, dynamic>> _shoppingCart = [];
+  double _totalCost = 0.0;
 
   @override
   void initState() {
@@ -29,15 +797,136 @@ class _PurchasePageState extends State<PurchasePage> {
   void _fetchAll() {
     setState(() {
       _usersFuture = PyBridge().getAllUsers();
-      _productsFuture = PyBridge().getAllProducts();
+      _productsFuture = PyBridge().getAllRawProducts();
       _salesFuture = PyBridge().getAllSales();
+    });
+    
+    // Update the selected user data to reflect current balance
+    _updateSelectedUserData();
+  }
+
+  Future<void> _updateSelectedUserData() async {
+    if (_selectedUserId != null) {
+      try {
+        final users = await _usersFuture;
+        final updatedUser = users.firstWhere(
+          (user) => user['user_id'] == _selectedUserId,
+          orElse: () => <String, dynamic>{},
+        );
+        
+        if (updatedUser.isNotEmpty && mounted) {
+          setState(() {
+            _selectedUser = updatedUser;
+          });
+        }
+      } catch (e) {
+        // Handle error gracefully - user data will be updated when UI rebuilds
+      }
+    }
+  }
+
+  void _addToCart(Map<String, dynamic> product, int quantity) {
+    if (quantity < 1) return;
+    
+    setState(() {
+      final existingIndex = _shoppingCart.indexWhere(
+        (item) => item['product']['product_id'] == product['product_id']
+      );
+      
+      if (existingIndex >= 0) {
+        _shoppingCart[existingIndex]['quantity'] += quantity;
+      } else {
+        _shoppingCart.add({
+          'product': product,
+          'quantity': quantity,
+        });
+      }
+      
+      _updateTotalCost();
     });
   }
 
-  void _reloadSales() {
+  void _removeFromCart(int index) {
     setState(() {
-      _salesFuture = PyBridge().getAllSales();
+      _shoppingCart.removeAt(index);
+      _updateTotalCost();
     });
+  }
+
+  void _updateCartQuantity(int index, int newQuantity) {
+    if (newQuantity < 1) {
+      _removeFromCart(index);
+      return;
+    }
+    
+    setState(() {
+      _shoppingCart[index]['quantity'] = newQuantity;
+      _updateTotalCost();
+    });
+  }
+
+  void _updateTotalCost() {
+    _totalCost = _shoppingCart.fold<double>(0.0, (sum, item) {
+      final price = (item['product']['price_per_unit'] as num?)?.toDouble() ?? 0.0;
+      final quantity = item['quantity'] as int;
+      return sum + (price * quantity);
+    });
+  }
+
+  void _clearCart() {
+    setState(() {
+      _shoppingCart.clear();
+      _totalCost = 0.0;
+    });
+  }
+
+  Future<void> _submitMultiplePurchases() async {
+    if (_selectedUserId == null || _shoppingCart.isEmpty) {
+      _showDialog('Error', 'Please select a user and add items to cart.');
+      return;
+    }
+
+    if (_selectedUser != null) {
+      final userBalance = (_selectedUser!['balance'] as num?)?.toDouble() ?? 0.0;
+      if (userBalance < _totalCost) {
+        _showDialog('Error', 'Insufficient balance. User balance: €${userBalance.toStringAsFixed(2)}, Total cost: €${_totalCost.toStringAsFixed(2)}');
+        return;
+      }
+    }
+
+    setState(() => _isSubmitting = true);
+    
+    final itemList = _shoppingCart.map((item) => {
+      'consumer_id': _selectedUserId!,
+      'product_id': item['product']['product_id'] as int,
+      'quantity': item['quantity'] as int,
+    }).toList();
+
+    final error = await PyBridge().makeMultiplePurchases(itemList: itemList);
+    setState(() => _isSubmitting = false);
+    
+    if (error != null) {
+      _showDialog('Error', error);
+    } else {
+      final oldBalance = (_selectedUser?['balance'] as num?)?.toDouble() ?? 0.0;
+      final newBalance = oldBalance - _totalCost;
+      
+      _showDialog('Success', 
+        'Purchase successful!\n'
+        'Total: €${_totalCost.toStringAsFixed(2)}\n'
+        'Previous balance: €${oldBalance.toStringAsFixed(2)}\n'
+        'New balance: €${newBalance.toStringAsFixed(2)}'
+      );
+      
+      _clearCart();
+      // Reset form for next purchase
+      setState(() {
+        _selectedProductId = null;
+        _quantity = 1;
+      });
+      // Refresh all data after successful purchase - most importantly user balance
+      _fetchAll(); 
+    }
   }
 
   Future<void> _submit() async {
@@ -45,19 +934,21 @@ class _PurchasePageState extends State<PurchasePage> {
       _showDialog('Error', 'Please select user, product, and enter a valid quantity.');
       return;
     }
-    setState(() => _isSubmitting = true);
-    final error = await PyBridge().makePurchase(
-      userId: _selectedUserId!,
-      productId: _selectedProductId!,
-      quantity: _quantity,
+    
+    final productsFuture = await _productsFuture;
+    final product = productsFuture.firstWhere(
+      (p) => p['product_id'] == _selectedProductId,
+      orElse: () => <String, dynamic>{},
     );
-    setState(() => _isSubmitting = false);
-    if (error != null) {
-      _showDialog('Error', error);
-    } else {
-      _showDialog('Success', 'Purchase successful!');
-      _reloadSales();
+    
+    if (product.isEmpty) {
+      _showDialog('Error', 'Product not found.');
+      return;
     }
+    
+    _clearCart();
+    _addToCart(product, _quantity);
+    await _submitMultiplePurchases();
   }
 
   void _showDialog(String title, String content) {
@@ -71,213 +962,100 @@ class _PurchasePageState extends State<PurchasePage> {
     );
   }
 
-  String _formatTimestamp(dynamic ts) {
-    if (ts == null) return '';
-    if (ts is DateTime) return ts.toString();
-    if (ts is String) return ts;
-    // If it's a Firestore timestamp, try toString
-    return ts.toString();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Purchase')),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Purchase Form', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-                    FutureBuilder<List<Map<String, dynamic>>>(
-                      future: _usersFuture,
-                      builder: (context, userSnap) {
-                        if (userSnap.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-                        final users = userSnap.data ?? [];
-                        return FutureBuilder<List<Map<String, dynamic>>>(
-                          future: _productsFuture,
-                          builder: (context, prodSnap) {
-                            if (prodSnap.connectionState == ConnectionState.waiting) {
-                              return const Center(child: CircularProgressIndicator());
-                            }
-                            final products = prodSnap.data ?? [];
-                            return Form(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  DropdownSearch<Map<String, dynamic>>(
-                                    items: (String? filter, _) {
-                                      final filtered = filter == null || filter.isEmpty
-                                          ? users
-                                          : users.where((u) => (u['name'] ?? '').toLowerCase().contains(filter.toLowerCase())).toList();
-                                      return Future.value(filtered);
-                                    },
-                                    selectedItem: users.firstWhereOrNull((u) => u['user_id'] == _selectedUserId),
-                                    itemAsString: (u) => u['name'] ?? '',
-                                    compareFn: (a, b) => a['user_id'] == b['user_id'],
-                                    onChanged: (val) => setState(() => _selectedUserId = val?['user_id'] as int?),
-                                    popupProps: const PopupProps.menu(
-                                      showSearchBox: true,
-                                    ),
-                                    decoratorProps: const DropDownDecoratorProps(
-                                      decoration: InputDecoration(labelText: 'Select User'),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  DropdownSearch<Map<String, dynamic>>(
-                                    items: (String? filter, _) {
-                                      final filtered = filter == null || filter.isEmpty
-                                          ? products
-                                          : products.where((p) => (p['name'] ?? '').toLowerCase().contains(filter.toLowerCase())).toList();
-                                      return Future.value(filtered);
-                                    },
-                                    selectedItem: products.firstWhereOrNull((p) => p['product_id'] == _selectedProductId),
-                                    itemAsString: (p) => p['name'] ?? '',
-                                    compareFn: (a, b) => a['product_id'] == b['product_id'],
-                                    onChanged: (val) => setState(() => _selectedProductId = val?['product_id'] as int?),
-                                    popupProps: const PopupProps.menu(
-                                      showSearchBox: true,
-                                    ),
-                                    decoratorProps: const DropDownDecoratorProps(
-                                      decoration: InputDecoration(labelText: 'Select Product'),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  SizedBox(
-                                    width: 120,
-                                    child: TextFormField(
-                                      initialValue: '1',
-                                      keyboardType: TextInputType.number,
-                                      decoration: const InputDecoration(labelText: 'Quantity'),
-                                      onChanged: (v) => _quantity = int.tryParse(v) ?? 1,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  ElevatedButton(
-                                    onPressed: _isSubmitting ? null : _submit,
-                                    child: _isSubmitting
-                                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                                        : const Text('Submit'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        const Text('Configure Sales Table:', style: TextStyle(fontWeight: FontWeight.bold)),
-                        const SizedBox(width: 12),
-                        DropdownButton<String>(
-                          value: _salesConfig,
-                          items: const [
-                            DropdownMenuItem(value: 'all', child: Text('All')),
-                            DropdownMenuItem(value: 'raw', child: Text('Raw')),
-                            DropdownMenuItem(value: 'toast', child: Text('Toast')),
-                          ],
-                          onChanged: (val) {
-                            setState(() {
-                              _salesConfig = val!;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    const Text('Sales', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                    FutureBuilder<List<Map<String, dynamic>>>(
-                      future: _salesFuture,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-                        final sales = snapshot.data ?? [];
-                        final filteredSales = _salesConfig == 'all'
-                            ? sales
-                            : sales.where((s) => s['product']?['category'] == _salesConfig).toList();
-                        if (filteredSales.isEmpty) {
-                          return const Text('No sales found.');
-                        }
-                        return SizedBox(
-                          height: 300,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.vertical,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: DataTable(
-                                columns: const [
-                                  DataColumn(label: Text('Sale ID')),
-                                  DataColumn(label: Text('Consumer')),
-                                  DataColumn(label: Text('Donator')),
-                                  DataColumn(label: Text('Product')),
-                                  DataColumn(label: Text('Quantity')),
-                                  DataColumn(label: Text('Total Price')),
-                                  DataColumn(label: Text('Timestamp')),
-                                ],
-                                rows: filteredSales.map((sale) {
-                                  String consumer = '';
-                                  String donator = '';
-                                  String product = '';
-                                  try {
-                                    final consumerField = sale['consumer'];
-                                    final donatorField = sale['donator'];
-                                    final productField = sale['product'];
-                                    debugPrint('SALE: sale_id=${sale['sale_id']} consumer=$consumerField donator=$donatorField product=$productField');
-                                    consumer = consumerField is Map && consumerField['name'] != null
-                                        ? consumerField['name'].toString()
-                                        : consumerField?.toString() ?? '';
-                                    donator = donatorField == null
-                                        ? ''
-                                        : (donatorField is Map && donatorField['name'] != null
-                                            ? donatorField['name'].toString()
-                                            : donatorField.toString());
-                                    product = productField is Map && productField['name'] != null
-                                        ? productField['name'].toString()
-                                        : productField?.toString() ?? '';
-                                  } catch (e, st) {
-                                    debugPrint('ERROR in DataRow for sale: $sale\nError: $e\nStack: $st');
-                                    consumer = sale['consumer']?.toString() ?? '';
-                                    donator = sale['donator']?.toString() ?? '';
-                                    product = sale['product']?.toString() ?? '';
-                                  }
-                                  return DataRow(
-                                    key: ValueKey(sale['sale_id']),
-                                    cells: [
-                                      DataCell(Text(sale['sale_id']?.toString() ?? '')),
-                                      DataCell(Text(consumer)),
-                                      DataCell(Text(donator)),
-                                      DataCell(Text(product)),
-                                      DataCell(Text(sale['quantity']?.toString() ?? '')),
-                                      DataCell(Text(sale['total_price']?.toString() ?? '')),
-                                      DataCell(Text(_formatTimestamp(sale['timestamp']))),
-                                    ],
-                                  );
-                                }).toList(),
-                              ),
-                            ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Purchase Form', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+              const SizedBox(height: 16),
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: _usersFuture,
+                builder: (context, userSnap) {
+                  if (userSnap.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final users = userSnap.data ?? [];
+                  return FutureBuilder<List<Map<String, dynamic>>>(
+                    future: _productsFuture,
+                    builder: (context, prodSnap) {
+                      if (prodSnap.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      final products = prodSnap.data ?? [];
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _UserSelectionWidget(
+                            users: users,
+                            selectedUserId: _selectedUserId,
+                            selectedUser: _selectedUser,
+                            onUserChanged: (val) => setState(() {
+                              _selectedUserId = val?['user_id'] as int?;
+                              _selectedUser = val;
+                            }),
                           ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
+                          const SizedBox(height: 16),
+                          _ProductSelectionWidget(
+                            products: products,
+                            selectedProductId: _selectedProductId,
+                            quantity: _quantity,
+                            onProductChanged: (val) => setState(() => _selectedProductId = val?['product_id'] as int?),
+                            onQuantityChanged: (val) => setState(() => _quantity = val),
+                          ),
+                          const SizedBox(height: 16),
+                          _ActionButtonsWidget(
+                            isSubmitting: _isSubmitting,
+                            canAddToCart: _selectedProductId != null && _quantity >= 1,
+                            onAddToCart: () async {
+                              final product = products.firstWhere(
+                                (p) => p['product_id'] == _selectedProductId,
+                                orElse: () => <String, dynamic>{},
+                              );
+                              if (product.isNotEmpty) {
+                                _addToCart(product, _quantity);
+                              }
+                            },
+                            onBuyNow: _submit,
+                          ),
+                          const SizedBox(height: 24),
+                          _ShoppingCartWidget(
+                            shoppingCart: _shoppingCart,
+                            totalCost: _totalCost,
+                            isSubmitting: _isSubmitting,
+                            onPurchaseAll: _submitMultiplePurchases,
+                            onClearCart: _clearCart,
+                            onRemoveItem: _removeFromCart,
+                            onUpdateQuantity: _updateCartQuantity,
+                          ),
+                          const SizedBox(height: 24),
+                          _SalesConfigWidget(
+                            salesConfig: _salesConfig,
+                            onConfigChanged: (val) => setState(() => _salesConfig = val),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text('Sales', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                          const SizedBox(height: 12),
+                          _SalesTableWidget(
+                            salesFuture: _salesFuture,
+                            salesConfig: _salesConfig,
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
               ),
-            );
-          },
+            ],
+          ),
         ),
       ),
     );
   }
-
 }

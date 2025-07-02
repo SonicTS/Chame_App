@@ -125,6 +125,13 @@ def restock_ingredient(ingredient_id, quantity):
         raise ValueError("Invalid input")
     return database.stock_ingredient(ingredient_id=ingredient_id, quantity=quantity)
 
+def make_multiple_purchases(item_list: List[Dict[str, int]]):
+    if not item_list or not isinstance(item_list, list):
+        raise ValueError("Invalid input")
+    if not all(isinstance(item, dict) and 'product_id' in item and 'quantity' in item and 'consumer_id' in item for item in item_list):
+        raise ValueError("Each item must be a dict with 'product_id' and 'quantity' and 'consumer_id")
+    return database.make_multiple_purchases(item_list=item_list)
+
 # Purchase logic
 def make_purchase(consumer_id, product_id, quantity, donator_id=None):
     if not consumer_id or not product_id or not quantity:
@@ -178,6 +185,10 @@ def get_all_toast_products():
 
 def get_all_toast_rounds():
     return [tr.to_dict(True, True) for tr in database.get_all_toast_rounds()]
+
+def get_all_raw_products():
+    """Get all products without eager loading ingredients or sales"""
+    return [product.to_dict(True, True, True, True) for product in database.get_all_products_by_category('raw')]
 
 def get_filtered_transaction(user_id="all", tx_type="all"):
     return [tx.to_dict(True) for tx in database.get_filtered_transaction(user_id=user_id, tx_type=tx_type)]

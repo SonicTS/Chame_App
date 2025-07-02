@@ -16,11 +16,6 @@ class UsersPage extends StatefulWidget {
 class _UsersPageState extends State<UsersPage> {
   late Future<List<Map<String, dynamic>>> _usersFuture;
   late Future<List<Map<String, dynamic>>> _transactionsFuture;
-  final _nameController = TextEditingController();
-  final _balanceController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
-  String _role = 'user';
   bool _isSubmitting = false;
   final Map<int, TextEditingController> _depositControllers = {};
   final Map<int, TextEditingController> _withdrawControllers = {};
@@ -45,45 +40,6 @@ class _UsersPageState extends State<UsersPage> {
       _usersFuture = PyBridge().getAllUsers();
       _transactionsFuture = PyBridge().getFilteredTransaction(userId: _txUserFilter, txType: _txTypeFilter);
     });
-  }
-
-  Future<void> _addUser() async {
-    if (_nameController.text.trim().isEmpty || _balanceController.text.isEmpty) return;
-    if (_role.isEmpty) {
-      _showDialog('Error', 'Please select a role!');
-      return;
-    }
-    if (_role == 'wirt' && (_passwordController.text.isEmpty || _confirmPasswordController.text.isEmpty || _passwordController.text.length < 4)) {
-      _showDialog('Error', 'Password must be at least 4 characters long!');
-      return;
-    }
-    if (_role == 'admin' && (_passwordController.text.isEmpty || _confirmPasswordController.text.isEmpty || _passwordController.text.length < 8)) {
-      _showDialog('Error', 'Password must be at least 8 characters long!');
-      return;
-    }
-    if (_passwordController.text != _confirmPasswordController.text) {
-      _showDialog('Error', 'Passwords do not match!');
-      return;
-    }
-    setState(() => _isSubmitting = true);
-    final error = await PyBridge().addUser(
-      name: _nameController.text.trim(),
-      balance: double.parse(_balanceController.text),
-      role: _role,
-      password: _role == 'wirt' || _role == 'admin' ? _passwordController.text : null,
-    );
-    setState(() => _isSubmitting = false);
-    if (error != null) {
-      _showDialog('Error', error);
-    } else {
-      _showDialog('Success', 'User added successfully!');
-      _nameController.clear();
-      _balanceController.clear();
-      _passwordController.clear();
-      _confirmPasswordController.clear();
-      setState(() => _role = 'user');
-      _reload();
-    }
   }
 
   Future<void> _deposit(int userId) async {
@@ -220,10 +176,6 @@ class _UsersPageState extends State<UsersPage> {
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _balanceController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
     for (final c in _depositControllers.values) {
       c.dispose();
     }
@@ -259,7 +211,7 @@ class _UsersPageState extends State<UsersPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 1. USERS TABLE SECTION HEADER
-                if (auth.role == 'admin')
+                if (auth.role == 'admin' || auth.role == 'wirt')
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16.0),
                     child: Row(
@@ -268,13 +220,36 @@ class _UsersPageState extends State<UsersPage> {
                         const Expanded(
                           child: Text('Users', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                         ),
-                        ElevatedButton(
-                          onPressed: () => _showRestoreUsersDialog(context),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          ),
-                          child: const Text('Restore', style: TextStyle(color: Colors.white, fontSize: 12)),
+                        Row(
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pushNamed('/add_user').then((_) {
+                                  // Reload users when coming back from add user page
+                                  _reload();
+                                });
+                              },
+                              icon: const Icon(Icons.person_add),
+                              label: const Text('Add User'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
+                            ),
+                            if (auth.role == 'admin') ...[
+                              const SizedBox(width: 8),
+                              ElevatedButton(
+                                onPressed: () => _showRestoreUsersDialog(context),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                ),
+                                child: const Text('Restore', style: TextStyle(fontSize: 12)),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -294,72 +269,7 @@ class _UsersPageState extends State<UsersPage> {
                   onReload: _reload,
                 ),
                 const SizedBox(height: 24),
-                // --- USER ADD / FILTER CONTROLS ---
-                if (auth.role == 'admin') ...[
-                  Row(
-                    children: [
-                      SizedBox(
-                        width: 120,
-                        child: TextField(
-                          controller: _nameController,
-                          decoration: const InputDecoration(labelText: 'User Name'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      SizedBox(
-                        width: 90,
-                        child: TextField(
-                          controller: _balanceController,
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(labelText: 'Balance'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      DropdownButton<String>(
-                        value: _role,
-                        items: const [
-                          DropdownMenuItem(value: 'user', child: Text('User')),
-                          DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                          DropdownMenuItem(value: 'wirt', child: Text('Wirt')),
-                        ],
-                        onChanged: (val) => setState(() => _role = val!),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      if (_role == 'wirt' || _role == 'admin') ...[
-                        SizedBox(
-                          width: 100,
-                          child: TextField(
-                            controller: _passwordController,
-                            decoration: const InputDecoration(labelText: 'Password'),
-                            obscureText: true,
-                            enabled: _role == 'wirt' || _role == 'admin',
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 100,
-                          child: TextField(
-                            controller: _confirmPasswordController,
-                            decoration: const InputDecoration(labelText: 'Confirm Password'),
-                            obscureText: true,
-                            enabled: _role == 'wirt' || _role == 'admin',
-                          ),
-                        ),
-                      ],
-                      const SizedBox(width: 12),
-                      ElevatedButton(
-                        onPressed: _isSubmitting ? null : _addUser,
-                        child: _isSubmitting
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Text('Add User'),
-                      ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 32),
+                
                 TextField(
                   decoration: const InputDecoration(
                     labelText: 'Filter users by name',

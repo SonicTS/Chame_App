@@ -206,6 +206,19 @@ class PyBridge {
     }
   }
 
+  Future<String?> makeMultiplePurchases({
+    required List<Map<String, dynamic>> itemList,
+  }) async {
+    try {
+      await _chan.invokeMethod('make_multiple_purchases', {
+        'item_list': jsonEncode(itemList),
+      });
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   Future<String?> addToastRound({
     required List<int> productIds,
     required List<int> consumer_selections,
@@ -290,6 +303,20 @@ class PyBridge {
       return decoded.cast<Map<String, dynamic>>();
     } catch (e, stack) {
       print('Error in getAllToastProducts: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAllRawProducts() async {
+    try {
+      final result = await _chan.invokeMethod('get_all_raw_products');
+      if (result == null || result == 'null') {
+        return <Map<String, dynamic>>[];
+      }
+      final List<dynamic> decoded = jsonDecode(result as String);
+      return decoded.cast<Map<String, dynamic>>();
+    } catch (e, stack) {
+      print('Error in getAllRawProducts: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
       rethrow;
     }
   }

@@ -1,5 +1,6 @@
 import 'package:chame_flutter/pages/add_ingredients_page.dart';
 import 'package:chame_flutter/pages/add_product_page.dart';
+import 'package:chame_flutter/pages/add_user_page.dart';
 import 'package:chame_flutter/pages/backup_management_page.dart';
 import 'package:chame_flutter/services/auth_service.dart';
 import 'package:flutter/material.dart';
@@ -415,6 +416,7 @@ class ChameApp extends StatelessWidget {
             '/bank': (_) => BankPage(),
             '/add_ingredients': (_) => AddIngredientsPage(),
             '/add_product': (_) => AddProductPage(),
+            '/add_user': (_) => AddUserPage(),
             '/restock_ingredients': (_) => RestockIngredientsPage(),
             '/settings': (_) => SettingsPage(),
             '/backup_management': (_) => BackupManagementPage(),
