@@ -70,7 +70,7 @@ class User(Base, EnhancedSoftDeleteMixin):
 
     def to_dict(self, include_sales=False):
         try:
-            log_debug(f"Converting User {self.user_id} to dict", {"user_id": self.user_id, "include_sales": include_sales})
+            #log_debug(f"Converting User {self.user_id} to dict", {"user_id": self.user_id, "include_sales": include_sales})
             
             def _round(val):
                 return round(val, 2) if isinstance(val, float) and val is not None else val
@@ -91,13 +91,13 @@ class User(Base, EnhancedSoftDeleteMixin):
             if include_sales:
                 try:
                     if self.sales is None:
-                        log_debug(f"User {self.user_id} has None sales relationship")
+                        #log_debug(f"User {self.user_id} has None sales relationship")
                         data["sales"] = []
                     else:
                         sales_data = []
                         for sale in self.sales:
                             if sale is None:
-                                log_debug(f"Found None sale in User {self.user_id} sales relationship")
+                                #log_debug(f"Found None sale in User {self.user_id} sales relationship")
                                 continue
                             try:
                                 sales_data.append(sale.to_dict())
@@ -112,7 +112,7 @@ class User(Base, EnhancedSoftDeleteMixin):
                              exception=e)
                     data["sales"] = []
             
-            log_debug(f"Successfully converted User {self.user_id} to dict")
+            #log_debug(f"Successfully converted User {self.user_id} to dict")
             return data
             
         except Exception as e:

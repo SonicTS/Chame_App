@@ -46,14 +46,14 @@ class Ingredient(Base, EnhancedSoftDeleteMixin):
         self.stock_quantity = stock_quantity
         
     def __repr__(self):
-        return f"<Ingredient(name={self.name}, price={self.price_per_unit}, number_of_units={self.number_of_units}, stock={self.stock_quantity}), pfand={self.pfand})>"
+        return f"<Ingredient(name={self.name}, price_per_package={self.price_per_package}, price_per_unit={self.price_per_unit}, number_of_units={self.number_of_units}, stock={self.stock_quantity}), pfand={self.pfand})>"
 
     def to_dict(self, include_products=False):
         try:
-            log_debug(f"Converting Ingredient {self.ingredient_id} to dict", {
-                "ingredient_id": self.ingredient_id, 
-                "include_products": include_products
-            })
+            # log_debug(f"Converting Ingredient {self.ingredient_id} to dict", {
+            #     "ingredient_id": self.ingredient_id, 
+            #     "include_products": include_products
+            # })
             
             def _round(val):
                 return round(val, 2) if isinstance(val, float) and val is not None else val
@@ -77,13 +77,13 @@ class Ingredient(Base, EnhancedSoftDeleteMixin):
             if include_products:
                 try:
                     if self.ingredient_products is None:
-                        log_debug(f"Ingredient {self.ingredient_id} has None ingredient_products relationship")
+                        #log_debug(f"Ingredient {self.ingredient_id} has None ingredient_products relationship")
                         data["products"] = []
                     else:
                         products_data = []
                         for ip in self.ingredient_products:
                             if ip is None:
-                                log_debug(f"Found None ingredient_product in Ingredient {self.ingredient_id}")
+                                #log_debug(f"Found None ingredient_product in Ingredient {self.ingredient_id}")
                                 continue
                             if ip.product is None:
                                 log_error(f"Ingredient {self.ingredient_id} has ingredient_product with None product", 
@@ -101,7 +101,7 @@ class Ingredient(Base, EnhancedSoftDeleteMixin):
                              {"ingredient_id": self.ingredient_id}, exception=e)
                     data["products"] = []
             
-            log_debug(f"Successfully converted Ingredient {self.ingredient_id} to dict")
+            #log_debug(f"Successfully converted Ingredient {self.ingredient_id} to dict")
             return data
             
         except Exception as e:

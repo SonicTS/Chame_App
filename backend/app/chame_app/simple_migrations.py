@@ -30,6 +30,7 @@ class SimpleMigrations:
     def __init__(self, engine):
         self.engine = engine
         self.migrations = self._get_migrations()
+        self._is_fresh_database = False
     
     def _get_migrations(self) -> Dict[str, str]:
         """Define your migrations here as SQL strings"""
@@ -132,15 +133,19 @@ class SimpleMigrations:
             return []
     
     def _needs_all_migrations(self) -> bool:
-        """Check if this is a database that needs all migrations applied (no migration tracking table)"""
+        """Check if this is a database that needs all migrations applied"""
         try:
             inspector = inspect(self.engine)
             tables = inspector.get_table_names()
             
-            # If there's no schema_migrations table, we need to apply all migrations
+            # If there's no schema_migrations table, check if it's a new database
             if 'schema_migrations' not in tables:
-                print("📋 [SimpleMigrations] No migration tracking table found - all migrations needed")
-                return True
+                if self._is_new_database():
+                    print("📋 [SimpleMigrations] New database detected - will mark all migrations as applied")
+                    return False  # Don't run migrations, just mark them as applied
+                else:
+                    print("📋 [SimpleMigrations] Existing database without migration tracking - all migrations needed")
+                    return True  # Run all migrations
                 
             return False
             
@@ -199,9 +204,16 @@ class SimpleMigrations:
             
             # Check if this is an empty database that needs all migrations
             if self._needs_all_migrations():
-                print("📦 [SimpleMigrations] Empty database - applying all migrations")
-                log_to_firebase("INFO", "Empty database detected - applying all migrations",
-                               database_type="empty", total_migrations=len(self.migrations))
+                if self._is_new_database():
+                    print("📦 [SimpleMigrations] New database detected - marking all migrations as applied")
+                    log_to_firebase("INFO", "New database detected - marking all migrations as applied",
+                                   database_type="new", total_migrations=len(self.migrations))
+                    self.mark_all_migrations_applied()
+                    return True
+                else:
+                    print("📦 [SimpleMigrations] Existing database without migration tracking - applying all migrations")
+                    log_to_firebase("INFO", "Existing database without migration tracking - applying all migrations",
+                                   database_type="existing_untracked", total_migrations=len(self.migrations))
                 
                 # Create backup before migrations if requested (for new database with existing data)
                 backup_created = False
@@ -634,3 +646,11 @@ class SimpleMigrations:
             conn.execute(text(
                 "INSERT OR IGNORE INTO schema_migrations (version) VALUES (:version)"
             ), {"version": f"advanced_{migration_name}"})
+
+    def set_fresh_database_flag(self):
+        """Mark this as a fresh database that was just created"""
+        self._is_fresh_database = True
+
+    def _is_new_database(self) -> bool:
+        """Check if this is a completely new database (no file existed before)"""
+        return self._is_fresh_database

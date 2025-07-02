@@ -1078,6 +1078,35 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 
+                "test_firebase_logging" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        println("🧪 [ANDROID] Starting Firebase logging test from Android/Kotlin...")
+                        val pyResult = pyModule.callAttr("test_firebase_logging")
+                        
+                        // Also test the reverse bridge
+                        println("🔄 [ANDROID] Testing reverse bridge call...")
+                        logToFirebase("INFO", "🧪 Test from Android MainActivity", mapOf(
+                            "test_type" to "android_kotlin_test",
+                            "source" to "MainActivity.kt",
+                            "timestamp" to System.currentTimeMillis().toString()
+                        ))
+                        
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            result.success(pyResult.toString())
+                        }
+                        println("✅ [ANDROID] Firebase logging test completed successfully")
+                    } catch (e: Exception) {
+                        println("❌ [ANDROID] Firebase logging test failed: ${e.localizedMessage}")
+                        result.error("FIREBASE_TEST_ERROR", "Firebase test failed: ${e.localizedMessage}", null)
+                    }
+                }
+                
                 else -> result.notImplemented()
             }
             

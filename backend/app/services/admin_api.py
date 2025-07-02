@@ -159,7 +159,7 @@ def get_all_users():
     return [user.to_dict(True) for user in database.get_all_users()]
 
 def get_all_products():
-    return [product.to_dict(True, True, True, True, True) for product in database.get_all_products()]
+    return [product.to_dict(True, True, True, True) for product in database.get_all_products()]
 
 def get_all_ingredients():
     result = [ingredient.to_dict(True) for ingredient in database.get_all_ingredients(eager_load=True)]
@@ -174,7 +174,7 @@ def get_all_sales():
     return [sale.to_dict(True, True, True) for sale in database.get_all_sales()]
 
 def get_all_toast_products():
-    return [tp.to_dict(True, True, True, True, True) for tp in database.get_all_toast_products()]
+    return [tp.to_dict(True, True, True, True) for tp in database.get_all_toast_products()]
 
 def get_all_toast_rounds():
     return [tr.to_dict(True, True) for tr in database.get_all_toast_rounds()]
@@ -739,3 +739,57 @@ def execute_deletion(entity_type, entity_id, deleted_by="api"):
     except Exception as e:
         print(f"execute_deletion error: {e}")
         raise RuntimeError(f"Failed to execute deletion: {e}") from e
+
+def test_firebase_logging():
+    """Test Firebase logging functionality from Python backend"""
+    try:
+        from utils.firebase_logger import log_info, log_warn, log_error, test_firebase_bridge, diagnose_release_issues, test_bridge_from_python
+        
+        print("🧪 [PYTHON-TEST] Starting Firebase logging test from Python backend...")
+        
+        # Run diagnostic first
+        print("🔍 [PYTHON-TEST] Running Firebase bridge diagnostics...")
+        diagnose_release_issues()
+        
+        # Test different log levels
+        print("📝 [PYTHON-TEST] Testing different log levels...")
+        log_info("🧪 Python Firebase test - INFO level", {
+            "test_type": "python_backend_test",
+            "log_level": "info",
+            "timestamp": str(__import__('datetime').datetime.now()),
+            "source": "admin_api.test_firebase_logging"
+        })
+        
+        log_warn("🧪 Python Firebase test - WARNING level", {
+            "test_type": "python_backend_test", 
+            "log_level": "warning",
+            "timestamp": str(__import__('datetime').datetime.now()),
+            "source": "admin_api.test_firebase_logging"
+        })
+        
+        log_error("🧪 Python Firebase test - ERROR level", {
+            "test_type": "python_backend_test",
+            "log_level": "error", 
+            "timestamp": str(__import__('datetime').datetime.now()),
+            "source": "admin_api.test_firebase_logging"
+        })
+        
+        # Test Python to Flutter bridge
+        print("🔄 [PYTHON-TEST] Testing Python to Flutter bridge...")
+        bridge_success = test_bridge_from_python()
+        
+        # Run comprehensive test
+        print("🚀 [PYTHON-TEST] Running comprehensive Firebase bridge test...")
+        test_firebase_bridge()
+        
+        print("✅ [PYTHON-TEST] Firebase logging test completed successfully")
+        return {
+            "success": True, 
+            "message": "Firebase logging test completed",
+            "bridge_test": bridge_success
+        }
+        
+    except Exception as e:
+        print(f"❌ [PYTHON-TEST] Firebase logging test failed: {e}")
+        traceback.print_exc()
+        return {"success": False, "error": str(e), "message": f"Firebase logging test failed: {e}"}

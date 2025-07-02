@@ -707,7 +707,7 @@ class Database:
     def get_all_users(self, session=None) -> 'List[User]':
         """Get all users with eager loading of sales."""
         try:
-            log_debug("Fetching all active users")
+            #log_debug("Fetching all active users")
             
             close_session = False
             if session is None:
@@ -718,7 +718,7 @@ class Database:
                     joinedload(User.sales)
                 ).all()
                 
-                log_debug(f"Retrieved {len(users)} active users")
+                #log_debug(f"Retrieved {len(users)} active users")
                 return users
             except Exception as e:
                 log_error("Failed to fetch all users", exception=e)
@@ -745,7 +745,7 @@ class Database:
                     joinedload(Product.sales),
                 ).all()
                 
-                log_debug(f"Retrieved {len(products)} active products")
+                #log_debug(f"Retrieved {len(products)} active products")
                 return products
             except Exception as e:
                 log_error("Failed to fetch all products", exception=e)
@@ -760,7 +760,7 @@ class Database:
     def get_all_ingredients(self, eager_load=False, session=None) -> 'List[Ingredient]':
         """Get all ingredients, with optional eager loading of products."""
         try:
-            log_debug(f"Fetching all active ingredients (eager_load={eager_load})")
+            #log_debug(f"Fetching all active ingredients (eager_load={eager_load})")
             
             close_session = False
             if session is None:
@@ -777,7 +777,7 @@ class Database:
                     )
                 ingredients = query.all()
                 
-                log_debug(f"Retrieved {len(ingredients)} active ingredients")
+                #log_debug(f"Retrieved {len(ingredients)} active ingredients")
                 return ingredients
             except Exception as e:
                 log_error(f"Failed to fetch all ingredients (eager_load={eager_load})", exception=e)

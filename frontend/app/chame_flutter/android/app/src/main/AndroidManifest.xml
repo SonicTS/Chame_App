@@ -21,6 +21,10 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- Firebase Crashlytics Debug Mode - enables faster log reporting -->
+            <meta-data
+              android:name="firebase_crashlytics_debug_enabled"
+              android:value="true" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

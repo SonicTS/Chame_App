@@ -39,35 +39,40 @@ Future<void> _handleReverseBridgeCall(MethodCall call) async {
   final String callTimestamp = DateTime.now().toIso8601String();
   
   try {
-    // print('📞 Received reverse bridge call at $callTimestamp');
-    // print('   Method: ${call.method}');
-    // print('   Arguments type: ${call.arguments?.runtimeType}');
+    print('📞 [FLUTTER-BRIDGE] Received reverse bridge call at $callTimestamp');
+    print('   Method: ${call.method}');
+    print('   Arguments type: ${call.arguments?.runtimeType}');
     
     switch (call.method) {
       case 'log_to_firebase':
-        //print('🔥 Handling Firebase logging request...');
+        print('🔥 [FLUTTER-BRIDGE] Handling Firebase logging request...');
         await _handleFirebaseLog(call.arguments);
-        //print('✅ Firebase logging request completed');
+        print('✅ [FLUTTER-BRIDGE] Firebase logging request completed');
         break;
       case 'update_progress':
-        //print('📊 Handling progress update...');
+        print('📊 [FLUTTER-BRIDGE] Handling progress update...');
         await _handleProgressUpdate(call.arguments);
-        //print('✅ Progress update completed');
+        print('✅ [FLUTTER-BRIDGE] Progress update completed');
         break;
       case 'show_notification':
-        //print('🔔 Handling notification request...');
+        print('🔔 [FLUTTER-BRIDGE] Handling notification request...');
         await _handleShowNotification(call.arguments);
-        //print('✅ Notification request completed');
+        print('✅ [FLUTTER-BRIDGE] Notification request completed');
+        break;
+      case 'test_bridge':
+        print('🧪 [FLUTTER-BRIDGE] Bridge test request received');
+        await _handleBridgeTest(call.arguments);
+        print('✅ [FLUTTER-BRIDGE] Bridge test completed');
         break;
       default:
-        //print('❓ Unknown reverse bridge method called: ${call.method}');
-        //print('   Available methods: log_to_firebase, update_progress, show_notification');
+        print('❓ [FLUTTER-BRIDGE] Unknown reverse bridge method called: ${call.method}');
+        print('   Available methods: log_to_firebase, update_progress, show_notification, test_bridge');
     }
     
-    //print('✅ Reverse bridge call ${call.method} processed successfully');
+    print('✅ [FLUTTER-BRIDGE] Reverse bridge call ${call.method} processed successfully');
     
   } catch (e, stackTrace) {
-    // print('💥 Error handling reverse bridge call ${call.method}: $e');
+    print('💥 [FLUTTER-BRIDGE] Error handling reverse bridge call ${call.method}: $e');
     // print('📍 Stack trace: $stackTrace');
     // print('🔍 Call arguments: ${call.arguments}');
     
@@ -100,38 +105,38 @@ Future<void> _handleFirebaseLog(Map<dynamic, dynamic> arguments) async {
     final String message = arguments['message']?.toString() ?? '';
     final Map<String, dynamic> metadata = Map<String, dynamic>.from(arguments['metadata'] ?? {});
     
-  //print('🚀 Starting Firebase log operation at $timestamp');
-  //print('   Level: $level');
-  //print('   Message: $message');
-  //print('   Metadata keys: ${metadata.keys.toList()}');
+    print('🚀 [FLUTTER-FIREBASE] Processing Firebase log request at $timestamp');
+    print('   Level: $level');
+    print('   Message: $message');
+    print('   Metadata keys: ${metadata.keys.toList()}');
     
-    // Log to Firebase Crashlytics with detailed logging
+    // Log to Firebase Crashlytics (queues locally)
     try {
       FirebaseCrashlytics.instance.log('[$level] Python: $message');
-    //print('✅ Successfully wrote to Firebase Crashlytics log');
+      print('📝 [FLUTTER-FIREBASE] ✓ Log queued locally in Firebase Crashlytics');
     } catch (logError) {
-    //print('❌ Failed to write to Firebase Crashlytics log: $logError');
+      print('❌ [FLUTTER-FIREBASE] Failed to queue log: $logError');
       rethrow;
     }
     
-    // Set custom keys for context with logging
+    // Set custom keys for context
     try {
-    //print('📝 Setting ${metadata.length} custom keys...');
+      print('� [FLUTTER-FIREBASE] Setting ${metadata.length} custom keys...');
       metadata.forEach((key, value) {
         final keyName = 'python_$key';
         final keyValue = value.toString();
         FirebaseCrashlytics.instance.setCustomKey(keyName, keyValue);
-      //print('   ✓ Set custom key: $keyName = $keyValue');
+        print('   ✓ Set custom key: $keyName = $keyValue');
       });
-    //print('✅ All custom keys set successfully');
+      print('✅ [FLUTTER-FIREBASE] All custom keys set successfully');
     } catch (keyError) {
-    //print('❌ Failed to set custom keys: $keyError');
+      print('❌ [FLUTTER-FIREBASE] Failed to set custom keys: $keyError');
       rethrow;
     }
     
-    // Record as non-fatal error for better visibility in Firebase Console
+    // Record as non-fatal error for better visibility (queues locally)
     try {
-    //print('📊 Recording non-fatal error to Firebase...');
+      print('📊 [FLUTTER-FIREBASE] Queuing non-fatal error report...');
       FirebaseCrashlytics.instance.recordError(
         'Python Log [$level]: $message',
         null,
@@ -144,33 +149,34 @@ Future<void> _handleFirebaseLog(Map<dynamic, dynamic> arguments) async {
           ...metadata.entries.map((e) => '${e.key}: ${e.value}'),
         ],
       );
-    //print('✅ Successfully recorded non-fatal error to Firebase');
+      print('✅ [FLUTTER-FIREBASE] ✓ Non-fatal error report queued locally');
     } catch (recordError) {
-    //print('❌ Failed to record error to Firebase: $recordError');
+      print('❌ [FLUTTER-FIREBASE] Failed to queue error report: $recordError');
       rethrow;
     }
     
-    // Set breadcrumb for tracking with logging
+    // Set breadcrumb for tracking
     try {
-    //print('🍞 Setting breadcrumb data...');
+      print('🍞 [FLUTTER-FIREBASE] Setting breadcrumb data...');
       FirebaseCrashlytics.instance.setCustomKey('last_python_log', '[$level] $message');
       FirebaseCrashlytics.instance.setCustomKey('last_python_log_time', timestamp);
-    //print('✅ Breadcrumb data set successfully');
+      print('✅ [FLUTTER-FIREBASE] Breadcrumb data set successfully');
     } catch (breadcrumbError) {
-    //print('❌ Failed to set breadcrumb data: $breadcrumbError');
+      print('❌ [FLUTTER-FIREBASE] Failed to set breadcrumb data: $breadcrumbError');
       rethrow;
     }
     
-  //print('🔥 Firebase log operation completed successfully');
-  //print('   Final summary: [$level] Python: $message');
+    print('🔥 [FLUTTER-FIREBASE] Firebase log processing completed (data queued locally)');
+    print('   Summary: [$level] Python: $message');
+    print('   ℹ️ Note: Data will be uploaded when app has network connectivity');
     if (metadata.isNotEmpty) {
-    //print('   📦 Metadata: $metadata');
+      print('   📦 Metadata: $metadata');
     }
     
   } catch (e, stackTrace) {
-  //print('💥 Critical error in _handleFirebaseLog: $e');
-  //print('📍 Stack trace: $stackTrace');
-  //print('🔍 Arguments received: $arguments');
+    print('💥 [FLUTTER-FIREBASE] Critical error in _handleFirebaseLog: $e');
+    print('📍 Stack trace: $stackTrace');
+    print('🔍 Arguments received: $arguments');
     
     // Try to log the error itself to Firebase
     try {
@@ -185,9 +191,9 @@ Future<void> _handleFirebaseLog(Map<dynamic, dynamic> arguments) async {
           'Error_occurred_while: Processing Python Firebase log',
         ],
       );
-    //print('🆘 Successfully logged the logging error to Firebase');
+      print('🆘 [FLUTTER-FIREBASE] Successfully logged the logging error to Firebase');
     } catch (metaError) {
-    //print('☠️ Failed to log the logging error: $metaError');
+      print('☠️ [FLUTTER-FIREBASE] Failed to log the logging error: $metaError');
     }
   }
 }
@@ -771,6 +777,27 @@ class SettingsPage extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
               ],
+              
+              // Firebase Bridge Test button
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () => _testFirebaseBridge(context),
+                icon: const Icon(Icons.bug_report),
+                label: const Text('Test Firebase Bridge'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Test Firebase logging bridge between Python and Flutter',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
             ],
           ),
         ),
@@ -884,5 +911,170 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
         ),
       ),
     );
+  }
+}
+
+// Handle bridge test from Python
+Future<void> _handleBridgeTest(Map<dynamic, dynamic>? arguments) async {
+  final String timestamp = DateTime.now().toIso8601String();
+  
+  try {
+    final String testType = arguments?['test_type']?.toString() ?? 'general';
+    final String testMessage = arguments?['message']?.toString() ?? 'Bridge test';
+    
+    print('🧪 [FLUTTER-BRIDGE] Bridge test received at $timestamp');
+    print('   Test Type: $testType');
+    print('   Test Message: $testMessage');
+    
+    // Log to Firebase to test the full pipeline
+    try {
+      FirebaseCrashlytics.instance.log('🧪 Bridge Test: $testMessage');
+      FirebaseCrashlytics.instance.recordError(
+        'Bridge Test - $testType',
+        null,
+        fatal: false,
+        information: [
+          'Test_type: $testType',
+          'Test_message: $testMessage', 
+          'Timestamp: $timestamp',
+          'Source: Flutter_bridge_test',
+        ],
+      );
+      print('✅ [FLUTTER-BRIDGE] Bridge test logged to Firebase successfully');
+    } catch (logError) {
+      print('❌ [FLUTTER-BRIDGE] Bridge test Firebase logging failed: $logError');
+    }
+    
+  } catch (e) {
+    print('❌ [FLUTTER-BRIDGE] Error processing bridge test: $e');
+  }
+}
+
+// Test Firebase bridge functionality
+Future<void> _testFirebaseBridge(BuildContext context) async {
+  print('🧪 [FLUTTER-TEST] Starting Firebase bridge test...');
+  
+  try {
+    // Test 1: Direct Flutter Firebase logging with different methods
+    print('📝 [FLUTTER-TEST] Testing direct Flutter Firebase logging...');
+    print('ℹ️ [FLUTTER-TEST] Note: These calls only QUEUE data locally, they don\'t send immediately');
+    
+    // Method 1: Simple log
+    FirebaseCrashlytics.instance.log('🧪 Direct Flutter Firebase test - Simple Log');
+    print('📝 [FLUTTER-TEST] ✓ Simple log queued locally');
+    
+    // Method 2: Record error with more visibility
+    FirebaseCrashlytics.instance.recordError(
+      'Flutter Firebase Bridge Test - HIGH PRIORITY',
+      StackTrace.current,
+      fatal: false,
+      information: [
+        'Test_type: Direct_Flutter_logging',
+        'Timestamp: ${DateTime.now().toIso8601String()}',
+        'Source: Settings_page_test',
+        'Priority: HIGH',
+        'Visibility: ENHANCED',
+      ],
+    );
+    print('📊 [FLUTTER-TEST] ✓ Non-fatal error queued locally');
+    
+    // Method 3: Set user identifier for easier tracking
+    await FirebaseCrashlytics.instance.setUserIdentifier('flutter_test_user');
+    print('👤 [FLUTTER-TEST] ✓ User identifier set');
+    
+    // Method 4: Set custom keys for filtering
+    await FirebaseCrashlytics.instance.setCustomKey('test_session', DateTime.now().millisecondsSinceEpoch.toString());
+    await FirebaseCrashlytics.instance.setCustomKey('test_type', 'firebase_bridge_test');
+    await FirebaseCrashlytics.instance.setCustomKey('app_version', 'debug_test');
+    print('🔑 [FLUTTER-TEST] ✓ Custom keys set');
+    
+    // Method 5: Create a more visible error
+    FirebaseCrashlytics.instance.recordError(
+      'FIREBASE LOGGING TEST - PLEASE CHECK CONSOLE',
+      null,
+      fatal: false,
+      information: [
+        'This is a test log to verify Firebase integration',
+        'Check Firebase Console > Crashlytics > Non-fatal issues',
+        'Project: chamekasse',
+        'App: com.chame.kasse',
+        'Test_timestamp: ${DateTime.now().toIso8601String()}',
+        'If you see this in Firebase Console, logging is working!',
+      ],
+    );
+    print('🎯 [FLUTTER-TEST] ✓ High-visibility test error queued locally');
+    
+    print('✅ [FLUTTER-TEST] All Firebase logs queued locally (not yet sent to server)');
+    
+    // Test 2: Attempt to force send to Firebase
+    bool forceSendSuccess = false;
+    try {
+      print('📤 [FLUTTER-TEST] Attempting to force send queued reports...');
+      await FirebaseCrashlytics.instance.sendUnsentReports();
+      forceSendSuccess = true;
+      print('✅ [FLUTTER-TEST] Force send command executed (but actual upload depends on network)');
+    } catch (e) {
+      print('❌ [FLUTTER-TEST] Force send not available or failed: $e');
+    }
+    
+    // Test 3: Python bridge test
+    print('🐍 [FLUTTER-TEST] Testing Python Firebase bridge...');
+    bool pythonBridgeSuccess = false;
+    try {
+      await PyBridge().testFirebaseLogging();
+      pythonBridgeSuccess = true;
+      print('✅ [FLUTTER-TEST] Python Firebase bridge communication successful');
+    } catch (e) {
+      print('❌ [FLUTTER-TEST] Python Firebase bridge test failed: $e');
+    }
+    
+    // Show realistic success message
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('🧪 Firebase bridge test completed!'),
+              const SizedBox(height: 4),
+              const Text('📝 Logs QUEUED locally (not yet sent)'),
+              const SizedBox(height: 4),
+              Text('📤 Force send: ${forceSendSuccess ? "✅ Attempted" : "❌ Failed"}'),
+              const SizedBox(height: 4),
+              Text('🐍 Python bridge: ${pythonBridgeSuccess ? "✅ Working" : "❌ Failed"}'),
+              const SizedBox(height: 4),
+              const Text('📍 Project: chamekasse'),
+              const SizedBox(height: 4),
+              const Text('⏱️ Upload happens when app has network + background time'),
+              const SizedBox(height: 4),
+              const Text('📊 Check Firebase Console after network reconnect'),
+            ],
+          ),
+          backgroundColor: pythonBridgeSuccess ? Colors.green : Colors.orange,
+          duration: const Duration(seconds: 10),
+          action: SnackBarAction(
+            label: 'Console',
+            textColor: Colors.white,
+            onPressed: () {
+              print('🌐 Firebase Console: https://console.firebase.google.com/project/chamekasse/crashlytics');
+            },
+          ),
+        ),
+      );
+    }
+    
+  } catch (e) {
+    print('❌ [FLUTTER-TEST] Firebase bridge test failed: $e');
+    
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Firebase bridge test failed: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
   }
 }

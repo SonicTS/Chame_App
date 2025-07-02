@@ -121,16 +121,15 @@ class Product(Base, EnhancedSoftDeleteMixin):
     def __repr__(self):
         return f"<Product(name={self.name}, category={self.category}, price={self.price_per_unit}, stock={self.stock_quantity}, ingredients={self.ingredients})>"
 
-    def to_dict(self, include_ingredients=False, include_sales=False, include_toast_rounds=False, include_product_ingredients=False, include_product_toast_rounds=False):
+    def to_dict(self, include_ingredients=False, include_sales=False, include_toast_rounds=False, include_product_ingredients=False):
         try:
-            log_debug(f"Converting Product {self.product_id} to dict", {
-                "product_id": self.product_id, 
-                "include_ingredients": include_ingredients,
-                "include_sales": include_sales,
-                "include_toast_rounds": include_toast_rounds,
-                "include_product_ingredients": include_product_ingredients,
-                "include_product_toast_rounds": include_product_toast_rounds
-            })
+            # log_debug(f"Converting Product {self.product_id} to dict", {
+            #     "product_id": self.product_id, 
+            #     "include_ingredients": include_ingredients,
+            #     "include_sales": include_sales,
+            #     "include_toast_rounds": include_toast_rounds,
+            #     "include_product_ingredients": include_product_ingredients,
+            # })
             
             def _round(val):
                 return round(val, 2) if isinstance(val, float) and val is not None else val
@@ -220,45 +219,7 @@ class Product(Base, EnhancedSoftDeleteMixin):
                              {"product_id": self.product_id}, exception=e)
                     data["sales"] = []
             
-            # Process toast rounds with filtering
-            if include_toast_rounds:
-                try:
-                    filtered_toast_rounds = self.get_filtered_relationship('product_toast_rounds')
-                    tr_data = []
-                    for ptr in filtered_toast_rounds:
-                        if ptr and ptr.toast_round and ptr.toast_round.is_available:
-                            try:
-                                tr_data.append(ptr.toast_round.to_dict())
-                            except Exception as e:
-                                log_error(f"Error converting toast_round to dict for Product {self.product_id}", 
-                                         {"product_id": self.product_id, "toast_round_id": getattr(ptr.toast_round, 'toast_round_id', 'unknown')}, 
-                                         exception=e)
-                    data["toast_rounds"] = tr_data
-                except Exception as e:
-                    log_error(f"Error processing toast_rounds for Product {self.product_id}", 
-                             {"product_id": self.product_id}, exception=e)
-                    data["toast_rounds"] = []
-            
-            # Process product_toast_rounds with filtering
-            if include_product_toast_rounds:
-                try:
-                    filtered_product_toast_rounds = self.get_filtered_relationship('product_toast_rounds')
-                    ptr_data = []
-                    for ptr in filtered_product_toast_rounds:
-                        if ptr:
-                            try:
-                                ptr_data.append(ptr.to_dict())
-                            except Exception as e:
-                                log_error(f"Error converting product_toast_round to dict for Product {self.product_id}", 
-                                         {"product_id": self.product_id, "ptr_id": getattr(ptr, 'id', 'unknown')}, 
-                                         exception=e)
-                    data["product_toast_rounds"] = ptr_data
-                except Exception as e:
-                    log_error(f"Error processing product_toast_rounds for Product {self.product_id}", 
-                             {"product_id": self.product_id}, exception=e)
-                    data["product_toast_rounds"] = []
-            
-            log_debug(f"Successfully converted Product {self.product_id} to dict")
+            #log_debug(f"Successfully converted Product {self.product_id} to dict")
             return data
             
         except Exception as e:
@@ -280,6 +241,5 @@ class Product(Base, EnhancedSoftDeleteMixin):
                 "product_ingredients": [] if include_product_ingredients else None,
                 "sales": [] if include_sales else None,
                 "toast_rounds": [] if include_toast_rounds else None,
-                "product_toast_rounds": [] if include_product_toast_rounds else None
             }
 

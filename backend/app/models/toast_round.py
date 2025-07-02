@@ -18,11 +18,11 @@ class ToastRound(Base):
 
     def to_dict(self, include_products=False, include_sales=False):
         try:
-            log_debug(f"Converting ToastRound {self.toast_round_id} to dict", {
-                "toast_round_id": self.toast_round_id,
-                "include_products": include_products,
-                "include_sales": include_sales
-            })
+            # log_debug(f"Converting ToastRound {self.toast_round_id} to dict", {
+            #     "toast_round_id": self.toast_round_id,
+            #     "include_products": include_products,
+            #     "include_sales": include_sales
+            # })
             
             data = {
                 "toast_round_id": self.toast_round_id,
@@ -32,13 +32,13 @@ class ToastRound(Base):
             if include_products:
                 try:
                     if self.toast_round_products is None:
-                        log_debug(f"ToastRound {self.toast_round_id} has None toast_round_products relationship")
+                        #log_debug(f"ToastRound {self.toast_round_id} has None toast_round_products relationship")
                         data["products"] = []
                     else:
                         products_data = []
                         for ptr in self.toast_round_products:
                             if ptr is None:
-                                log_debug(f"Found None product_toast_round in ToastRound {self.toast_round_id}")
+                                #log_debug(f"Found None product_toast_round in ToastRound {self.toast_round_id}")
                                 continue
                             if ptr.product is None:
                                 log_error(f"ToastRound {self.toast_round_id} has product_toast_round with None product", 
@@ -59,13 +59,13 @@ class ToastRound(Base):
             if include_sales:
                 try:
                     if self.sales is None:
-                        log_debug(f"ToastRound {self.toast_round_id} has None sales relationship")
+                        #log_debug(f"ToastRound {self.toast_round_id} has None sales relationship")
                         data["sales"] = []
                     else:
                         sales_data = []
                         for sale in self.sales:
                             if sale is None:
-                                log_debug(f"Found None sale in ToastRound {self.toast_round_id}")
+                                #log_debug(f"Found None sale in ToastRound {self.toast_round_id}")
                                 continue
                             try:
                                 sales_data.append(sale.to_dict(include_product=True, include_user=True))
@@ -79,7 +79,7 @@ class ToastRound(Base):
                              {"toast_round_id": self.toast_round_id}, exception=e)
                     data["sales"] = []
             
-            log_debug(f"Successfully converted ToastRound {self.toast_round_id} to dict")
+            #log_debug(f"Successfully converted ToastRound {self.toast_round_id} to dict")
             return data
             
         except Exception as e:

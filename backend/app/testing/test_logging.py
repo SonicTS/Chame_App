@@ -63,7 +63,6 @@ def test_firebase_logging():
         product.product_id = 1
         product.product_ingredients = []
         product.sales = []
-        product.product_toast_rounds = []
         
         print("Testing Product.to_dict()...")
         product_dict = product.to_dict(include_ingredients=True, include_sales=True)

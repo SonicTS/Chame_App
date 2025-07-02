@@ -31,6 +31,11 @@ val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
     FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
+    println("Keystore properties loaded successfully")
+    println("keyAlias: ${keystoreProperties["keyAlias"]}")
+    println("storeFile: ${keystoreProperties["storeFile"]}")
+} else {
+    println("Keystore properties file not found at: ${keystorePropertiesFile.absolutePath}")
 }
 
 android {
@@ -61,10 +66,15 @@ android {
     }
     signingConfigs {
         create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String?
-            keyPassword = keystoreProperties["keyPassword"] as String?
-            storeFile = keystoreProperties["storeFile"]?.let { file(it.toString()) }
-            storePassword = keystoreProperties["storePassword"] as String?
+            if (keystorePropertiesFile.exists() && keystoreProperties.containsKey("keyAlias")) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                println("Release signing config created successfully")
+            } else {
+                println("WARNING: Keystore properties not properly loaded, release signing will fail")
+            }
         }
     }
 

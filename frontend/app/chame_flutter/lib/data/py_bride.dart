@@ -748,4 +748,13 @@ class PyBridge {
       rethrow;
     }
   }
+
+  Future<void> testFirebaseLogging() async {
+    try {
+      await _chan.invokeMethod('test_firebase_logging');
+    } catch (e, stack) {
+      print('Error in testFirebaseLogging: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
 }
