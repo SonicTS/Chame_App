@@ -609,10 +609,12 @@ class _SalesConfigWidget extends StatelessWidget {
 class _SalesTableWidget extends StatefulWidget {
   final Future<List<Map<String, dynamic>>> salesFuture;
   final String salesConfig;
+  final ScrollController mainController;
 
   const _SalesTableWidget({
     required this.salesFuture,
     required this.salesConfig,
+    required this.mainController,
   });
 
   @override
@@ -681,6 +683,9 @@ class _SalesTableWidgetState extends State<_SalesTableWidget> {
                   child: SingleChildScrollView(
                     controller: _verticalScrollController,
                     scrollDirection: Axis.vertical,
+                    physics: _CoordinatedScrollPhysics(
+                      mainController: widget.mainController,
+                    ),
                     child: _buildDataTable(filteredSales),
                   ),
                 ),
@@ -707,7 +712,7 @@ class _SalesTableWidgetState extends State<_SalesTableWidget> {
         DataColumn(label: Text('Price', style: TextStyle(fontWeight: FontWeight.bold))),
         DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
       ],
-      rows: sales.map((sale) => _buildDataRow(sale)).toList(),
+      rows: sales.reversed.map((sale) => _buildDataRow(sale)).toList(),
     );
   }
 
@@ -773,6 +778,54 @@ class _SalesTableWidgetState extends State<_SalesTableWidget> {
   }
 }
 
+class _CoordinatedScrollPhysics extends ScrollPhysics {
+  final ScrollController mainController;
+  
+  const _CoordinatedScrollPhysics({
+    required this.mainController,
+    super.parent,
+  });
+
+  @override
+  _CoordinatedScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return _CoordinatedScrollPhysics(
+      mainController: mainController,
+      parent: buildParent(ancestor),
+    );
+  }
+
+  @override
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) {
+    // If we're at the top of the sales table and trying to scroll up
+    if (position.pixels <= 0 && offset > 0) {
+      // Scroll the main page instead
+      if (mainController.hasClients) {
+        double newPosition = mainController.position.pixels - offset;
+        newPosition = newPosition.clamp(
+          0.0,
+          mainController.position.maxScrollExtent
+        );
+        mainController.jumpTo(newPosition);
+        return 0; // Don't scroll the sales table
+      }
+    }
+    // If we're at the bottom of the sales table and trying to scroll down
+    else if (position.pixels >= position.maxScrollExtent && offset < 0) {
+      // Scroll the main page instead
+      if (mainController.hasClients) {
+        double newPosition = mainController.position.pixels - offset;
+        newPosition = newPosition.clamp(
+          0.0,
+          mainController.position.maxScrollExtent
+        );
+        mainController.jumpTo(newPosition);
+        return 0; // Don't scroll the sales table
+      }
+    }
+    return super.applyPhysicsToUserOffset(position, offset);
+  }
+}
+
 class _PurchasePageState extends State<PurchasePage> {
   late Future<List<Map<String, dynamic>>> _usersFuture;
   late Future<List<Map<String, dynamic>>> _productsFuture;
@@ -787,6 +840,9 @@ class _PurchasePageState extends State<PurchasePage> {
   // Shopping cart functionality
   List<Map<String, dynamic>> _shoppingCart = [];
   double _totalCost = 0.0;
+
+  // Main scroll controller for coordinated scrolling
+  final ScrollController _mainScrollController = ScrollController();
 
   @override
   void initState() {
@@ -968,6 +1024,7 @@ class _PurchasePageState extends State<PurchasePage> {
       appBar: AppBar(title: const Text('Purchase')),
       body: SafeArea(
         child: SingleChildScrollView(
+          controller: _mainScrollController,
           padding: const EdgeInsets.all(16.0),
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           child: Column(
@@ -1045,6 +1102,7 @@ class _PurchasePageState extends State<PurchasePage> {
                           _SalesTableWidget(
                             salesFuture: _salesFuture,
                             salesConfig: _salesConfig,
+                            mainController: _mainScrollController,
                           ),
                         ],
                       );

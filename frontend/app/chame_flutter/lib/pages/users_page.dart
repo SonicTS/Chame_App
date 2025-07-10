@@ -23,6 +23,7 @@ class _UsersPageState extends State<UsersPage> {
   String _txTypeFilter = 'all';
   String _userTableNameFilter = '';
   // Add scroll controllers for users and transactions tables
+  final ScrollController _mainScrollController = ScrollController();
   final ScrollController _transactionsTableScrollController = ScrollController();
   final ScrollController _usersTableHorizontalController = ScrollController();
   final ScrollController _usersTableVerticalController = ScrollController();
@@ -183,6 +184,7 @@ class _UsersPageState extends State<UsersPage> {
       c.dispose();
     }
     // Dispose scroll controllers
+    _mainScrollController.dispose();
     _transactionsTableScrollController.dispose();
     _usersTableVerticalController.dispose();
     _usersTableHorizontalController.dispose();
@@ -205,6 +207,7 @@ class _UsersPageState extends State<UsersPage> {
       appBar: AppBar(title: const Text('Users')),
       body: SafeArea(
         child: SingleChildScrollView(
+          controller: _mainScrollController,
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -265,6 +268,7 @@ class _UsersPageState extends State<UsersPage> {
                   userTableNameFilter: _userTableNameFilter,
                   horizontalScrollController: _usersTableHorizontalController,
                   verticalScrollController: _usersTableVerticalController,
+                  mainController: _mainScrollController,
                   authService: auth,
                   onReload: _reload,
                 ),
@@ -345,6 +349,7 @@ class _UsersPageState extends State<UsersPage> {
                   tableHeight: tableHeight,
                   formatTimestamp: _formatTimestamp,
                   scrollController: _transactionsTableScrollController,
+                  mainController: _mainScrollController,
                 ),
               ],
             ),
@@ -367,6 +372,7 @@ class UsersTableSection extends StatelessWidget {
   final String userTableNameFilter;
   final ScrollController horizontalScrollController;
   final ScrollController verticalScrollController;
+  final ScrollController mainController;
   final AuthService authService;
   final VoidCallback onReload;
 
@@ -381,6 +387,7 @@ class UsersTableSection extends StatelessWidget {
     required this.userTableNameFilter,
     required this.horizontalScrollController,
     required this.verticalScrollController,
+    required this.mainController,
     required this.authService,
     required this.onReload,
   });
@@ -490,6 +497,9 @@ class UsersTableSection extends StatelessWidget {
                   child: SingleChildScrollView(
                     controller: verticalScrollController,
                     scrollDirection: Axis.vertical,
+                    physics: _CoordinatedScrollPhysics(
+                      mainController: mainController,
+                    ),
                     child: DataTable(
                       columns: const [
                         DataColumn(label: Text('Name')),
@@ -594,6 +604,7 @@ class TransactionsSection extends StatelessWidget {
   final double tableHeight;
   final String Function(dynamic) formatTimestamp;
   final ScrollController scrollController;
+  final ScrollController mainController;
 
   const TransactionsSection({
     super.key,
@@ -601,6 +612,7 @@ class TransactionsSection extends StatelessWidget {
     required this.tableHeight,
     required this.formatTimestamp,
     required this.scrollController,
+    required this.mainController,
   });
 
   @override
@@ -631,6 +643,9 @@ class TransactionsSection extends StatelessWidget {
                 constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width),
                 child: SingleChildScrollView(
                   scrollDirection: Axis.vertical,
+                  physics: _CoordinatedScrollPhysics(
+                    mainController: mainController,
+                  ),
                   child: DataTable(
                     columns: const [
                       DataColumn(label: Text('User')),
@@ -684,5 +699,53 @@ class TransactionsSection extends StatelessWidget {
         },
       ),
     );
+  }
+}
+
+class _CoordinatedScrollPhysics extends ScrollPhysics {
+  final ScrollController mainController;
+  
+  const _CoordinatedScrollPhysics({
+    required this.mainController,
+    super.parent,
+  });
+
+  @override
+  _CoordinatedScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return _CoordinatedScrollPhysics(
+      mainController: mainController,
+      parent: buildParent(ancestor),
+    );
+  }
+
+  @override
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) {
+    // If we're at the top of the table and trying to scroll up
+    if (position.pixels <= 0 && offset > 0) {
+      // Scroll the main page instead
+      if (mainController.hasClients) {
+        double newPosition = mainController.position.pixels - offset;
+        newPosition = newPosition.clamp(
+          0.0,
+          mainController.position.maxScrollExtent
+        );
+        mainController.jumpTo(newPosition);
+        return 0; // Don't scroll the table
+      }
+    }
+    // If we're at the bottom of the table and trying to scroll down
+    else if (position.pixels >= position.maxScrollExtent && offset < 0) {
+      // Scroll the main page instead
+      if (mainController.hasClients) {
+        double newPosition = mainController.position.pixels - offset;
+        newPosition = newPosition.clamp(
+          0.0,
+          mainController.position.maxScrollExtent
+        );
+        mainController.jumpTo(newPosition);
+        return 0; // Don't scroll the table
+      }
+    }
+    return super.applyPhysicsToUserOffset(position, offset);
   }
 }
