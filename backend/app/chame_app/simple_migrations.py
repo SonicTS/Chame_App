@@ -109,6 +109,21 @@ class SimpleMigrations:
                 UPDATE ingredients SET is_disabled = FALSE WHERE is_disabled IS NULL;
                 UPDATE ingredients SET disabled_reason = NULL WHERE disabled_reason IS NULL;
             """,
+            "005_add_stock_history_table": """
+                -- Create stock_history table to track ingredient stock changes
+                CREATE TABLE IF NOT EXISTS stock_history (
+                    history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ingredient_id INTEGER NOT NULL,
+                    amount REAL NOT NULL,
+                    timestamp VARCHAR NOT NULL,
+                    comment VARCHAR,
+                    FOREIGN KEY (ingredient_id) REFERENCES ingredients (ingredient_id)
+                );
+                
+                -- Create index for better performance on ingredient_id lookups
+                CREATE INDEX IF NOT EXISTS ix_stock_history_ingredient_id ON stock_history (ingredient_id);
+            """,
+            
             # Add more migrations here as needed
         }
     

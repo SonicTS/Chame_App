@@ -375,6 +375,9 @@ class ComprehensiveAPITester:
         # Test authentication functions
         self._test_authentication_functions(test_results)
         
+        # Test stock history functions
+        self._test_stock_history_functions(test_results)
+        
         # Test soft delete and deletion functions
         self._test_soft_delete_functions(test_results)
         
@@ -641,6 +644,144 @@ class ComprehensiveAPITester:
             # Invalid password changes
             self._test_function("change_password (invalid - wrong old password)", 
                               lambda: api.change_password(admin_user["user_id"], "wrong_old", "newpassword123"), test_results, expect_error=True)
+    
+    def _test_stock_history_functions(self, test_results):
+        """Test stock history and stock management functions"""
+        print("\n📊 Testing stock history functions...")
+        
+        # Get ingredients to test with
+        print("  🔍 Fetching ingredients for stock history tests...")
+        updated_all_history = api.get_all_stock_history()
+        ingredients = api.get_all_ingredients()
+        if not ingredients:
+            print("  ⚠️ No ingredients found, skipping stock history tests")
+            return
+        
+        # Test update_stock function
+        test_ingredient = ingredients[0]
+        ingredient_id = test_ingredient["ingredient_id"]
+        original_stock = test_ingredient["stock_quantity"]
+        
+        # Test valid stock updates
+        new_stock_amount = original_stock + 5
+        self._test_function("update_stock (valid increase)", 
+                          lambda: api.update_stock(ingredient_id, new_stock_amount, "Test stock increase"), test_results)
+        
+        # Test stock update with comment
+        new_stock_amount_2 = new_stock_amount + 10
+        self._test_function("update_stock (with comment)", 
+                          lambda: api.update_stock(ingredient_id, new_stock_amount_2, "Test stock with detailed comment"), test_results)
+        
+        # Test stock decrease
+        new_stock_amount_3 = new_stock_amount_2 - 3
+        self._test_function("update_stock (decrease)", 
+                          lambda: api.update_stock(ingredient_id, new_stock_amount_3, "Test stock decrease"), test_results)
+        
+        # Test invalid stock updates
+        self._test_function("update_stock (invalid - negative stock)", 
+                          lambda: api.update_stock(ingredient_id, -1, "Invalid negative stock"), test_results, expect_error=True)
+        
+        self._test_function("update_stock (invalid - invalid ingredient ID)", 
+                          lambda: api.update_stock(99999, 10, "Invalid ingredient"), test_results, expect_error=True)
+        
+        self._test_function("update_stock (invalid - no ingredient ID)", 
+                          lambda: api.update_stock(None, 10, "No ingredient ID"), test_results, expect_error=True)
+        
+        # Test get_stock_history function
+        stock_history = self._test_function("get_stock_history (valid)", 
+                          lambda: api.get_stock_history(ingredient_id), test_results)
+        
+        # Validate stock history structure
+        if stock_history is not None:
+            if isinstance(stock_history, list):
+                test_results['passed'] += 1
+                print(f"  ✅ get_stock_history: Returned list with {len(stock_history)} entries")
+                
+                # Validate individual stock history entries
+                for i, entry in enumerate(stock_history):
+                    if self._validate_stock_history_dict(entry, test_results):
+                        print(f"  ✅ stock_history[{i}]: Structure validated")
+                    else:
+                        print(f"  ❌ stock_history[{i}]: Structure validation failed")
+                        break
+            else:
+                test_results['failed'] += 1
+                test_results['errors'].append(f"get_stock_history: Expected list, got {type(stock_history)}")
+                print(f"  ❌ get_stock_history: Expected list, got {type(stock_history)}")
+        
+        # Test get_stock_history with invalid ingredient ID
+        self._test_function("get_stock_history (invalid ingredient ID)", 
+                          lambda: api.get_stock_history(99999), test_results, expect_error=False)
+        
+        self._test_function("get_stock_history (no ingredient ID)", 
+                          lambda: api.get_stock_history(None), test_results, expect_error=True)
+        
+        # Test get_all_stock_history function
+        all_stock_history = self._test_function("get_all_stock_history", 
+                          lambda: api.get_all_stock_history(), test_results)
+        
+        # Validate all stock history structure
+        if all_stock_history is not None:
+            if isinstance(all_stock_history, list):
+                test_results['passed'] += 1
+                print(f"  ✅ get_all_stock_history: Returned list with {len(all_stock_history)} entries")
+                
+                # Validate sample entries
+                for i, entry in enumerate(all_stock_history[:3]):  # Check first 3 entries
+                    if self._validate_stock_history_dict(entry, test_results):
+                        print(f"  ✅ all_stock_history[{i}]: Structure validated")
+                    else:
+                        print(f"  ❌ all_stock_history[{i}]: Structure validation failed")
+                        break
+            else:
+                test_results['failed'] += 1
+                test_results['errors'].append(f"get_all_stock_history: Expected list, got {type(all_stock_history)}")
+                print(f"  ❌ get_all_stock_history: Expected list, got {type(all_stock_history)}")
+        
+        # Test edge cases
+        print("  🔍 Testing stock history edge cases...")
+        
+        # Test stock update with empty comment
+        self._test_function("update_stock (empty comment)", 
+                          lambda: api.update_stock(ingredient_id, new_stock_amount_3 + 1, ""), test_results)
+        
+        # Test stock update with very long comment
+        long_comment = "Very long comment " * 50  # 850+ characters
+        self._test_function("update_stock (very long comment)", 
+                          lambda: api.update_stock(ingredient_id, new_stock_amount_3 + 2, long_comment), test_results)
+        
+        # Test stock update with unicode characters
+        unicode_comment = "Stock update with unicode: 测试 üöä €"
+        self._test_function("update_stock (unicode comment)", 
+                          lambda: api.update_stock(ingredient_id, new_stock_amount_3 + 3, unicode_comment), test_results)
+        
+        # Test multiple ingredients if available
+        if len(ingredients) > 1:
+            second_ingredient = ingredients[1]
+            second_ingredient_id = second_ingredient["ingredient_id"]
+            
+            # Update stock for second ingredient
+            self._test_function("update_stock (second ingredient)", 
+                              lambda: api.update_stock(second_ingredient_id, second_ingredient["stock_quantity"] + 5, "Second ingredient test"), test_results)
+            
+            # Verify all_stock_history contains entries for both ingredients
+            updated_all_history = api.get_all_stock_history()
+            if updated_all_history:
+                ingredient_ids_in_history = set(entry.get("ingredient_id") for entry in updated_all_history)
+                if ingredient_id in ingredient_ids_in_history and second_ingredient_id in ingredient_ids_in_history:
+                    test_results['passed'] += 1
+                    print("  ✅ get_all_stock_history: Contains entries for multiple ingredients")
+                else:
+                    test_results['failed'] += 1
+                    test_results['errors'].append("get_all_stock_history: Missing entries for tested ingredients")
+                    print("  ❌ get_all_stock_history: Missing entries for tested ingredients")
+        
+        print("  📊 Stock history tests completed")
+    
+    def _validate_stock_history_dict(self, stock_history_dict, test_results):
+        """Validate that a stock history dictionary has the expected fields"""
+        expected_fields = ['history_id', 'ingredient_id', 'amount', 'comment', 'timestamp', 'ingredient_name']
+        return self._validate_dict_structure(stock_history_dict, expected_fields, 'stock_history', test_results)
     
     def _test_soft_delete_functions(self, test_results):
         """Test soft delete and deletion management functions"""

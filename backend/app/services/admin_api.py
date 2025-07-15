@@ -33,7 +33,9 @@ def run_simple_migrations():
 
 def create_database(apply_migration: bool = True) -> Database:
     global database
+    print("DEBUG: create_database called with apply_migration:", apply_migration)
     if database is None:
+        print("DEBUG: Creating new Database instance")
         database = Database(apply_migration)
         logging.info("Database instance created and migrations run.")
     else:
@@ -112,6 +114,36 @@ def submit_pfand_return(user_id, product_list):
         raise ValueError("Product list must be a list")
     
     return database.return_deposit(user_id=user_id, product_quantity_list=product_list)
+
+def update_stock(ingredient_id: int, amount: int, comment: str = ""):
+    print("DEBUG: update_stock called with ingredient_id:", ingredient_id, "amount:", amount, "comment:", comment)
+    if not ingredient_id or amount is None:
+        raise ValueError("Invalid input")
+    if amount < 0:
+        raise ValueError("Amount cannot be negative")
+    
+    return database.update_stock(ingredient_id=ingredient_id, amount=amount, comment=comment)
+
+def get_stock_history(ingredient_id: int):
+    print("DEBUG: get_stock_history called with ingredient_id:", ingredient_id)
+    if not ingredient_id:
+        raise ValueError("Invalid input")
+    
+    stock_history = database.get_stock_history(ingredient_id=ingredient_id)
+    if not stock_history:
+        print("DEBUG: No stock history found for ingredient_id:", ingredient_id)
+        return []
+    
+    return [sh.to_dict(include_ingredient=True) for sh in stock_history]
+
+def get_all_stock_history():
+    print("DEBUG: get_all_stock_history called")
+    stock_history = database.get_all_stock_history()
+    if not stock_history:
+        print("DEBUG: No stock history found")
+        return []
+    
+    return [sh.to_dict(include_ingredient=True) for sh in stock_history]
 
 def restock_ingredients(_list: List[Dict[int, int]]):
     if not _list or not isinstance(_list, list):

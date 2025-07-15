@@ -7,12 +7,12 @@ import os
 Base= declarative_base()        # exported for model modules
 SessionLocal = None             # will be rebound once engine exists
 
-def get_session():
+def get_session(apply_migrations: bool = True):
     """Return a new SQLAlchemy Session, creating the engine the first time."""
     global _engine, SessionLocal
 
     if _engine is None:                   # first call → create engine lazily
-        _engine = _create_engine_once()
+        _engine = _create_engine_once(apply_migrations)
         Base.metadata.create_all(_engine)      # idempotent
         SessionLocal = sessionmaker(bind=_engine, autocommit=False, autoflush=False)
 
@@ -28,7 +28,7 @@ def reset_database():
 # ── Internal helpers ─────────────────────────────────────────────────-
 _engine: Optional[object] = None           # keeps the singleton engine
 
-def _create_engine_once():
+def _create_engine_once(apply_migrations: bool = True):
     """Build engine after env-vars are ready, ensure directory exists."""
     # print("[DEBUG] os.name:", os.name)
     # print("[DEBUG] All environment variables:")
@@ -77,7 +77,7 @@ def _create_engine_once():
             migrations.set_fresh_database_flag()
             migrations.mark_all_migrations_applied()
             print("✅ New database initialized with all migrations marked as applied")
-        else:
+        elif apply_migrations:
             print("🔄 Existing database detected - checking for pending migrations")
             success = migrations.run_migrations(create_backup=True)
             

@@ -44,6 +44,22 @@ class TestDatabaseGenerator:
                           [ingredients[0]["ingredient_id"], ingredients[1]["ingredient_id"]], 
                           [1, 1], 1)
         
+        # Add some basic stock history entries
+        if ingredients:
+            try:
+                # Simulate initial stock arrival
+                api.update_stock(ingredients[0]["ingredient_id"], 10, "Initial stock delivery")
+                # Simulate stock increase
+                api.update_stock(ingredients[0]["ingredient_id"], 15, "Stock replenishment")
+                
+                if len(ingredients) >= 2:
+                    api.update_stock(ingredients[1]["ingredient_id"], 15, "Initial stock delivery")
+                    api.update_stock(ingredients[1]["ingredient_id"], 20, "Stock adjustment")
+                    
+                print("  ✅ Created basic stock history entries")
+            except Exception as e:
+                print(f"  ⚠️ Note: Stock history creation failed: {e}")
+        
         print(f"✅ Minimal database created: {db_path}")
         return db_path
     
@@ -133,6 +149,49 @@ class TestDatabaseGenerator:
             except Exception as e:
                 print(f"⚠️ Note: Pfand history creation failed: {e}")
         
+        # Create comprehensive stock history entries
+        if ingredients:
+            try:
+                # Simulate various stock management scenarios
+                stock_scenarios = [
+                    # Bread stock management
+                    (0, 20, "Initial delivery"),
+                    (0, 30, "Stock replenishment"),
+                    (0, 25, "Corrected stock count"),
+                    
+                    # Cheese stock management
+                    (1, 15, "Initial delivery"),
+                    (1, 25, "Bulk order delivery"),
+                    (1, 20, "Stock adjustment after count"),
+                    
+                    # Ham stock management
+                    (2, 10, "Initial delivery"),
+                    (2, 15, "Emergency restock"),
+                    (2, 8, "Spoiled items removed"),
+                    
+                    # Tomato stock management
+                    (3, 25, "Fresh delivery"),
+                    (3, 30, "Peak season stock"),
+                    (3, 20, "Reduced due to quality"),
+                    
+                    # Beverages stock management
+                    (5, 24, "Cola delivery"),
+                    (5, 48, "Large order for event"),
+                    (5, 30, "Regular stock level"),
+                    
+                    (6, 20, "Beer delivery"),
+                    (6, 36, "Weekend preparation"),
+                    (6, 24, "Monday adjustment"),
+                ]
+                
+                for ingredient_idx, amount, comment in stock_scenarios:
+                    if ingredient_idx < len(ingredients):
+                        api.update_stock(ingredients[ingredient_idx]["ingredient_id"], amount, comment)
+                        
+                print("  ✅ Created comprehensive stock history entries")
+            except Exception as e:
+                print(f"⚠️ Note: Stock history creation failed: {e}")
+        
         print(f"✅ Comprehensive database created: {db_path}")
         return db_path
     
@@ -168,6 +227,51 @@ class TestDatabaseGenerator:
         for name, price, stock, number, pfand in edge_ingredients:
             api.add_ingredient(name, price, stock, number, pfand)
         
+        # Create edge case stock history entries
+        ingredients = api.get_all_ingredients()
+        if ingredients:
+            try:
+                # Simulate edge case stock scenarios
+                edge_stock_scenarios = [
+                    # Very expensive item - small changes
+                    (0, 1, "Initial high-value delivery"),
+                    (0, 2, "High-value restock"),
+                    (0, 1, "Security reduction"),
+                    
+                    # Very cheap item - large changes
+                    (1, 100, "Bulk delivery"),
+                    (1, 200, "Warehouse clearance"),
+                    (1, 50, "Reduced bulk stock"),
+                    
+                    # High pfand item - pfand related
+                    (2, 10, "High pfand delivery"),
+                    (2, 15, "Pfand adjustment"),
+                    (2, 8, "Pfand return processing"),
+                    
+                    # Zero stock item - restocking attempts
+                    (3, 0, "Out of stock"),
+                    (3, 5, "Emergency restock"),
+                    (3, 0, "Stock depleted again"),
+                    
+                    # Unicode item - international delivery
+                    (4, 15, "国际交付"),  # International delivery in Chinese
+                    (4, 20, "库存补充"),  # Stock replenishment in Chinese
+                    (4, 12, "质量调整"),  # Quality adjustment in Chinese
+                    
+                    # Special chars item - European delivery
+                    (5, 20, "Europäische Lieferung"),
+                    (5, 25, "Österreichische Bestellung"),
+                    (5, 18, "Qualitätsprüfung"),
+                ]
+                
+                for ingredient_idx, amount, comment in edge_stock_scenarios:
+                    if ingredient_idx < len(ingredients):
+                        api.update_stock(ingredients[ingredient_idx]["ingredient_id"], amount, comment)
+                        
+                print("  ✅ Created edge case stock history entries")
+            except Exception as e:
+                print(f"⚠️ Note: Edge case stock history creation failed: {e}")
+        
         print(f"✅ Edge case database created: {db_path}")
         return db_path
     
@@ -195,6 +299,43 @@ class TestDatabaseGenerator:
         for i, name in enumerate(ingredient_names):
             pfand = 0.25 if name in ["Cola", "Beer", "Water", "Juice"] else 0.0
             api.add_ingredient(f"{name}_{i}", 2.0 + i * 0.5, 20 + i, 8 + i % 5, pfand)
+        
+        # Create performance test stock history entries
+        ingredients = api.get_all_ingredients()
+        if ingredients:
+            try:
+                # Create multiple stock history entries for performance testing
+                import random
+                
+                # Generate many stock history entries for performance testing
+                stock_comments = [
+                    "Initial delivery", "Stock replenishment", "Bulk order", 
+                    "Emergency restock", "Quality adjustment", "Inventory correction",
+                    "Seasonal adjustment", "Supplier change", "Price adjustment",
+                    "Warehouse transfer", "Damaged goods removal", "Expired items removed"
+                ]
+                
+                # Create 5-10 stock history entries per ingredient
+                for ingredient in ingredients:
+                    num_entries = random.randint(5, 10)
+                    current_stock = ingredient["stock_quantity"]
+                    
+                    for _ in range(num_entries):
+                        # Simulate realistic stock changes
+                        change = random.randint(-5, 15)
+                        new_stock = max(0, current_stock + change)
+                        comment = random.choice(stock_comments)
+                        
+                        try:
+                            api.update_stock(ingredient["ingredient_id"], new_stock, comment)
+                            current_stock = new_stock
+                        except Exception as e:
+                            # Skip this entry if it fails
+                            pass
+                            
+                print("  ✅ Created performance test stock history entries")
+            except Exception as e:
+                print(f"⚠️ Note: Performance stock history creation failed: {e}")
         
         print(f"✅ Performance database created: {db_path}")
         return db_path
@@ -332,12 +473,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--version", 
-        default="v1.0",
+        default=None,
         help="Baseline version for the generated databases (default: v1.0)"
     )
     
+
     args = parser.parse_args()
-    
+    if args.version == None:
+        raise ValueError("Version must be specified. Use --version to set the baseline version.") 
     generator = TestDatabaseGenerator(baseline_version=args.version)
     
     command = args.command.lower()

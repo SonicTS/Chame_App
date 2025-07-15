@@ -37,6 +37,10 @@ class Ingredient(Base, EnhancedSoftDeleteMixin):
 
     # Relationship back to Product (via the ProductIngredient table)
     ingredient_products = relationship("ProductIngredient", back_populates="ingredient")
+    
+    # Relationship to stock history
+    stock_history = relationship("StockHistory", back_populates="ingredient")
+    
     def __init__(self, name, price_per_package, number_of_units, price_per_unit, pfand=0.0, stock_quantity=0):
         self.name = name
         self.pfand = pfand

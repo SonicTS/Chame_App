@@ -1,6 +1,5 @@
 // lib/data/py_bridge.dart
 import 'dart:convert';
-import 'dart:ffi';
 import 'package:flutter/services.dart';
 
 class PyBridge {
@@ -389,6 +388,40 @@ class PyBridge {
       return null;
     } catch (e) {
       return e.toString();
+    }
+  }
+
+  Future<String?> updateStock({
+    required int ingredientId,
+    required int amount,
+    String comment = "",
+  }) async {
+    try {
+      await _chan.invokeMethod('update_stock', {
+        'ingredient_id': ingredientId,
+        'amount': amount,
+        'comment': comment,
+      });
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getStockHistory({int? ingredientId}) async {
+    try {
+      final String method = ingredientId != null ? 'get_stock_history' : 'get_all_stock_history';
+      final Map<String, dynamic> arguments = ingredientId != null ? {'ingredient_id': ingredientId} : {};
+      
+      final result = await _chan.invokeMethod(method, arguments);
+      if (result == null || result == 'null') {
+        return <Map<String, dynamic>>[];
+      }
+      final List<dynamic> decoded = jsonDecode(result as String);
+      return decoded.cast<Map<String, dynamic>>();
+    } catch (e, stack) {
+      print('Error in getStockHistory: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
     }
   }
 

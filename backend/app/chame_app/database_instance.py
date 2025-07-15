@@ -1,6 +1,7 @@
 from __future__ import annotations
 import datetime
 from typing import Any, List, Optional
+from models.stock_history import StockHistory
 from models.pfand_table import PfandHistory
 from chame_app.database import get_session
 from models.ingredient import Ingredient
@@ -16,13 +17,15 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import text
 from utils.firebase_logger import log_info, log_warn, log_error, log_debug
 
+# Debug flag - set to True to enable local debug prints
+DEBUG = False
 
 BANK_NOT_FOUND_MSG = "Bank account not found"
 USER_NOT_FOUND_MSG = "User not found"
 
 class Database:
     def __init__(self, apply_migrations: bool = True):
-        self.session = get_session()
+        self.session = get_session(apply_migrations)
         # Run migrations to ensure database is up to date
         if apply_migrations:
             self._ensure_migrations_applied()
@@ -33,10 +36,16 @@ class Database:
             self.session.commit()
             self.session.refresh(bank)
         if not self.session.query(User).filter_by(role="admin").first():
+            if DEBUG:
+                print("[DEBUG] No admin user found, creating default admin user")
             admin_user = User(name="admin", balance=0, password_hash="password", role="admin")
             self.session.add(admin_user)
             self.session.commit()
             self.session.refresh(admin_user)
+        else:
+            admin_user = self.session.query(User).filter_by(role="admin").first()
+            if DEBUG:
+                print(f"[DEBUG] Found existing admin user: {admin_user.name}")
         for product in self.session.query(Product).all():
             product.update_stock()
         self.session.close()
@@ -142,20 +151,25 @@ class Database:
                 session = self.get_session()
                 close_session = True
             if self.exists_ingredient_with_name(name, session):
-                print(f"DEBUG: Ingredient with name '{name}' already exists")
+                if DEBUG:
+                    print(f"DEBUG: Ingredient with name '{name}' already exists")
                 raise ValueError(f"Ingredient with name '{name}' already exists")
             stock = int(stock_quantity)
             price = float(price_per_package)
             number_ingredients = int(number_ingredients)
-            print(f"DEBUG: Adding ingredient {name} with price={price}, stock={stock}, number_ingredients={number_ingredients}")
+            if DEBUG:
+                print(f"DEBUG: Adding ingredient {name} with price={price}, stock={stock}, number_ingredients={number_ingredients}")
             if number_ingredients <= 0:
-                print("DEBUG: Number of ingredients must be greater than 0")
+                if DEBUG:
+                    print("DEBUG: Number of ingredients must be greater than 0")
                 raise ValueError("Number of ingredients must be greater than 0")
             price_per_unit = price / number_ingredients
             stock = stock * number_ingredients
-            print(f"DEBUG: Calculated price_per_unit={price_per_unit} for ingredient {name}")
+            if DEBUG:
+                print(f"DEBUG: Calculated price_per_unit={price_per_unit} for ingredient {name}")
             ingredient = Ingredient(name=name, price_per_package=price, number_of_units=number_ingredients, price_per_unit=price_per_unit, stock_quantity=stock, pfand=pfand)
-            print(f"DEBUG: Created ingredient {ingredient}")
+            if DEBUG:
+                print(f"DEBUG: Created ingredient {ingredient}")
             if stock > 0:
                 bank = self.get_bank(session)
                 bank.ingredient_value += price_per_unit * stock + pfand * stock
@@ -182,13 +196,15 @@ class Database:
                 raise ValueError("Invalid input: _list must be a non-empty list")
             total_cost = 0.0
             for item in _list:
-                print(f"DEBUG: Restocking item: {item}")
+                if DEBUG:
+                    print(f"DEBUG: Restocking item: {item}")
                 if not isinstance(item, dict) or 'id' not in item or 'restock' not in item:
                     raise ValueError("Invalid input: each item must be a dictionary with 'id' and 'restock' keys")
                 ingredient_id = item['id']
                 quantity = item['restock']
                 price = item.get('price', None)
-                print(f"DEBUG: Restocking ingredient_id={ingredient_id}, quantity={quantity}, price={price}")
+                if DEBUG:
+                    print(f"DEBUG: Restocking ingredient_id={ingredient_id}, quantity={quantity}, price={price}")
                 total_cost += self.stock_ingredient(ingredient_id, quantity, price=price, session=session)
             
             bank = self.get_bank(session)
@@ -196,7 +212,8 @@ class Database:
                 raise ValueError(f"Insufficient balance {bank.total_balance}")
             bank.total_balance -= total_cost
             if bank.revenue_funds < total_cost:
-                print("DEBUG: Not enough revenue funds, draining customer_funds")
+                if DEBUG:
+                    print("DEBUG: Not enough revenue funds, draining customer_funds")
                 bank.revenue_funds -= total_cost
                 bank.profit_retained = 0
                 bank.costs_reserved = 0
@@ -214,7 +231,8 @@ class Database:
                 ingredient = self.get_ingredient_by_id(item['id'], session)
                 price = item.get('price') if item.get('price') is not None else ingredient.price_per_package
                 pfand = ingredient.pfand if ingredient.pfand else 0.0
-                print(f"DEBUG: Ingredient {ingredient.name} restock={item['restock']}, price={price}, pfand={pfand}")
+                if DEBUG:
+                    print(f"DEBUG: Ingredient {ingredient.name} restock={item['restock']}, price={price}, pfand={pfand}")
                 description += f"{ingredient.name} x{item['restock']}: {price}(+{pfand})€ = {item['restock'] * (price + pfand)}\n"
             transaction = BankTransaction(amount=total_cost, type="withdraw", description=description)
             session.add(transaction)
@@ -247,7 +265,8 @@ class Database:
                 price = float(price) / ingredient.number_of_units
                 if price <= 0:
                     raise ValueError("Price must be greater than 0")
-            print(f"DEBUG: Stocking ingredient {ingredient_name} with price={price}, quantity={quantity}")
+            if DEBUG:
+                print(f"DEBUG: Stocking ingredient {ingredient_name} with price={price}, quantity={quantity}")
             bank.costs_total += price * quantity + ingredient.pfand * quantity
             bank.ingredient_value += price * quantity + ingredient.pfand * quantity
             for product_assoc in ingredient.ingredient_products:
@@ -280,7 +299,8 @@ class Database:
             if len(ingredients) == 0:
                 raise ValueError("Product must have at least one ingredient")
             if len(ingredients) > 1 and category == "raw":
-                print(f"DEBUG: ingredients: {ingredients}")
+                if DEBUG:
+                    print(f"DEBUG: ingredients: {ingredients}")
                 raise ValueError("Raw products can only have one ingredient")
             price = float(price_per_unit)
             if toaster_space:
@@ -388,7 +408,8 @@ class Database:
 
     def return_deposit(self, user_id: int, product_quantity_list: List[Any], session=None):
         """Return deposit for a list of products."""
-        print(f"DEBUG: Returning deposit for user_id={user_id}, product_quantity_list={product_quantity_list}")
+        if DEBUG:
+            print(f"DEBUG: Returning deposit for user_id={user_id}, product_quantity_list={product_quantity_list}")
         close_session = False
         product_name = "404"
         user_name = "404"
@@ -398,14 +419,16 @@ class Database:
                 close_session = True
             total_pfand = 0.0
             for item in product_quantity_list:
-                print(f"DEBUG: Returning deposit for item: {item}")
+                if DEBUG:
+                    print(f"DEBUG: Returning deposit for item: {item}")
                 quantity = int(item['amount'])
                 product = self.get_product_by_id(item['id'], session)
                 product_name = product.name
                 if quantity <= 0:
                     raise ValueError("return_deposit: Quantity must be greater than 0")
                 pfand_history = self.get_pfand_history(user_id, product.product_id, session=session)
-                print(f"DEBUG: Pfand history for user_id={user_id}, product_id={product.product_id}: {pfand_history}")
+                if DEBUG:
+                    print(f"DEBUG: Pfand history for user_id={user_id}, product_id={product.product_id}: {pfand_history}")
                 if not pfand_history or pfand_history.counter < quantity:
                     raise ValueError(f"Insufficient deposit history for product {product.name} (requested: {quantity}, available: {pfand_history.counter if pfand_history else 0})")
                 pfand_history.counter -= quantity
@@ -638,7 +661,8 @@ class Database:
                 raise ValueError(f"Insufficient balance {bank.total_balance}")
             bank.total_balance -= amount
             if bank.revenue_funds < amount:
-                print("DEBUG: Not enough revenue funds, draining customer_funds")
+                if DEBUG:
+                    print("DEBUG: Not enough revenue funds, draining customer_funds")
                 bank.revenue_funds -= amount
                 bank.profit_retained = 0
                 bank.costs_reserved = 0
@@ -1057,6 +1081,80 @@ class Database:
             return pfand_history[0] if pfand_history else None
         except Exception as e:
             raise RuntimeError(f"get_pfand_history failed for user_id={user_id}, product_id={product_id}: {e}") from e
+        finally:
+            if close_session:
+                session.close()
+
+    def update_stock(self, ingredient_id: int, amount: int, comment: str = "", session=None) -> None:
+        """Update the stock of an ingredient."""
+        close_session = False
+        if session is None:
+            session = self.get_session()
+            close_session = True
+        try:
+            ingredient = self.get_ingredient_by_id(ingredient_id, session)
+            if not ingredient:
+                raise ValueError(f"Ingredient not found (ingredient_id={ingredient_id})")
+            amount = int(amount)
+            if amount < 0:
+                raise ValueError("Amount must be greater than or equal to 0")
+            amount_diff = amount - ingredient.stock_quantity
+            ingredient.stock_quantity = amount
+            bank = self.get_bank(session)
+            bank.ingredient_value += ingredient.price_per_unit * amount_diff
+            stock_history = StockHistory(ingredient_id=ingredient_id, amount=amount_diff, comment=comment, timestamp=datetime.datetime.now().replace(second=0, microsecond=0))
+            session.add(stock_history)
+            
+            # Update product stock quantities that depend on this ingredient
+            for product_assoc in ingredient.ingredient_products:
+                product = product_assoc.product
+                if product:  # Make sure the product exists
+                    product.update_stock()
+            
+            if close_session:
+                session.commit()
+                session.refresh(stock_history)
+                session.close()
+            return
+        except Exception as e:
+            if session:
+                session.rollback()
+                if close_session:
+                    session.close()
+            raise RuntimeError(f"update_stock failed for ingredient_id={ingredient_id}, amount={amount}: {e}") from e
+
+    def get_stock_history(self, ingredient_id: int, session=None) -> 'List[StockHistory]':
+        """Get the stock history for a ingredient."""
+        close_session = False
+        if session is None:
+            session = self.get_session()
+            close_session = True
+        try:
+            stock_history = session.query(StockHistory).options(
+                joinedload(StockHistory.ingredient)
+            ).filter(
+                StockHistory.ingredient_id == ingredient_id,
+            ).all()
+            return stock_history
+        except Exception as e:
+            raise RuntimeError(f"get_stock_history failed for ingredient_id={ingredient_id}: {e}") from e
+        finally:
+            if close_session:
+                session.close()
+
+    def get_all_stock_history(self, session=None) -> 'List[StockHistory]':
+        """Get all stocks"""
+        close_session = False
+        if session is None:
+            session = self.get_session()
+            close_session = True
+        try:
+            stock_history = session.query(StockHistory).options(
+                joinedload(StockHistory.ingredient)
+            ).all()
+            return stock_history
+        except Exception as e:
+            raise RuntimeError(f"get_all_stock_history failed: {e}") from e
         finally:
             if close_session:
                 session.close()

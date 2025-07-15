@@ -8,9 +8,10 @@ from typing import Dict, Any, Optional
 
 # Debug flag - set to False to reduce log noise once bridge is confirmed working
 FIREBASE_LOGGER_DEBUG = False  # Bridge is working, reduce noise
+DEBUG = False  # Set to True to enable local debug prints
 
 # Release mode logging - keep console logging for important messages
-FIREBASE_LOGGER_CONSOLE_LOGGING = True
+FIREBASE_LOGGER_CONSOLE_LOGGING = False
 
 class FirebaseLogger:
     """
@@ -119,10 +120,11 @@ class FirebaseLogger:
     def _log_to_bridge(self, level: str, message: str, metadata: Optional[Dict[str, Any]] = None):
         """Internal method to send log to Flutter through bridge"""
         # Always log to console for debugging
-        console_msg = f"🔥 [FIREBASE-{level}] {message}"
-        if metadata:
-            console_msg += f" | Metadata: {metadata}"
-        print(console_msg)
+        if DEBUG:
+            console_msg = f"🔥 [FIREBASE-{level}] {message}"
+            if metadata:
+                console_msg += f" | Metadata: {metadata}"
+            print(console_msg)
         
         if FIREBASE_LOGGER_DEBUG:
             print(f"🚀 [FIREBASE-BRIDGE] Attempting to send {level} log to Firebase...")
@@ -213,7 +215,8 @@ class FirebaseLogger:
     
     def info(self, message: str, metadata: Optional[Dict[str, Any]] = None):
         """Log info message"""
-        print(f"[INFO] {message}")  # Always print to console
+        if DEBUG:
+            print(f"[INFO] {message}")
         if FIREBASE_LOGGER_DEBUG:
             print(f"📝 [FIREBASE-LOGGER] Preparing to send INFO log to bridge...")
         self._log_to_bridge("INFO", message, metadata)
@@ -222,7 +225,8 @@ class FirebaseLogger:
     
     def warn(self, message: str, metadata: Optional[Dict[str, Any]] = None):
         """Log warning message"""
-        print(f"[WARN] {message}")
+        if DEBUG:
+            print(f"[WARN] {message}")
         if FIREBASE_LOGGER_DEBUG:
             print(f"⚠️ [FIREBASE-LOGGER] Preparing to send WARN log to bridge...")
         self._log_to_bridge("WARN", message, metadata)
@@ -231,7 +235,8 @@ class FirebaseLogger:
     
     def error(self, message: str, metadata: Optional[Dict[str, Any]] = None, exception: Optional[Exception] = None):
         """Log error message"""
-        print(f"[ERROR] {message}")
+        if DEBUG:
+            print(f"[ERROR] {message}")
         if FIREBASE_LOGGER_DEBUG:
             print(f"❌ [FIREBASE-LOGGER] Preparing to send ERROR log to bridge...")
         
@@ -253,7 +258,8 @@ class FirebaseLogger:
     
     def debug(self, message: str, metadata: Optional[Dict[str, Any]] = None):
         """Log debug message"""
-        print(f"[DEBUG] {message}")
+        if DEBUG:
+            print(f"[DEBUG] {message}")
         if FIREBASE_LOGGER_DEBUG:
             print(f"🐛 [FIREBASE-LOGGER] Preparing to send DEBUG log to bridge...")
         self._log_to_bridge("DEBUG", message, metadata)

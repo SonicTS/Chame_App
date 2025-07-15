@@ -279,9 +279,9 @@ void _initializePythonBackend() {
       }
       
     } catch (e, stack) {
-    //print('❌ Failed to ping Python backend:');
-    //print('   Error: $e');
-    //print('   Stack: $stack');
+    print('❌ Failed to ping Python backend:');
+    print('   Error: $e');
+    print('   Stack: $stack');
       
       // Log the failure to Firebase with detailed logging
       try {
@@ -302,7 +302,7 @@ void _initializePythonBackend() {
       //print('✅ Successfully logged backend failure to Firebase');
         
       } catch (logError) {
-      //print('💥 Critical: Failed to log backend failure to Firebase: $logError');
+      print('💥 Critical: Failed to log backend failure to Firebase: $logError');
       }
     }
   });

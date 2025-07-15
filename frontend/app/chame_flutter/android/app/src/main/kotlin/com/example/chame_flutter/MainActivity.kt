@@ -457,6 +457,71 @@ class MainActivity : FlutterActivity() {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
                     }
                 }
+                "update_stock" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val ingredientId = call.argument<Number>("ingredient_id")
+                        val amount = call.argument<Number>("amount")
+                        val comment = call.argument<String>("comment") ?: ""
+                        
+                        if (ingredientId == null || amount == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for update_stock", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        pyModule.callAttr("update_stock", ingredientId.toInt(), amount.toInt(), comment)
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "get_stock_history" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val ingredientId = call.argument<Number>("ingredient_id")
+                        
+                        if (ingredientId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing ingredient_id for get_stock_history", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val pyResult = pyModule.callAttr("get_stock_history", ingredientId.toInt())
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "get_all_stock_history" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val pyResult = pyModule.callAttr("get_all_stock_history")
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
                 "login" -> {
                     val pyModule = py.getModule("services.admin_api")
                         ?: return@setMethodCallHandler result.error(
