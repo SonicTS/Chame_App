@@ -311,6 +311,86 @@ def delete_backup(backup_filename):
         print(f"delete_backup error: {e}")
         raise RuntimeError(f"Failed to delete backup: {e}") from e
 
+def export_backup_to_public(backup_filename):
+    """Export backup to Android's public storage for sharing"""
+    try:
+        result = database.export_backup_to_public(backup_filename)
+        
+        if result['success']:
+            return {
+                'success': True,
+                'export_path': result['export_path'],
+                'exported_filename': result['exported_filename'],
+                'message': result['message']
+            }
+        else:
+            raise RuntimeError(result['message'])
+            
+    except Exception as e:
+        print(f"export_backup_to_public error: {e}")
+        raise RuntimeError(f"Failed to export backup: {e}") from e
+
+def upload_backup_to_server(backup_filename, server_config):
+    """Upload backup to server via SFTP/SCP"""
+    try:
+        result = database.upload_backup_to_server(backup_filename, server_config)
+        
+        if result['success']:
+            return {
+                'success': True,
+                'uploaded_files': result['uploaded_files'],
+                'server': result['server'],
+                'message': result['message']
+            }
+        else:
+            raise RuntimeError(result['message'])
+            
+    except Exception as e:
+        print(f"upload_backup_to_server error: {e}")
+        raise RuntimeError(f"Failed to upload backup: {e}") from e
+
+def download_backup_from_server(server_config, remote_filename):
+    """Download backup from server via HTTP/SFTP"""
+    try:
+        result = database.download_backup_from_server(server_config, remote_filename)
+        
+        if result['success']:
+            return {
+                'success': True,
+                'local_path': result['local_path'],
+                'local_filename': result['local_filename'],
+                'original_filename': result['original_filename'],
+                'file_size': result['file_size'],
+                'message': result['message']
+            }
+        else:
+            raise RuntimeError(result['message'])
+            
+    except Exception as e:
+        print(f"download_backup_from_server error: {e}")
+        raise RuntimeError(f"Failed to download backup: {e}") from e
+
+def import_backup_from_share(shared_file_path):
+    """Import backup file from Android share/file picker"""
+    try:
+        result = database.import_backup_from_share(shared_file_path)
+        
+        if result['success']:
+            return {
+                'success': True,
+                'local_path': result['local_path'],
+                'local_filename': result['local_filename'],
+                'original_filename': result['original_filename'],
+                'file_size': result['file_size'],
+                'message': result['message']
+            }
+        else:
+            raise RuntimeError(result['message'])
+            
+    except Exception as e:
+        print(f"import_backup_from_share error: {e}")
+        raise RuntimeError(f"Failed to import backup: {e}") from e
+
 # ========== DELETION FUNCTIONS ==========
 
 def check_deletion_dependencies(entity_type, entity_id):
@@ -836,3 +916,24 @@ def test_firebase_logging():
         print(f"❌ [PYTHON-TEST] Firebase logging test failed: {e}")
         traceback.print_exc()
         return {"success": False, "error": str(e), "message": f"Firebase logging test failed: {e}"}
+
+def list_server_backups(server_config):
+    """List all available backups on the server"""
+    try:
+        from services.database_backup import list_server_backups as backup_list_server_backups
+        result = backup_list_server_backups(server_config)
+        
+        if result['success']:
+            return {
+                'success': True,
+                'files': result['files'],
+                'total_count': result['total_count'],
+                'server_info': result['server_info'],
+                'message': result['message']
+            }
+        else:
+            raise RuntimeError(result['message'])
+            
+    except Exception as e:
+        print(f"list_server_backups error: {e}")
+        raise RuntimeError(f"Failed to list server backups: {e}") from e

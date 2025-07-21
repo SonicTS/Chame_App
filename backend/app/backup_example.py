@@ -47,8 +47,8 @@ def main():
             for i, backup in enumerate(backups[:5], 1):  # Show first 5
                 size_mb = backup['size'] / (1024 * 1024)
                 print(f"  {i}. {backup['filename']}")
-                print(f"     Type: {backup['type']}, Size: {size_mb:.1f} MB")
-                print(f"     Created: {backup['created']}")
+                print(f"     Type: {backup['backup_type']}, Size: {size_mb:.1f} MB")
+                print(f"     Created: {backup['created_at']}")
         else:
             print("No backups found")
         

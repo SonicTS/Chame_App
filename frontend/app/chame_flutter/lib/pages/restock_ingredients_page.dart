@@ -165,7 +165,7 @@ class _RestockIngredientsPageState extends State<RestockIngredientsPage> {
                   final restock = int.tryParse(ingredient['restock']?.toString() ?? '0') ?? 0;
                   final effectivePrice = _getEffectivePrice(ingredient);
                   final pfand = ingredient['pfand'] ?? 0.0;
-                  final lineTotal = restock * (effectivePrice + pfand);
+                  final lineTotal = restock * (effectivePrice + pfand * ingredient['number_of_units']);
                   
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),

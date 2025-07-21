@@ -84,22 +84,39 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Create Backup'),
-        content: TextField(
-          onChanged: (value) => description = value,
-          decoration: InputDecoration(
-            labelText: 'Description (optional)',
-            hintText: 'e.g., Before major update',
+        contentPadding: EdgeInsets.fromLTRB(16, 20, 16, 0),
+        content: Container(
+          width: MediaQuery.of(context).size.width * 0.95,
+          constraints: BoxConstraints(
+            maxWidth: 400, // Maximum width for larger screens
           ),
-          maxLines: 2,
+          child: TextField(
+            onChanged: (value) => description = value,
+            decoration: InputDecoration(
+              labelText: 'Description (optional)',
+              hintText: 'e.g., Before major update',
+            ),
+            maxLines: 2,
+          ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, description),
-            child: Text('Create'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel'),
+                ),
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context, description),
+                  child: Text('Create'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -149,34 +166,53 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Restore Backup'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Are you sure you want to restore this backup?',
-              style: TextStyle(fontWeight: FontWeight.bold),
+        contentPadding: EdgeInsets.fromLTRB(16, 20, 16, 0),
+        content: Container(
+          width: MediaQuery.of(context).size.width * 0.95,
+          constraints: BoxConstraints(
+            maxWidth: 400, // Maximum width for larger screens
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Are you sure you want to restore this backup?',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 8),
+                Text('⚠️ This will overwrite your current database!'),
+                SizedBox(height: 16),
+                Text('Backup Details:'),
+                Text('• Created: ${backup['created_at'] ?? 'Unknown'}'),
+                Text('• Type: ${backup['backup_type'] ?? 'Unknown'}'),
+                if (backup['description']?.isNotEmpty == true)
+                  Text('• Description: ${backup['description']}'),
+                Text('• Size: ${_formatFileSize(backup['size'] ?? 0)}'),
+              ],
             ),
-            SizedBox(height: 8),
-            Text('⚠️ This will overwrite your current database!'),
-            SizedBox(height: 16),
-            Text('Backup Details:'),
-            Text('• Created: ${backup['created_at'] ?? 'Unknown'}'),
-            Text('• Type: ${backup['backup_type'] ?? 'Unknown'}'),
-            if (backup['description']?.isNotEmpty == true)
-              Text('• Description: ${backup['description']}'),
-            Text('• Size: ${_formatFileSize(backup['size'] ?? 0)}'),
-          ],
+          ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Restore', style: TextStyle(color: Colors.white)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text('Cancel'),
+                ),
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: Text('Restore', style: TextStyle(color: Colors.white)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -219,21 +255,622 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
     }
   }
 
+  Future<void> _downloadFromServer() async {
+    final result = await _showServerBackupSelectionDialog();
+    if (result == null) return;
+
+    try {
+      setState(() => _loading = true);
+      
+      final downloadResult = await _pyBridge.downloadBackupFromServer(
+        serverConfig: result['serverConfig'],
+        remoteFilename: result['selectedFile'],
+      );
+
+      if (downloadResult['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Backup downloaded successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await _loadBackups(); // Refresh the list
+      } else {
+        throw Exception(downloadResult['message'] ?? 'Download failed');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Download failed: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<Map<String, dynamic>?> _showServerBackupSelectionDialog() async {
+    final formKey = GlobalKey<FormState>();
+    String serverUrl = 'http://minecraftwgwg.hopto.org:5050';
+    List<dynamic> availableFiles = [];
+    bool isLoading = false;
+    String? selectedFile;
+    String? errorMessage;
+
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Download Backup from Server'),
+          contentPadding: EdgeInsets.fromLTRB(16, 20, 16, 0),
+          content: Container(
+            width: MediaQuery.of(context).size.width * 0.95,
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.7,
+              maxWidth: 500, // Maximum width for larger screens
+            ),
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Info about server download
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.purple[50],
+                        border: Border.all(color: Colors.purple[300]!),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.cloud_download, color: Colors.purple[700], size: 20),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Download Backup from Server',
+                                  style: TextStyle(
+                                    fontSize: 14, 
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.purple[800]
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Select a .db backup file from your server to download.',
+                            style: TextStyle(fontSize: 12, color: Colors.purple[700]),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    
+                    TextFormField(
+                      initialValue: serverUrl,
+                      decoration: InputDecoration(
+                        labelText: 'Server URL',
+                        hintText: 'http://yourserver.com:port',
+                        prefixIcon: Icon(Icons.link),
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value?.isEmpty == true) return 'URL is required';
+                        if (!value!.startsWith('http')) return 'URL must start with http:// or https://';
+                        return null;
+                      },
+                      onChanged: (value) => serverUrl = value,
+                    ),
+                    SizedBox(height: 12),
+                    
+                    // Load files button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: isLoading ? null : () async {
+                          if (formKey.currentState?.validate() == true) {
+                            setState(() {
+                              isLoading = true;
+                              errorMessage = null;
+                            });
+                            
+                            try {
+                              final config = {
+                                'method': 'http',
+                                'url': '$serverUrl/list',
+                              };
+                              
+                              final result = await _pyBridge.listServerBackups(serverConfig: config);
+                              
+                              if (result['success'] == true) {
+                                // Filter to only show .db files
+                                final allFiles = result['files'] as List<dynamic>? ?? [];
+                                final dbFiles = allFiles.where((file) {
+                                  final fileName = file['filename'] as String? ?? '';
+                                  return fileName.toLowerCase().endsWith('.db');
+                                }).toList();
+                                
+                                setState(() {
+                                  availableFiles = dbFiles;
+                                  selectedFile = null;
+                                  if (dbFiles.isEmpty) {
+                                    errorMessage = 'No .db backup files found on server';
+                                  }
+                                });
+                              } else {
+                                setState(() {
+                                  errorMessage = result['message'] as String? ?? 'Failed to load files';
+                                });
+                              }
+                            } catch (e) {
+                              setState(() {
+                                errorMessage = 'Error: ${e.toString()}';
+                              });
+                            } finally {
+                              setState(() {
+                                isLoading = false;
+                              });
+                            }
+                          }
+                        },
+                        icon: isLoading 
+                            ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            : Icon(Icons.refresh),
+                        label: Text(isLoading ? 'Loading...' : 'Load Available Files'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    
+                    // Error message
+                    if (errorMessage != null)
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red[50],
+                          border: Border.all(color: Colors.red[300]!),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          errorMessage!,
+                          style: TextStyle(color: Colors.red[800], fontSize: 12),
+                        ),
+                      ),
+                    
+                    // File selection dropdown
+                    if (availableFiles.isNotEmpty) ...[
+                      SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        decoration: InputDecoration(
+                          labelText: 'Select Backup File (.db)',
+                          prefixIcon: Icon(Icons.file_present),
+                          border: OutlineInputBorder(),
+                        ),
+                        value: selectedFile,
+                        items: availableFiles.map((file) {
+                          final fileName = file['filename'] as String? ?? 'Unknown';
+                          final fileSize = file['size'] as int? ?? 0;
+                          final modified = file['modified'] as String? ?? '';
+                          
+                          return DropdownMenuItem<String>(
+                            value: fileName,
+                            child: Tooltip(
+                              message: 'Size: ${_formatFileSize(fileSize)} • Modified: ${_formatServerDate(modified)}',
+                              child: Text(
+                                fileName,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 14,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedFile = value;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) return 'Please select a file';
+                          return null;
+                        },
+                        isExpanded: true,
+                      ),
+                      
+                      // Show selected file details
+                      if (selectedFile != null) ...[
+                        SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            border: Border.all(color: Colors.blue[300]!),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Selected File Details:',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue[800],
+                                  fontSize: 12,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              ...availableFiles.where((file) => file['filename'] == selectedFile).map((file) {
+                                final fileSize = file['size'] as int? ?? 0;
+                                final modified = file['modified'] as String? ?? '';
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '• Size: ${_formatFileSize(fileSize)}',
+                                      style: TextStyle(fontSize: 11, color: Colors.blue[700]),
+                                    ),
+                                    Text(
+                                      '• Modified: ${_formatServerDate(modified)}',
+                                      style: TextStyle(fontSize: 11, color: Colors.blue[700]),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('Cancel'),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: (selectedFile != null) ? () {
+                      if (formKey.currentState?.validate() == true) {
+                        Navigator.pop(context, {
+                          'serverConfig': {
+                            'method': 'http',
+                            'url': '$serverUrl/download',
+                          },
+                          'selectedFile': selectedFile,
+                        });
+                      }
+                    } : null,
+                    child: Text('Download'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _importFromShare() async {
+    try {
+      setState(() => _loading = true);
+      
+      // Pick file from Android file picker
+      final filePath = await _pyBridge.pickFileForImport();
+      if (filePath == null) {
+        setState(() => _loading = false);
+        return; // User cancelled
+      }
+      
+      // Import the selected file
+      final importResult = await _pyBridge.importBackupFromShare(
+        sharedFilePath: filePath,
+      );
+
+      if (importResult['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Backup imported successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await _loadBackups(); // Refresh the list
+      } else {
+        throw Exception(importResult['message'] ?? 'Import failed');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Import failed: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _exportToServer(Map<String, dynamic> backup) async {
+    final result = await _showServerUploadDialog(backup);
+    if (result == null) return;
+
+    try {
+      setState(() => _loading = true);
+      
+      final uploadResult = await _pyBridge.uploadBackupToServer(
+        backupFilename: backup['filename'],
+        serverConfig: result['serverConfig'],
+      );
+
+      if (uploadResult['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Backup uploaded to server successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        throw Exception(uploadResult['message'] ?? 'Upload failed');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Upload failed: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<Map<String, dynamic>?> _showServerUploadDialog(Map<String, dynamic> backup) async {
+    final formKey = GlobalKey<FormState>();
+    String serverUrl = 'http://minecraftwgwg.hopto.org:5050';
+    String remoteFilename = backup['filename'] ?? 'backup.db';
+
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Upload Backup to Server'),
+        contentPadding: EdgeInsets.fromLTRB(16, 20, 16, 0),
+        content: Container(
+          width: MediaQuery.of(context).size.width * 0.95,
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+            maxWidth: 500, // Maximum width for larger screens
+          ),
+          child: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Info about server upload
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      border: Border.all(color: Colors.green[300]!),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.cloud_upload, color: Colors.green[700], size: 20),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Upload Backup to Server',
+                                style: TextStyle(
+                                  fontSize: 14, 
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.green[800]
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Upload this backup file to your server for remote storage.',
+                          style: TextStyle(fontSize: 12, color: Colors.green[700]),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  
+                  // Backup info
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Backup to Upload:', style: TextStyle(fontWeight: FontWeight.bold)),
+                        SizedBox(height: 4),
+                        Text('• File: ${backup['filename']}'),
+                        Text('• Size: ${_formatFileSize(backup['size'] ?? 0)}'),
+                        Text('• Created: ${_formatDate(backup['created_at'])}'),
+                        if (backup['description']?.isNotEmpty == true)
+                          Text('• Description: ${backup['description']}'),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  
+                  TextFormField(
+                    initialValue: serverUrl,
+                    decoration: InputDecoration(
+                      labelText: 'Server URL',
+                      hintText: 'http://yourserver.com:port',
+                      prefixIcon: Icon(Icons.link),
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value?.isEmpty == true) return 'URL is required';
+                      if (!value!.startsWith('http')) return 'URL must start with http:// or https://';
+                      return null;
+                    },
+                    onChanged: (value) => serverUrl = value,
+                  ),
+                  SizedBox(height: 12),
+                  
+                  TextFormField(
+                    initialValue: remoteFilename,
+                    decoration: InputDecoration(
+                      labelText: 'Remote Filename',
+                      hintText: 'backup.db',
+                      prefixIcon: Icon(Icons.file_present),
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value?.isEmpty == true) return 'Filename is required';
+                      if (!value!.toLowerCase().endsWith('.db')) return 'Filename must end with .db';
+                      return null;
+                    },
+                    onChanged: (value) => remoteFilename = value,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel'),
+                ),
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (formKey.currentState?.validate() == true) {
+                      Navigator.pop(context, {
+                        'serverConfig': {
+                          'method': 'http',
+                          'url': '$serverUrl/upload',
+                        },
+                        'remoteFilename': remoteFilename,
+                      });
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text('Upload'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _exportViaShare(Map<String, dynamic> backup) async {
+    try {
+      setState(() => _loading = true);
+      
+      await _pyBridge.shareFile(
+        filePath: backup['path'],
+        title: 'Share Backup: ${backup['filename']}',
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Backup shared successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Share failed: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  String _formatServerDate(String dateStr) {
+    try {
+      final date = DateTime.parse(dateStr);
+      return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return dateStr; // Return as-is if parsing fails
+    }
+  }
+
   Future<bool> _showDeleteConfirmationDialog(Map<String, dynamic> backup) async {
     return await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Delete Backup'),
-        content: Text('Are you sure you want to delete this backup? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
+        contentPadding: EdgeInsets.fromLTRB(16, 20, 16, 0),
+        content: Container(
+          width: MediaQuery.of(context).size.width * 0.95,
+          constraints: BoxConstraints(
+            maxWidth: 400, // Maximum width for larger screens
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Delete', style: TextStyle(color: Colors.white)),
+          child: Text('Are you sure you want to delete this backup? This action cannot be undone.'),
+        ),
+        actions: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text('Cancel'),
+                ),
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: Text('Delete', style: TextStyle(color: Colors.white)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -270,30 +907,68 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
           // Header with create backup button
           Container(
             padding: EdgeInsets.all(16),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: Text(
-                    'Manage database backups',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[600],
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Manage database backups',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[600],
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-                ElevatedButton.icon(
-                  onPressed: _creating ? null : _createBackup,
-                  icon: _creating 
-                      ? SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(Icons.backup),
-                  label: Text(_creating ? 'Creating...' : 'Create Backup'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.teal,
-                    foregroundColor: Colors.white,
+                SizedBox(height: 12),
+                // First row - Create and Download
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _creating ? null : _createBackup,
+                        icon: _creating 
+                            ? SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Icon(Icons.backup),
+                        label: Text(_creating ? 'Creating...' : 'Create Backup'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _loading ? null : _downloadFromServer,
+                        icon: Icon(Icons.cloud_download),
+                        label: Text('Download from Server'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 8),
+                // Second row - Import only (full width)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _loading ? null : _importFromShare,
+                    icon: Icon(Icons.file_upload),
+                    label: Text('Import from Device'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
                   ),
                 ),
               ],
@@ -373,6 +1048,12 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
                                     case 'restore':
                                       _restoreBackup(backup);
                                       break;
+                                    case 'export_server':
+                                      _exportToServer(backup);
+                                      break;
+                                    case 'export_share':
+                                      _exportViaShare(backup);
+                                      break;
                                     case 'delete':
                                       _deleteBackup(backup);
                                       break;
@@ -389,6 +1070,28 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
                                       ],
                                     ),
                                   ),
+                                  PopupMenuDivider(),
+                                  PopupMenuItem(
+                                    value: 'export_server',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.cloud_upload, color: Colors.green),
+                                        SizedBox(width: 8),
+                                        Text('Export to Server'),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'export_share',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.share, color: Colors.orange),
+                                        SizedBox(width: 8),
+                                        Text('Share via Android'),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuDivider(),
                                   PopupMenuItem(
                                     value: 'delete',
                                     child: Row(

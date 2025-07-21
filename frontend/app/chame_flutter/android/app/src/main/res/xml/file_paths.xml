@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- External storage (Download folder) - using external-path for /storage/emulated/0/ -->
+    <external-path name="external_storage_root" path="." />
+    
+    <!-- Specific Download folder access -->
+    <external-path name="download_folder" path="Download/" />
+    
+    <!-- App's private storage -->
+    <files-path name="app_files" path="." />
+    
+    <!-- App's cache directory -->
+    <cache-path name="cache_files" path="." />
+    
+    <!-- External app files (for sharing) -->
+    <external-files-path name="external_app_files" path="." />
+    <external-files-path name="share_files" path="share/" />
+    
+    <!-- External cache -->
+    <external-cache-path name="external_cache" path="." />
+</paths>

@@ -1309,7 +1309,7 @@ class Database:
                 print(f"📦 Found {len(backups)} backup(s):")
                 for backup in backups[:10]:  # Show latest 10
                     size_mb = backup['size'] / (1024 * 1024)
-                    print(f"  • {backup['filename']} ({backup['type']}) - {size_mb:.1f}MB - {backup['created']}")
+                    print(f"  • {backup['filename']} ({backup['backup_type']}) - {size_mb:.1f}MB - {backup['created_at']}")
             else:
                 print("📦 No backups found")
             
@@ -1392,6 +1392,102 @@ class Database:
                 'message': error_msg
             }
     
+    def export_backup_to_public(self, backup_filename: str):
+        """Export backup file to Android's public storage for sharing"""
+        try:
+            from services.database_backup import DatabaseBackupManager
+            
+            backup_manager = DatabaseBackupManager()
+            result = backup_manager.export_backup_to_public(backup_filename)
+            
+            if result['success']:
+                print(f"✅ Backup exported: {result['message']}")
+            else:
+                print(f"❌ Export failed: {result['message']}")
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Failed to export backup: {e}"
+            print(f"❌ {error_msg}")
+            return {
+                'success': False,
+                'error': str(e),
+                'message': error_msg
+            }
+    
+    def upload_backup_to_server(self, backup_filename: str, server_config: dict):
+        """Upload backup file to server via SFTP/SCP"""
+        try:
+            from services.database_backup import DatabaseBackupManager
+            
+            backup_manager = DatabaseBackupManager()
+            result = backup_manager.upload_backup_to_server(backup_filename, server_config)
+            
+            if result['success']:
+                print(f"✅ Backup uploaded: {result['message']}")
+            else:
+                print(f"❌ Upload failed: {result['message']}")
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Failed to upload backup: {e}"
+            print(f"❌ {error_msg}")
+            return {
+                'success': False,
+                'error': str(e),
+                'message': error_msg
+            }
+
+    def download_backup_from_server(self, server_config: dict, remote_filename: str):
+        """Download backup file from server via HTTP/SFTP"""
+        try:
+            from services.database_backup import DatabaseBackupManager
+            
+            backup_manager = DatabaseBackupManager()
+            result = backup_manager.download_backup_from_server(server_config, remote_filename)
+            
+            if result['success']:
+                print(f"✅ Backup downloaded: {result['message']}")
+            else:
+                print(f"❌ Download failed: {result['message']}")
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Failed to download backup: {e}"
+            print(f"❌ {error_msg}")
+            return {
+                'success': False,
+                'error': str(e),
+                'message': error_msg
+            }
+
+    def import_backup_from_share(self, shared_file_path: str):
+        """Import backup file from Android share/file picker"""
+        try:
+            from services.database_backup import DatabaseBackupManager
+            
+            backup_manager = DatabaseBackupManager()
+            result = backup_manager.import_backup_from_share(shared_file_path)
+            
+            if result['success']:
+                print(f"✅ Backup imported: {result['message']}")
+            else:
+                print(f"❌ Import failed: {result['message']}")
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Failed to import backup: {e}"
+            print(f"❌ {error_msg}")
+            return {
+                'success': False,
+                'error': str(e),
+                'message': error_msg
+            }
+
     def _reset_connection(self):
         """Reset database connection after restore"""
         try:

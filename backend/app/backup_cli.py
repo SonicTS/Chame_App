@@ -142,9 +142,9 @@ def cmd_list_backups(args):
         metadata = backup.get('metadata', {})
         
         print(f"📄 {backup['filename']}")
-        print(f"   Type: {backup['type']}")
+        print(f"   Type: {backup['backup_type']}")
         print(f"   Size: {size_mb:.1f} MB")
-        print(f"   Created: {backup['created']}")
+        print(f"   Created: {backup['created_at']}")
         print(f"   Description: {metadata.get('description', 'No description')}")
         print(f"   Version: {metadata.get('database_version', 'unknown')}")
         print()
@@ -264,7 +264,7 @@ def cmd_show_info(_args):
     total_size = 0
     
     for backup in backups:
-        backup_type = backup['type']
+        backup_type = backup['backup_type']
         backup_counts[backup_type] = backup_counts.get(backup_type, 0) + 1
         total_size += backup['size']
     

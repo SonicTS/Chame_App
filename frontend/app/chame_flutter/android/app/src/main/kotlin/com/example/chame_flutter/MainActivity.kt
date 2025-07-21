@@ -6,11 +6,21 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
+import android.content.Intent
+import android.net.Uri
+import androidx.core.content.FileProvider
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
 
 class MainActivity : FlutterActivity() {
 
     private val CHANNEL = "samples.flutter.dev/chame/python"
     private var flutterMethodChannel: MethodChannel? = null
+    
+    // File picker constants and state
+    private val FILE_PICK_REQUEST_CODE = 12345
+    private var pendingFilePickResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -694,6 +704,164 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 
+                "export_backup_to_public" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val backupFilename = call.argument<String>("backup_filename")
+                        
+                        if (backupFilename == null) {
+                            result.error("ARGUMENT_ERROR", "Missing backup_filename argument for export_backup_to_public", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val pyResult = pyModule.callAttr("export_backup_to_public", backupFilename)
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "upload_backup_to_server" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val backupFilename = call.argument<String>("backup_filename")
+                        val serverConfigJson = call.argument<String>("server_config")
+                        
+                        if (backupFilename == null || serverConfigJson == null) {
+                            result.error("ARGUMENT_ERROR", "Missing backup_filename or server_config argument for upload_backup_to_server", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        // Parse server config JSON in Python
+                        val serverConfig = py.getModule("json").callAttr("loads", serverConfigJson)
+                        val pyResult = pyModule.callAttr("upload_backup_to_server", backupFilename, serverConfig)
+                        
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "download_backup_from_server" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val remoteFilename = call.argument<String>("remote_filename")
+                        val serverConfigJson = call.argument<String>("server_config")
+                        
+                        if (remoteFilename == null || serverConfigJson == null) {
+                            result.error("ARGUMENT_ERROR", "Missing remote_filename or server_config argument for download_backup_from_server", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        // Parse server config JSON in Python
+                        val serverConfig = py.getModule("json").callAttr("loads", serverConfigJson)
+                        val pyResult = pyModule.callAttr("download_backup_from_server", serverConfig, remoteFilename)
+                        
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "import_backup_from_share" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val sharedFilePath = call.argument<String>("shared_file_path")
+                        
+                        if (sharedFilePath == null) {
+                            result.error("ARGUMENT_ERROR", "Missing shared_file_path argument for import_backup_from_share", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val pyResult = pyModule.callAttr("import_backup_from_share", sharedFilePath)
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
+                "pick_file_for_import" -> {
+                    // Launch file picker for backup import
+                    try {
+                        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                            type = "*/*"
+                            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(
+                                "application/octet-stream",
+                                "application/x-sqlite3",
+                                "application/vnd.sqlite3",
+                                "*/*"
+                            ))
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                        }
+                        
+                        pendingFilePickResult = result
+                        startActivityForResult(Intent.createChooser(intent, "Select Backup File"), FILE_PICK_REQUEST_CODE)
+                        
+                    } catch (e: Exception) {
+                        result.error("FILE_PICKER_ERROR", "Failed to open file picker: ${e.localizedMessage}", null)
+                    }
+                }
+                
+                "list_server_backups" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val serverConfigJson = call.argument<String>("server_config")
+                        
+                        if (serverConfigJson == null) {
+                            result.error("ARGUMENT_ERROR", "Missing server_config argument for list_server_backups", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        // Parse server config JSON in Python
+                        val serverConfig = py.getModule("json").callAttr("loads", serverConfigJson)
+                        val pyResult = pyModule.callAttr("list_server_backups", serverConfig)
+                        
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
                 // ========== DELETION MANAGEMENT ROUTES ==========
                 "check_deletion_dependencies" -> {
                     val pyModule = py.getModule("services.admin_api")
@@ -1189,6 +1357,23 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 
+                "share_file" -> {
+                    try {
+                        val filePath = call.argument<String>("file_path")
+                        val title = call.argument<String>("title") ?: "Share Backup"
+                        
+                        if (filePath == null) {
+                            result.error("ARGUMENT_ERROR", "Missing file_path argument for share_file", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        shareFile(filePath, title)
+                        result.success("File shared successfully")
+                    } catch (e: Exception) {
+                        result.error("SHARE_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
                 "make_multiple_purchases" -> {
                     val pyModule = py.getModule("services.admin_api")
                         ?: return@setMethodCallHandler result.error(
@@ -1280,6 +1465,161 @@ class MainActivity : FlutterActivity() {
             } catch (e: Exception) {
                 println("Failed to show notification: ${e.message}")
             }
+        }
+    }
+    
+    /**
+     * Share a file using Android's built-in sharing mechanism
+     */
+    private fun shareFile(filePath: String, title: String) {
+        try {
+            val sourceFile = File(filePath)
+            if (!sourceFile.exists()) {
+                throw Exception("File not found: $filePath")
+            }
+            
+            // Copy file to app's external files directory for sharing
+            val externalFilesDir = getExternalFilesDir(null)
+            if (externalFilesDir == null) {
+                throw Exception("External files directory not available")
+            }
+            
+            val shareDir = File(externalFilesDir, "share")
+            if (!shareDir.exists()) {
+                shareDir.mkdirs()
+            }
+            
+            val shareFile = File(shareDir, sourceFile.name)
+            sourceFile.copyTo(shareFile, overwrite = true)
+            
+            val intent = Intent(Intent.ACTION_SEND)
+            intent.type = "application/octet-stream"
+            
+            // Use FileProvider for the copied file
+            val uri: Uri = FileProvider.getUriForFile(
+                this,
+                "${applicationContext.packageName}.fileprovider",
+                shareFile
+            )
+            
+            intent.putExtra(Intent.EXTRA_STREAM, uri)
+            intent.putExtra(Intent.EXTRA_SUBJECT, title)
+            intent.putExtra(Intent.EXTRA_TEXT, "Chame database backup file exported on ${SimpleDateFormat("yyyy-MM-dd HH:mm").format(Date())}")
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            
+            startActivity(Intent.createChooser(intent, title))
+            
+            // Clean up old shared files (keep only the last 5)
+            cleanupOldSharedFiles(shareDir)
+            
+        } catch (e: Exception) {
+            println("Failed to share file: ${e.message}")
+            throw e
+        }
+    }
+    
+    /**
+     * Clean up old shared files to prevent storage accumulation
+     */
+    private fun cleanupOldSharedFiles(shareDir: File) {
+        try {
+            val files = shareDir.listFiles() ?: return
+            val sortedFiles = files.sortedByDescending { it.lastModified() }
+            
+            // Keep only the 5 most recent files
+            sortedFiles.drop(5).forEach { file ->
+                if (file.isFile) {
+                    file.delete()
+                }
+            }
+        } catch (e: Exception) {
+            println("Failed to cleanup shared files: ${e.message}")
+            // Don't throw - this is not critical
+        }
+    }
+    
+    /**
+     * Handle file picker results for backup import
+     */
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        
+        if (requestCode == FILE_PICK_REQUEST_CODE) {
+            val result = pendingFilePickResult
+            pendingFilePickResult = null
+            
+            if (result == null) {
+                return
+            }
+            
+            if (resultCode == RESULT_OK && data?.data != null) {
+                try {
+                    val uri = data.data!!
+                    val filePath = getFilePathFromUri(uri)
+                    
+                    if (filePath != null) {
+                        result.success(filePath)
+                    } else {
+                        result.error("FILE_PATH_ERROR", "Could not get file path from selected file", null)
+                    }
+                } catch (e: Exception) {
+                    result.error("FILE_PROCESSING_ERROR", "Error processing selected file: ${e.localizedMessage}", null)
+                }
+            } else {
+                result.error("FILE_PICKER_CANCELLED", "File selection was cancelled", null)
+            }
+        }
+    }
+    
+    /**
+     * Get file path from content URI for backup import
+     */
+    private fun getFilePathFromUri(uri: Uri): String? {
+        return try {
+            // For content URIs, copy to a temporary location
+            if (uri.scheme == "content") {
+                val inputStream = contentResolver.openInputStream(uri)
+                    ?: return null
+                
+                // Create temp file in cache directory
+                val tempDir = File(cacheDir, "backup_imports")
+                tempDir.mkdirs()
+                
+                val fileName = getFileName(uri) ?: "backup_${System.currentTimeMillis()}.db"
+                val tempFile = File(tempDir, fileName)
+                
+                tempFile.outputStream().use { output ->
+                    inputStream.use { input ->
+                        input.copyTo(output)
+                    }
+                }
+                
+                tempFile.absolutePath
+            } else {
+                // For file URIs, return path directly
+                uri.path
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error getting file path from URI", e)
+            null
+        }
+    }
+    
+    /**
+     * Get filename from content URI
+     */
+    private fun getFileName(uri: Uri): String? {
+        return try {
+            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (nameIndex >= 0 && cursor.moveToFirst()) {
+                    cursor.getString(nameIndex)
+                } else {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 }

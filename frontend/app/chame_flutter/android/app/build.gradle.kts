@@ -102,10 +102,18 @@ chaquopy {
     }
     defaultConfig {
         pip {
-            // A requirement specifier, with or without a version number:
+            // Core dependencies
             install("sqlalchemy")
             install("passlib")
             install("argon2-cffi")
+            
+            // HTTP requests for server uploads (available in Chaquopy)
+            install("requests")
+            
+            // Note: paramiko removed due to build issues with bcrypt/Rust compiler
+            // scp command not available on Android
+            // Server uploads now use HTTP POST instead
+            // Export & Share functionality works without any server dependencies
         }
     }
 }

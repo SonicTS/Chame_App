@@ -527,6 +527,129 @@ class PyBridge {
     }
   }
 
+  // ========== BACKUP EXPORT METHODS ==========
+
+  /// Export backup to Android's public storage for sharing
+  Future<Map<String, dynamic>> exportBackupToPublic({
+    required String backupFilename,
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('export_backup_to_public', {
+        'backup_filename': backupFilename,
+      });
+      if (result == null || result == 'null') {
+        throw Exception('Export failed: null result');
+      }
+      return jsonDecode(result as String) as Map<String, dynamic>;
+    } catch (e, stack) {
+      print('Error in exportBackupToPublic: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  /// Upload backup to server via SFTP/SCP
+  Future<Map<String, dynamic>> uploadBackupToServer({
+    required String backupFilename,
+    required Map<String, String> serverConfig,
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('upload_backup_to_server', {
+        'backup_filename': backupFilename,
+        'server_config': jsonEncode(serverConfig),
+      });
+      if (result == null || result == 'null') {
+        throw Exception('Upload failed: null result');
+      }
+      return jsonDecode(result as String) as Map<String, dynamic>;
+    } catch (e, stack) {
+      print('Error in uploadBackupToServer: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  /// Share a file using Android's built-in sharing mechanism
+  Future<void> shareFile({
+    required String filePath,
+    String title = "Share Backup",
+  }) async {
+    try {
+      await _chan.invokeMethod('share_file', {
+        'file_path': filePath,
+        'title': title,
+      });
+    } catch (e, stack) {
+      print('Error in shareFile: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  /// Download backup from server via HTTP/SFTP
+  Future<Map<String, dynamic>> downloadBackupFromServer({
+    required Map<String, String> serverConfig,
+    required String remoteFilename,
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('download_backup_from_server', {
+        'server_config': jsonEncode(serverConfig),
+        'remote_filename': remoteFilename,
+      });
+      if (result == null || result == 'null') {
+        throw Exception('Download failed: null result');
+      }
+      return jsonDecode(result as String) as Map<String, dynamic>;
+    } catch (e, stack) {
+      print('Error in downloadBackupFromServer: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  /// Import backup file from Android share/file picker
+  Future<Map<String, dynamic>> importBackupFromShare({
+    required String sharedFilePath,
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('import_backup_from_share', {
+        'shared_file_path': sharedFilePath,
+      });
+      if (result == null || result == 'null') {
+        throw Exception('Import failed: null result');
+      }
+      return jsonDecode(result as String) as Map<String, dynamic>;
+    } catch (e, stack) {
+      print('Error in importBackupFromShare: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  /// Pick a file for backup import using Android file picker
+  Future<String?> pickFileForImport() async {
+    try {
+      final result = await _chan.invokeMethod('pick_file_for_import');
+      return result as String?;
+    } catch (e, stack) {
+      print('Error in pickFileForImport: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  /// List all available backup files on the server
+  Future<Map<String, dynamic>> listServerBackups({
+    required Map<String, String> serverConfig,
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('list_server_backups', {
+        'server_config': jsonEncode(serverConfig),
+      });
+      if (result == null || result == 'null') {
+        return {'success': false, 'message': 'No response from backend', 'files': []};
+      }
+      return jsonDecode(result as String) as Map<String, dynamic>;
+    } catch (e, stack) {
+      print('Error in listServerBackups: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      return {'success': false, 'message': e.toString(), 'files': []};
+    }
+  }
+
   // ========== DELETION MANAGEMENT METHODS ==========
 
   Future<Map<String, dynamic>> checkDeletionDependencies({
