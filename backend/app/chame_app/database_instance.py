@@ -263,7 +263,7 @@ class Database:
                 bank = self.get_bank(session)
                 bank.customer_funds -= user.balance
                 if bank.revenue_funds < 0:
-                    bank.profit_retained += user.balance - bank.revenue_funds
+                    bank.profit_retained += user.balance + bank.revenue_funds
                 else:
                     bank.profit_retained += user.balance
                 bank.revenue_funds += user.balance
