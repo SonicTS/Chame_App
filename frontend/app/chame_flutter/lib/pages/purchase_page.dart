@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:chame_flutter/data/py_bride.dart';
+import 'package:chame_flutter/services/auth_service.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import 'package:collection/collection.dart';
+import 'package:provider/provider.dart';
 
 class PurchasePage extends StatefulWidget {
   const PurchasePage({super.key});
@@ -942,6 +944,13 @@ class _PurchasePageState extends State<PurchasePage> {
       return;
     }
 
+    final auth = Provider.of<AuthService>(context, listen: false);
+    final salesmanId = auth.currentUserId;
+    if (salesmanId == null) {
+      _showDialog('Error', 'Unable to identify current user');
+      return;
+    }
+
     if (_selectedUser != null) {
       final userBalance = (_selectedUser!['balance'] as num?)?.toDouble() ?? 0.0;
       if (userBalance < _totalCost) {
@@ -958,7 +967,7 @@ class _PurchasePageState extends State<PurchasePage> {
       'quantity': item['quantity'] as int,
     }).toList();
 
-    final error = await PyBridge().makeMultiplePurchases(itemList: itemList);
+    final error = await PyBridge().makeMultiplePurchases(itemList: itemList, salesmanId: salesmanId);
     setState(() => _isSubmitting = false);
     
     if (error != null) {

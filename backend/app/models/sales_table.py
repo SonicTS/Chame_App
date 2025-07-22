@@ -13,6 +13,7 @@ class Sale(Base):
     quantity = Column(Integer, default=1)
     total_price = Column(Float)
     timestamp = Column(String)  # This can be a datetime field, but we'll keep it simple for now
+    salesman_id = Column(Integer, ForeignKey("users.user_id"))  # Optional sales person
     toast_round_id = Column(Integer, ForeignKey("toast_round.toast_round_id"), nullable=True)  # Make optional
 
     # Relationships
@@ -20,8 +21,9 @@ class Sale(Base):
     donator = relationship("User", back_populates="donated_sales", foreign_keys=[donator_id])
     product = relationship("Product", back_populates="sales")
     toast_round = relationship("ToastRound", back_populates="sales")
+    salesman = relationship('User', foreign_keys=[salesman_id])
 
-    def __init__(self, consumer_id: int, product_id: int, quantity: int, total_price: float, timestamp: str, toast_round_id: int = None, donator_id: Optional[int] = None,):
+    def __init__(self, consumer_id: int, product_id: int, quantity: int, total_price: float, timestamp: str, salesman_id: int, toast_round_id: int = None, donator_id: Optional[int] = None,):
         self.consumer_id = consumer_id
         self.product_id = product_id
         self.quantity = quantity
@@ -29,9 +31,10 @@ class Sale(Base):
         self.timestamp = timestamp
         self.toast_round_id = toast_round_id
         self.donator_id = donator_id
+        self.salesman_id = salesman_id
 
     def __repr__(self):
-        return f"<Sale(consumer_id={self.consumer_id}, product_id={self.product_id}, quantity={self.quantity}, total_price={self.total_price}, timestamp={self.timestamp}, toast_round_id={self.toast_round_id}, donator_id={self.donator_id})>"
+        return f"<Sale(consumer_id={self.consumer_id}, product_id={self.product_id}, quantity={self.quantity}, total_price={self.total_price}, timestamp={self.timestamp}, toast_round_id={self.toast_round_id}, donator_id={self.donator_id}, salesman_id={self.salesman_id})>"
 
     def to_dict(self, include_user=False, include_product=False, include_toast_round=False, show_deleted_entities=False):
         def _round(val):
@@ -45,9 +48,10 @@ class Sale(Base):
             "total_price": _round(self.total_price),
             "timestamp": self.timestamp,
             "toast_round_id": self.toast_round_id,
-            "donator_id": self.donator_id
+            "donator_id": self.donator_id,
+            "salesman_id": self.salesman_id
         }
-        
+    data.update(self.salesman.to_dict())
         if include_user:
             self._add_user_data(data)
         

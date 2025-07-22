@@ -123,7 +123,29 @@ class SimpleMigrations:
                 -- Create index for better performance on ingredient_id lookups
                 CREATE INDEX IF NOT EXISTS ix_stock_history_ingredient_id ON stock_history (ingredient_id);
             """,
-            
+            "006_add_salesman_tracking": """
+                -- Add salesman_id column to transactions table
+                ALTER TABLE transactions ADD COLUMN salesman_id INTEGER;
+                
+                -- Add salesman_id column to sales table (if not already exists)
+                ALTER TABLE sales ADD COLUMN salesman_id INTEGER;
+                
+                -- Add salesman_id column to toast_round table
+                ALTER TABLE toast_round ADD COLUMN salesman_id INTEGER;
+                
+                -- Add user_id column to bank_transactions table
+                ALTER TABLE bank_transactions ADD COLUMN user_id INTEGER;
+                
+                -- Update existing records to use admin_id = 0 as default salesman
+                UPDATE transactions SET salesman_id = 0 WHERE salesman_id IS NULL;
+                UPDATE sales SET salesman_id = 0 WHERE salesman_id IS NULL;
+                UPDATE toast_round SET salesman_id = 0 WHERE salesman_id IS NULL;
+                UPDATE bank_transactions SET user_id = 0 WHERE user_id IS NULL;
+                
+                -- Create foreign key relationships (SQLite doesn't enforce them strictly, but good for documentation)
+                -- Note: In SQLite, we can't add foreign key constraints to existing tables easily
+                -- The relationships are defined in the SQLAlchemy models instead
+            """
             # Add more migrations here as needed
         }
     

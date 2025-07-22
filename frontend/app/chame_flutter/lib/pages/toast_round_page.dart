@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:chame_flutter/data/py_bride.dart';
+import 'package:chame_flutter/services/auth_service.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import 'package:collection/collection.dart';
+import 'package:provider/provider.dart';
 
 class ToastRoundPage extends StatefulWidget {
   const ToastRoundPage({super.key});
@@ -141,6 +143,13 @@ class _ToastRoundPageState extends State<ToastRoundPage> {
   }
 
   Future<void> _submit() async {
+    final auth = Provider.of<AuthService>(context, listen: false);
+    final salesmanId = auth.currentUserId;
+    if (salesmanId == null) {
+      _showDialog('Error', 'Unable to identify current user');
+      return;
+    }
+    
     final uidOut = <int>[];
     final pidOut = <int>[];
     final donatorOut = <int?>[];
@@ -166,6 +175,7 @@ class _ToastRoundPageState extends State<ToastRoundPage> {
       productIds: pidOut,
       consumer_selections: uidOut,
       donator_selections: donatorOut.map((e) => e ?? 0).toList(),
+      salesmanId: salesmanId,
     );
     setState(() => _isSubmitting = false);
 

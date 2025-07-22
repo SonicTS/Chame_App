@@ -29,7 +29,7 @@ class PyBridge {
     required String newPassword,
   }) async {
     try {
-      final result = await _chan.invokeMethod('change_password', {
+      await _chan.invokeMethod('change_password', {
         'user_id': int.parse(user_id),
         'old_password': oldPassword,
         'new_password': newPassword,
@@ -123,11 +123,13 @@ class PyBridge {
   Future<String?> withdraw({
     required int userId,
     required double amount,
+    required int salesmanId,
   }) async {
     try {
       await _chan.invokeMethod('withdraw', {
         'user_id': userId,
         'amount': amount,
+        'salesman_id': salesmanId,
       });
       return null;
     } catch (e) {
@@ -138,11 +140,13 @@ class PyBridge {
   Future<String?> deposit({
     required int userId,
     required double amount,
+    required int salesmanId,
   }) async {
     try {
       await _chan.invokeMethod('deposit', {
         'user_id': userId,
         'amount': amount,
+        'salesman_id': salesmanId,
       });
       return null;
     } catch (e) {
@@ -192,12 +196,14 @@ class PyBridge {
     required int userId,
     required int productId,
     required int quantity,
+    required int salesmanId,
   }) async {
     try {
       await _chan.invokeMethod('make_purchase', {
         'user_id': userId,
         'product_id': productId,
         'quantity': quantity,
+        'salesman_id': salesmanId,
       });
       return null;
     } catch (e) {
@@ -207,10 +213,12 @@ class PyBridge {
 
   Future<String?> makeMultiplePurchases({
     required List<Map<String, dynamic>> itemList,
+    required int salesmanId,
   }) async {
     try {
       await _chan.invokeMethod('make_multiple_purchases', {
         'item_list': jsonEncode(itemList),
+        'salesman_id': salesmanId,
       });
       return null;
     } catch (e) {
@@ -222,12 +230,14 @@ class PyBridge {
     required List<int> productIds,
     required List<int> consumer_selections,
     required List<int> donator_selections,
+    required int salesmanId,
   }) async {
     try {
       await _chan.invokeMethod('add_toast_round', {
         'product_ids': productIds,
         'consumer_selections': consumer_selections,
         'donator_selections': donator_selections,
+        'salesman_id': salesmanId,
       });
       return null;
     } catch (e) {
@@ -847,6 +857,28 @@ class PyBridge {
     } catch (e, stack) {
       print('Error in restoreUser: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
       return 'Error restoring user: $e';
+    }
+  }
+
+  /// Close user account with optional withdrawal
+  Future<String?> closeUserAccount({
+    required int userId,
+    required double withdrawalAmount,
+    required int salesmanId,
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('close_user_account', {
+        'user_id': userId,
+        'withdrawal_amount': withdrawalAmount,
+        'salesman_id': salesmanId,
+      });
+      if (result == null || result == 'null') {
+        return null;
+      }
+      return result as String;
+    } catch (e, stack) {
+      print('Error in closeUserAccount: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      return 'Error closing user account: $e';
     }
   }
 

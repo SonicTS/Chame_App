@@ -59,6 +59,7 @@ class User(Base, EnhancedSoftDeleteMixin):
     donated_sales = relationship("Sale", back_populates="donator", foreign_keys="Sale.donator_id")
     pfand_history = relationship("PfandHistory", back_populates="user")
     sales = relationship("Sale", back_populates="consumer", foreign_keys="Sale.consumer_id")
+    
     def __init__(self, name: str, balance: float = 0.0, password_hash: str = "", role: str = "user"):
         self.name = name
         self.balance = balance

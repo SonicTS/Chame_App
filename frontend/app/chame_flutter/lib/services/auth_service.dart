@@ -12,6 +12,7 @@ class AuthService extends ChangeNotifier {
   bool get initialized => _initialized;
   bool get isLoggedIn => _token != null;
   String get role => _role ?? '';
+  int? get currentUserId => _token != null ? int.tryParse(_token!) : null;
 
   AuthService() {
     _loadFromStorage();

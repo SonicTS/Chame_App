@@ -11,9 +11,12 @@ class ToastRound(Base):
     toast_round_id = Column(Integer, primary_key=True, autoincrement=True)
     date_time = Column(String)  # This can be a datetime field, but we'll keep it simple for now
     # Relationship to link multiple sales to a single toast round
+    salesman_id = Column(Integer, ForeignKey("users.user_id"))  # Required sales person
     sales = relationship('Sale', back_populates='toast_round')
+    salesman = relationship('User', foreign_keys=[salesman_id])
 
-    def __init__(self, date_time: str = str(datetime.datetime.now())):
+    def __init__(self, salesman_id: int, date_time: str = str(datetime.datetime.now())):
+        self.salesman_id = salesman_id
         self.date_time = date_time
 
     def to_dict(self, include_products=False, include_sales=False):
@@ -27,8 +30,9 @@ class ToastRound(Base):
             data = {
                 "toast_round_id": self.toast_round_id,
                 "date_time": self.date_time,
+                "salesman_id": self.salesman_id
             }
-            
+            data.update(self.salesman.to_dict())
             if include_products:
                 try:
                     if self.toast_round_products is None:
@@ -89,6 +93,7 @@ class ToastRound(Base):
             return {
                 "toast_round_id": getattr(self, 'toast_round_id', None),
                 "date_time": getattr(self, 'date_time', str(datetime.datetime.now())),
+                "salesman_id": getattr(self, 'salesman_id', None),
                 "products": [] if include_products else None,
                 "sales": [] if include_sales else None
             }

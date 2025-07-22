@@ -186,7 +186,7 @@ class Database:
                     session.close()
             raise RuntimeError(f"add_ingredient failed for ingredient={name}: {e}") from e
 
-    def restock_ingredients(self, _list: List[dict[int, int]], session=None):
+    def restock_ingredients(self, _list: List[dict[int, int]], salesman_id: int, session=None):
         close_session = False
         try:
             if session is None:
@@ -234,7 +234,7 @@ class Database:
                 if DEBUG:
                     print(f"DEBUG: Ingredient {ingredient.name} restock={item['restock']}, price={price}, pfand={pfand}")
                 description += f"{ingredient.name} x{item['restock']}: {price}(+{pfand})€ = {item['restock'] * (price + pfand)}\n"
-            transaction = BankTransaction(amount=total_cost, type="withdraw", description=description)
+            transaction = BankTransaction(amount=total_cost, type="withdraw", description=description, salesman_id=salesman_id)
             session.add(transaction)
             if close_session:
                 session.commit()
@@ -245,6 +245,40 @@ class Database:
                 if close_session:
                     session.close()
             raise RuntimeError(f"restock_ingredients failed: {e}") from e
+
+    def close_user_account(self, user_id: int, withdraw_amount: float, salesman_id: int, session=None):
+        close_session = False
+        try:
+            if session is None:
+                session = self.get_session()
+                close_session = True
+            user = self.get_user_by_id(user_id, session)
+            if user.balance < withdraw_amount:
+                raise ValueError("Insufficient balance")
+            if withdraw_amount < 0:
+                raise ValueError("Withdraw amount cannot be negative")
+            if withdraw_amount > 0:
+                self.withdraw_cash(user_id, withdraw_amount, salesman_id, session=session)
+            if user.balance > 0:
+                bank = self.get_bank(session)
+                bank.customer_funds -= user.balance
+                bank.revenue_funds += user.balance
+                bank.revenue_total += user.balance
+                bank.profit_total += user.balance
+                transaction = BankTransaction(amount=user.balance, type="deposit", description=f"User {user.name} closed account, remaining balance collected as donation: {user.balance}€", salesman_id=salesman_id)
+                user.balance = 0.0
+                session.add(transaction)
+            self.soft_delete_user(user_id)
+            if close_session:
+                session.commit()
+                session.close()
+
+        except Exception as e:
+            if session:
+                session.rollback()
+                if close_session:
+                    session.close()
+            raise RuntimeError(f"close_user_account failed: {e}") from e
 
     def stock_ingredient(self, ingredient_id: int, quantity: int, price: Optional[float] = None, session=None) -> float:
         close_session = False
@@ -340,7 +374,7 @@ class Database:
                     session.close()
             raise RuntimeError(f"add_product failed for Product={name}: {e}") from e
 
-    def add_user(self, username: str, password: str, role: str = "user", balance: float = 0.0, session=None):
+    def add_user(self, username: str, password: str, salesman_id: int, role: str = "user", balance: float = 0.0, session=None):
         print("🔥 [DATABASE] Logging user creation to Firebase...")
         log_info("User creation initiated", {"operation": "add_user", "username": username, "role": role, "balance": balance})
         print("✅ [DATABASE] User creation initiation logged to Firebase")
@@ -363,7 +397,8 @@ class Database:
             session.add(user)
             session.flush()
             if balance > 0:
-                transaction = Transaction(user_id=user.user_id, amount=balance, type="deposit", timestamp=datetime.datetime.now().replace(second=0, microsecond=0))
+                # Use provided salesman_id or default to admin user
+                transaction = Transaction(user_id=user.user_id, amount=balance, type="deposit", timestamp=datetime.datetime.now().replace(second=0, microsecond=0), salesman_id=salesman_id)
                 session.add(transaction)
             if close_session:
                 session.commit()
@@ -406,7 +441,7 @@ class Database:
             for product_assoc in ingredient.ingredient_products:
                 product_assoc.product.update_stock()
 
-    def return_deposit(self, user_id: int, product_quantity_list: List[Any], session=None):
+    def return_deposit(self, user_id: int, product_quantity_list: List[Any], salesman_id: int, session=None):
         """Return deposit for a list of products."""
         if DEBUG:
             print(f"DEBUG: Returning deposit for user_id={user_id}, product_quantity_list={product_quantity_list}")
@@ -451,7 +486,7 @@ class Database:
                         bank.profit_retained = 0
                 total_pfand += pfand
             comment = f"User {user_name} returned deposit for " + ", ".join([f"{item['amount']}x {self.get_product_by_id(item['id'], session).name}" for item in product_quantity_list])
-            transaction = Transaction(user_id=user_id, amount=total_pfand, type="deposit", timestamp=datetime.datetime.now().replace(second=0, microsecond=0), comment=comment)
+            transaction = Transaction(user_id=user_id, amount=total_pfand, type="deposit", timestamp=datetime.datetime.now().replace(second=0, microsecond=0), comment=comment, salesman_id=salesman_id)
             session.add(transaction)
             if close_session:
                 session.commit()
@@ -464,7 +499,7 @@ class Database:
                     session.close()
             raise RuntimeError(f"return_deposit failed for User={user_name}, Product={product_name}, quantity={quantity}: {e}") from e
 
-    def make_multiple_purchases(self, item_list: List[dict], session=None):
+    def make_multiple_purchases(self, item_list: List[dict], salesman_id: int, session=None):
         """Make multiple purchases in a single transaction."""
         close_session = False
         try:
@@ -478,7 +513,7 @@ class Database:
                     raise ValueError("Each item must be a dict with 'product_id', 'quantity', and 'consumer_id'")
             purchases = []
             for item in item_list:
-                purchase = self.make_purchase(item['consumer_id'], item['product_id'], item['quantity'], donator_id=item.get('donator_id', None), session=session)
+                purchase = self.make_purchase(item['consumer_id'], item['product_id'], item['quantity'], donator_id=item.get('donator_id', None), salesman_id=salesman_id, session=session)
                 purchases.append(purchase)
             if close_session:
                 session.commit()
@@ -491,7 +526,7 @@ class Database:
                     session.close()
             raise RuntimeError(f"make_multiple_purchases failed: {e}") from e
 
-    def make_purchase(self, consumer_id: int, product_id: int, quantity: int, session=None, toast_round_id: int = 0, donator_id: Optional[int] = None) -> Sale:
+    def make_purchase(self, consumer_id: int, product_id: int, quantity: int, salesman_id: int, session=None, toast_round_id: int = 0, donator_id: Optional[int] = None) -> Sale:
         # Firebase logging with debug output
         print("🔥 [DATABASE] Logging purchase initiation to Firebase...")
         log_info("Purchase initiated", {"operation": "make_purchase", "consumer_id": consumer_id, "product_id": product_id, "quantity": quantity})
@@ -527,7 +562,7 @@ class Database:
                 log_warn("Insufficient balance for purchase", {"operation": "make_purchase", "consumer_id": consumer_id, "product": product_name, "payer": payer_name, "required": total_cost, "balance": payer.balance})
                 print("✅ [DATABASE] Insufficient balance warning logged to Firebase")
                 raise ValueError(f"Insufficient balance: {payer.balance}")
-            purchase = Sale(consumer_id=consumer_id, donator_id=donator_id, product_id=product_id, quantity=quantity, total_price=total_cost, timestamp=datetime.datetime.now().replace(second=0, microsecond=0), toast_round_id=toast_round_id)
+            purchase = Sale(consumer_id=consumer_id, donator_id=donator_id, product_id=product_id, quantity=quantity, total_price=total_cost, timestamp=datetime.datetime.now().replace(second=0, microsecond=0), toast_round_id=toast_round_id, salesman_id=salesman_id)
             if product.get_pfand() > 0:
                 pfand_history = self.get_pfand_history(consumer_id, product_id, session=session)
                 if pfand_history:
@@ -569,7 +604,7 @@ class Database:
                     session.close()
             raise RuntimeError(f"make_purchase failed for User={payer_name}, Product={product_name}, quantity={quantity}: {e}") from e
 
-    def deposit_cash(self, user_id: int, amount: float, session=None):
+    def deposit_cash(self, user_id: int, amount: float, salesman_id: int, session=None):
         print("🔥 [DATABASE] Logging cash deposit to Firebase...")
         log_info("Cash deposit initiated", {"operation": "deposit_cash", "user_id": user_id, "amount": amount})
         print("✅ [DATABASE] Cash deposit initiation logged to Firebase")
@@ -594,7 +629,7 @@ class Database:
             user.balance += amount
             bank.total_balance += amount
             bank.customer_funds += amount
-            transaction = Transaction(user_id=user_id, amount=amount, type="deposit", timestamp=datetime.datetime.now().replace(second=0, microsecond=0))
+            transaction = Transaction(user_id=user_id, amount=amount, type="deposit", timestamp=datetime.datetime.now().replace(second=0, microsecond=0), salesman_id=salesman_id)
             session.add(transaction)
             if close_session:
                 session.commit()
@@ -616,7 +651,7 @@ class Database:
                     session.close()
             raise RuntimeError(f"deposit_cash failed for User={user_name}, amount={amount}: {e}") from e
 
-    def withdraw_cash(self, user_id: int, amount: float, session=None):
+    def withdraw_cash(self, user_id: int, amount: float, salesman_id: int, session=None):
         close_session = False
         user_name = "404"
         try:
@@ -634,7 +669,7 @@ class Database:
             user.balance -= amount
             bank.total_balance -= amount
             bank.customer_funds -= amount
-            transaction = Transaction(user_id=user_id, amount=amount, type="withdraw", timestamp=datetime.datetime.now().replace(second=0, microsecond=0))
+            transaction = Transaction(user_id=user_id, amount=amount, type="withdraw", timestamp=datetime.datetime.now().replace(second=0, microsecond=0), salesman_id=salesman_id)
             session.add(transaction)
             if close_session:
                 session.commit()
@@ -647,7 +682,7 @@ class Database:
                     session.close()
             raise RuntimeError(f"withdraw_cash failed for User={user_name}, amount={amount}: {e}") from e
 
-    def withdraw_cash_from_bank(self, amount: float, description: str = "Withdrawal from bank", session=None):
+    def withdraw_cash_from_bank(self, amount: float, salesman_id: int, description: str = "Withdrawal from bank", session=None):
         close_session = False
         try:
             if session is None:
@@ -676,7 +711,8 @@ class Database:
                 bank.revenue_funds -= amount
             bank.costs_total += amount
             bank.profit_total = bank.revenue_total - bank.costs_total
-            transaction = BankTransaction(amount=amount, type="withdraw", description=description)
+            # Use provided salesman_id or default to admin user
+            transaction = BankTransaction(amount=amount, type="withdraw", description=description, salesman_id=salesman_id)
             session.add(transaction)
             if close_session:
                 session.commit()
@@ -689,7 +725,7 @@ class Database:
                     session.close()
             raise RuntimeError(f"withdraw_cash_from_bank failed for amount={amount}: {e}") from e
    
-    def add_toast_round(self, product_user_list: List[tuple[int, int, int]], session=None):
+    def add_toast_round(self, product_user_list: List[tuple[int, int, int]], salesman_id: int, session=None):
         close_session = False
         name_list = ["404"]
         try:
@@ -697,7 +733,7 @@ class Database:
                 session = self.get_session()
                 close_session = True
 
-            toast_round = ToastRound()
+            toast_round = ToastRound(salesman_id=salesman_id)
             session.add(toast_round)
             session.flush()
             unique_products = set()
@@ -707,7 +743,7 @@ class Database:
                 product = self.get_product_by_id(product_id, session)
                 consumer = self.get_user_by_id(consumer_id, session)
                 donator = self.get_user_by_id(donator_id, session) if donator_id else None
-                sale = self.make_purchase(consumer.user_id, product.product_id, 1, session=session, toast_round_id=toast_round.toast_round_id, donator_id=donator.user_id if donator else None)
+                sale = self.make_purchase(consumer.user_id, product.product_id, 1, salesman_id, session=session, toast_round_id=toast_round.toast_round_id, donator_id=donator.user_id if donator else None)
                 toast_round.sales.append(sale)
                 buyer_str = f"{donator.name}({consumer.name})" if donator else f"{consumer.name}"
                 name_list.append(f"{buyer_str} bought {product.name}")
@@ -974,8 +1010,10 @@ class Database:
             close_session = True
         try:
             toast_rounds = session.query(ToastRound).options(
+                joinedload(ToastRound.salesman),
                 joinedload(ToastRound.sales).joinedload(Sale.consumer),
                 joinedload(ToastRound.sales).joinedload(Sale.donator),
+                joinedload(ToastRound.sales).joinedload(Sale.salesman),
                 joinedload(ToastRound.sales).joinedload(Sale.product)
                     .joinedload(Product.product_ingredients)
                     .joinedload(ProductIngredient.ingredient),
@@ -997,6 +1035,7 @@ class Database:
             sales = session.query(Sale).options(
                 joinedload(Sale.consumer),
                 joinedload(Sale.donator),
+                joinedload(Sale.salesman),
                 joinedload(Sale.product)
                 .joinedload(Product.product_ingredients)
                 .joinedload(ProductIngredient.ingredient),
@@ -1017,7 +1056,9 @@ class Database:
             close_session = True
         try:
             sales = session.query(Sale).options(
-                joinedload(Sale.user),
+                joinedload(Sale.consumer),
+                joinedload(Sale.donator),
+                joinedload(Sale.salesman),
                 joinedload(Sale.product)
             ).join(Product).filter(Product.category == category).all()
             return sales
@@ -1036,6 +1077,7 @@ class Database:
         try:
             query = session.query(Transaction).options(
                 joinedload(Transaction.user),
+                joinedload(Transaction.salesman)
             )
             if user_id != "all":
                 user_id = int(user_id)
@@ -1057,7 +1099,9 @@ class Database:
             session = self.get_session()
             close_session = True
         try:
-            transactions = session.query(BankTransaction).all()
+            transactions = session.query(BankTransaction).options(
+                joinedload(BankTransaction.salesman)
+            ).all()
             return transactions
         except Exception as e:
             raise RuntimeError(f"get_bank_transaction failed: {e}") from e

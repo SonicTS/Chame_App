@@ -151,11 +151,12 @@ class MainActivity : FlutterActivity() {
                     try {
                         val userId = call.argument<Number>("user_id")
                         val amount = call.argument<Number>("amount")
-                        if (userId == null || amount == null) {
+                        val salesmanId = call.argument<Number>("salesman_id")
+                        if (userId == null || amount == null || salesmanId == null) {
                             result.error("ARGUMENT_ERROR", "Missing argument for withdraw", null)
                             return@setMethodCallHandler
                         }
-                        pyModule.callAttr("withdraw", userId.toInt(), amount.toDouble())
+                        pyModule.callAttr("withdraw", userId.toInt(), amount.toDouble(), salesmanId.toInt())
                         result.success(null)
                     } catch (e: Exception) {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
@@ -169,11 +170,12 @@ class MainActivity : FlutterActivity() {
                     try {
                         val userId = call.argument<Number>("user_id")
                         val amount = call.argument<Number>("amount")
-                        if (userId == null || amount == null) {
+                        val salesmanId = call.argument<Number>("salesman_id")
+                        if (userId == null || amount == null || salesmanId == null) {
                             result.error("ARGUMENT_ERROR", "Missing argument for deposit", null)
                             return@setMethodCallHandler
                         }
-                        pyModule.callAttr("deposit", userId.toInt(), amount.toDouble())
+                        pyModule.callAttr("deposit", userId.toInt(), amount.toDouble(), salesmanId.toInt())
                         result.success(null)
                     } catch (e: Exception) {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
@@ -236,11 +238,12 @@ class MainActivity : FlutterActivity() {
                         val userId = call.argument<Number>("user_id")
                         val productId = call.argument<Number>("product_id")
                         val quantity = call.argument<Number>("quantity")
-                        if (userId == null || productId == null || quantity == null) {
+                        val salesmanId = call.argument<Number>("salesman_id")
+                        if (userId == null || productId == null || quantity == null || salesmanId == null) {
                             result.error("ARGUMENT_ERROR", "Missing argument for make_purchase", null)
                             return@setMethodCallHandler
                         }
-                        pyModule.callAttr("make_purchase", userId.toInt(), productId.toInt(), quantity.toInt())
+                        pyModule.callAttr("make_purchase", userId.toInt(), productId.toInt(), quantity.toInt(), salesmanId.toInt())
                         result.success(null)
                     } catch (e: Exception) {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
@@ -255,7 +258,8 @@ class MainActivity : FlutterActivity() {
                         val productIds = call.argument<List<Number>>("product_ids")
                         val consumerSelections = call.argument<List<Number>>("consumer_selections")
                         val donatorSelections = call.argument<List<Number>>("donator_selections")
-                        if (productIds == null || consumerSelections == null || donatorSelections == null) {
+                        val salesmanId = call.argument<Number>("salesman_id")
+                        if (productIds == null || consumerSelections == null || donatorSelections == null || salesmanId == null) {
                             result.error("ARGUMENT_ERROR", "Missing argument for add_toast_round", null)
                             return@setMethodCallHandler
                         }
@@ -263,7 +267,8 @@ class MainActivity : FlutterActivity() {
                             "add_toast_round",
                             productIds.map { it.toInt() }.toTypedArray(),
                             consumerSelections.map { it.toInt() }.toTypedArray(),
-                            donatorSelections.map { it.toInt() }.toTypedArray()
+                            donatorSelections.map { it.toInt() }.toTypedArray(),
+                            salesmanId.toInt()
                         )
                         result.success(null)
                     } catch (e: Exception) {
@@ -1097,6 +1102,28 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 
+                "close_user_account" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val userId = call.argument<Number>("user_id")
+                        val withdrawalAmount = call.argument<Number>("withdrawal_amount")
+                        val salesmanId = call.argument<Number>("salesman_id")
+                        
+                        if (userId == null || withdrawalAmount == null || salesmanId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing user_id, withdrawal_amount, or salesman_id for close_user_account", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        pyModule.callAttr("close_user_account", userId.toInt(), withdrawalAmount.toDouble(), salesmanId.toInt())
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                
                 "restore_product" -> {
                     val pyModule = py.getModule("services.admin_api")
                         ?: return@setMethodCallHandler result.error(
@@ -1381,7 +1408,8 @@ class MainActivity : FlutterActivity() {
                         )
                     try {
                         val itemListJson = call.argument<String>("item_list")
-                        if (itemListJson == null) {
+                        val salesmanId = call.argument<Number>("salesman_id")
+                        if (itemListJson == null || salesmanId == null) {
                             result.error("ARGUMENT_ERROR", "Missing argument for make_multiple_purchases", null)
                             return@setMethodCallHandler
                         }
@@ -1390,7 +1418,7 @@ class MainActivity : FlutterActivity() {
                         val jsonModule = py.getModule("json")
                         val itemList = jsonModule.callAttr("loads", itemListJson)
                         
-                        pyModule.callAttr("make_multiple_purchases", itemList)
+                        pyModule.callAttr("make_multiple_purchases", itemList, salesmanId.toInt())
                         result.success(null)
                     } catch (e: Exception) {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)

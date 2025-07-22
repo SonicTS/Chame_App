@@ -44,11 +44,18 @@ class _UsersPageState extends State<UsersPage> {
   }
 
   Future<void> _deposit(int userId) async {
+    final auth = Provider.of<AuthService>(context, listen: false);
+    final salesmanId = auth.currentUserId;
+    if (salesmanId == null) {
+      _showDialog('Error', 'Unable to identify current user');
+      return;
+    }
+    
     final controller = _depositControllers[userId]!;
     final amount = double.tryParse(controller.text);
     if (amount == null || amount <= 0) return;
     setState(() => _isSubmitting = true);
-    final error = await PyBridge().deposit(userId: userId, amount: amount);
+    final error = await PyBridge().deposit(userId: userId, amount: amount, salesmanId: salesmanId);
     setState(() => _isSubmitting = false);
     if (error != null) {
       _showDialog('Error', error);
@@ -60,11 +67,18 @@ class _UsersPageState extends State<UsersPage> {
   }
 
   Future<void> _withdraw(int userId) async {
+    final auth = Provider.of<AuthService>(context, listen: false);
+    final salesmanId = auth.currentUserId;
+    if (salesmanId == null) {
+      _showDialog('Error', 'Unable to identify current user');
+      return;
+    }
+    
     final controller = _withdrawControllers[userId]!;
     final amount = double.tryParse(controller.text);
     if (amount == null || amount <= 0) return;
     setState(() => _isSubmitting = true);
-    final error = await PyBridge().withdraw(userId: userId, amount: amount);
+    final error = await PyBridge().withdraw(userId: userId, amount: amount, salesmanId: salesmanId);
     setState(() => _isSubmitting = false);
     if (error != null) {
       _showDialog('Error', error);
@@ -444,7 +458,13 @@ class UsersTableSection extends StatelessWidget {
   }
 
   // Show simple deletion dialog for users
-  void _showDeletionDialog(BuildContext context, int userId, String userName) async {
+  void _showDeletionDialog(BuildContext context, int userId, String userName, double balance) async {
+    if (balance > 0) {
+      // Show withdrawal dialog before closing account
+      final shouldProceed = await _showAccountClosureDialog(context, userId, userName, balance);
+      if (!shouldProceed) return;
+    }
+    
     final result = await showSimpleDeletionDialog(
       context: context,
       entityType: 'user',
@@ -456,6 +476,124 @@ class UsersTableSection extends StatelessWidget {
       // Deletion was successful, reload the users
       onReload();
     }
+  }
+
+  // Show account closure dialog with withdrawal option
+  Future<bool> _showAccountClosureDialog(BuildContext context, int userId, String userName, double balance) async {
+    final TextEditingController withdrawController = TextEditingController();
+    bool isProcessing = false;
+    
+    return await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Close Account: $userName'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Current Balance: \$${balance.toStringAsFixed(2)}'),
+              const SizedBox(height: 16),
+              const Text('The user still has money left. Specify how much you want to withdraw. The rest is being donated to the bank'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: withdrawController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: 'Withdrawal Amount',
+                  hintText: 'Enter amount to withdraw',
+                  prefixText: '\$',
+                  border: const OutlineInputBorder(),
+                  helperText: 'Maximum: \$${balance.toStringAsFixed(2)}',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        withdrawController.text = balance.toStringAsFixed(2);
+                      },
+                      child: const Text('Withdraw All'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isProcessing ? null : () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isProcessing ? null : () async {
+                final withdrawAmount = double.tryParse(withdrawController.text);
+                if (withdrawAmount == null || withdrawAmount < 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter a valid withdrawal amount')),
+                  );
+                  return;
+                }
+                if (withdrawAmount > balance) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Withdrawal amount cannot exceed current balance')),
+                  );
+                  return;
+                }
+                
+                setState(() => isProcessing = true);
+                
+                try {
+                  // Get current user as salesman
+                  final auth = Provider.of<AuthService>(context, listen: false);
+                  final salesmanId = auth.currentUserId;
+                  if (salesmanId == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Unable to identify current user')),
+                    );
+                    setState(() => isProcessing = false);
+                    return;
+                  }
+                  
+                  // Call the close user account function
+                  final error = await PyBridge().closeUserAccount(
+                    userId: userId,
+                    withdrawalAmount: withdrawAmount,
+                    salesmanId: salesmanId,
+                  );
+                  
+                  if (error != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to close account: $error')),
+                    );
+                    setState(() => isProcessing = false);
+                  } else {
+                    Navigator.pop(ctx, true);
+                    _showDialog(context, 'Success', 'User account closed successfully! Withdrawal of \$${withdrawAmount.toStringAsFixed(2)} processed.');
+                    onReload();
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                  setState(() => isProcessing = false);
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: isProcessing 
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Text('Close Account', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    ) ?? false;
   }
 
   @override
@@ -578,7 +716,7 @@ class UsersTableSection extends StatelessWidget {
                                   tooltip: 'Delete User',
                                   onPressed: isSubmitting 
                                     ? null 
-                                    : () => _showDeletionDialog(context, userId, user['name']?.toString() ?? ''),
+                                    : () => _showDeletionDialog(context, userId, user['name']?.toString() ?? '', (user['balance'] is num) ? (user['balance'] as num).toDouble() : 0.0),
                                 )
                               : const SizedBox.shrink()
                           ),

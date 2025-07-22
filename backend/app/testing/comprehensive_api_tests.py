@@ -486,32 +486,32 @@ class ComprehensiveAPITester:
         
         # Valid user creation
         self._test_function("add_user (valid regular)", 
-                          lambda: api.add_user("test_user_new", 20.0, "user"), test_results)
+                          lambda: api.add_user("test_user_new", 20.0, "user", 1), test_results)
         self._test_function("add_user (valid admin)", 
-                          lambda: api.add_user("test_admin_new", 100.0, "admin", "password123"), test_results)
+                          lambda: api.add_user("test_admin_new", 100.0, "admin", 1, "password123"), test_results)
         
         # Invalid user creation (should fail)
         self._test_function("add_user (invalid - no name)", 
-                          lambda: api.add_user("", 20.0, "user"), test_results, expect_error=True)
+                          lambda: api.add_user("", 20.0, "user", 1), test_results, expect_error=True)
         self._test_function("add_user (invalid - admin no password)", 
-                          lambda: api.add_user("bad_admin", 100.0, "admin", ""), test_results, expect_error=True)
+                          lambda: api.add_user("bad_admin", 100.0, "admin", 1, ""), test_results, expect_error=True)
         self._test_function("add_user (invalid - short admin password)", 
-                          lambda: api.add_user("bad_admin2", 100.0, "admin", "123"), test_results, expect_error=True)
+                          lambda: api.add_user("bad_admin2", 100.0, "admin", 1, "123"), test_results, expect_error=True)
         
         # Money operations
         users = api.get_all_users()
         if users:
             user_id = users[0]["user_id"]
             self._test_function("deposit", 
-                              lambda: api.deposit(user_id, 10.0), test_results)
+                              lambda: api.deposit(user_id, 10.0, 1), test_results)
             self._test_function("withdraw", 
-                              lambda: api.withdraw(user_id, 5.0), test_results)
+                              lambda: api.withdraw(user_id, 5.0, 1), test_results)
             
             # Invalid money operations
             self._test_function("withdraw (insufficient funds)", 
-                              lambda: api.withdraw(user_id, 99999.0), test_results, expect_error=True)
+                              lambda: api.withdraw(user_id, 99999.0, 1), test_results, expect_error=True)
             self._test_function("deposit (invalid amount)", 
-                              lambda: api.deposit(user_id, -10.0), test_results, expect_error=True)
+                              lambda: api.deposit(user_id, -10.0, 1), test_results, expect_error=True)
     
     def _test_ingredient_management(self, test_results):
         """Test ingredient management functions"""
@@ -539,7 +539,7 @@ class ComprehensiveAPITester:
             # Bulk restocking
             restock_list = [{'id': ingredient_id, 'restock': 5}]
             self._test_function("restock_ingredients", 
-                              lambda: api.restock_ingredients(restock_list), test_results)
+                              lambda: api.restock_ingredients(restock_list, 1), test_results)
     
     def _test_product_management(self, test_results):
         """Test product management functions"""
@@ -582,15 +582,15 @@ class ComprehensiveAPITester:
             product_id = products[0]["product_id"]
             # Valid purchase
             self._test_function("make_purchase (valid)", 
-                              lambda: api.make_purchase(user_id, product_id, 1), test_results)
+                              lambda: api.make_purchase(user_id, product_id, 1, 1), test_results)
             
             # Invalid purchases
             self._test_function("make_purchase (invalid - no user)", 
-                              lambda: api.make_purchase(0, product_id, 1), test_results, expect_error=True)
+                              lambda: api.make_purchase(0, product_id, 1, 1), test_results, expect_error=True)
             self._test_function("make_purchase (invalid - no product)", 
-                              lambda: api.make_purchase(user_id, 0, 1), test_results, expect_error=True)
+                              lambda: api.make_purchase(user_id, 0, 1, 1), test_results, expect_error=True)
             self._test_function("make_purchase (invalid - zero quantity)", 
-                              lambda: api.make_purchase(user_id, product_id, 0), test_results, expect_error=True)
+                              lambda: api.make_purchase(user_id, product_id, 0, 1), test_results, expect_error=True)
         
         # Pfand return testing
         if users and products:
@@ -604,7 +604,7 @@ class ComprehensiveAPITester:
                 return
             product_list = [{"id": product_id, "amount": 1}]
             self._test_function("submit_pfand_return", 
-                              lambda: api.submit_pfand_return(user_id, product_list), test_results)
+                              lambda: api.submit_pfand_return(user_id, product_list, 1), test_results)
     
     def _test_bank_functions(self, test_results):
         """Test bank-related functions"""
@@ -612,11 +612,11 @@ class ComprehensiveAPITester:
         
         # Valid bank operations
         self._test_function("bank_withdraw", 
-                          lambda: api.bank_withdraw(50.0, "Test withdrawal"), test_results)
+                          lambda: api.bank_withdraw(50.0, "Test withdrawal", 1), test_results)
         
         # Invalid bank operations
         self._test_function("bank_withdraw (invalid - no amount)", 
-                          lambda: api.bank_withdraw(0, "Bad withdrawal"), test_results, expect_error=True)
+                          lambda: api.bank_withdraw(0, "Bad withdrawal", 1), test_results, expect_error=True)
     
     def _test_authentication_functions(self, test_results):
         """Test authentication functions"""
@@ -813,7 +813,7 @@ class ComprehensiveAPITester:
         
         # Create test user for soft delete
         try:
-            test_user_result = api.add_user("test_soft_delete_user", 50.0, "user")
+            test_user_result = api.add_user("test_soft_delete_user", 50.0, "user", 1)
             if test_user_result:
                 test_user_id = test_user_result.get("user_id") if isinstance(test_user_result, dict) else test_user_result.user_id
                 
@@ -968,7 +968,7 @@ class ComprehensiveAPITester:
         
         # Test with extreme values
         self._test_function("add_user (extreme balance)", 
-                          lambda: api.add_user("extreme_user", 999999.99, "user"), edge_test_results)
+                          lambda: api.add_user("extreme_user", 999999.99, "user", 1), edge_test_results)
         
         # Test with special characters
         self._test_function("add_ingredient (special chars)", 
@@ -985,7 +985,7 @@ class ComprehensiveAPITester:
             # Multiple deposits in sequence
             for i in range(3):
                 self._test_function(f"rapid_deposit_{i}", 
-                                  lambda: api.deposit(user_id, 1.0), edge_test_results)
+                                  lambda: api.deposit(user_id, 1.0, 1), edge_test_results)
         
         return edge_test_results
     

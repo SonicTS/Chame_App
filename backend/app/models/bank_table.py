@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, Float, String, DateTime
+from sqlalchemy import Column, ForeignKey, Integer, Float, String, DateTime
 from chame_app.database import Base
 import datetime
+from sqlalchemy.orm import relationship
 
 class Bank(Base):
     __tablename__ = "bank"
@@ -53,17 +54,24 @@ class BankTransaction(Base):
     type = Column(String, nullable=False)  # e.g., 'withdrawal'
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     description = Column(String, nullable=True)  # Optional description field
+    salesman_id = Column(Integer, ForeignKey("users.user_id"))  # Required sales person
+    
+    salesman = relationship('User', foreign_keys=[salesman_id])
 
     def __repr__(self):
-        return f"<BankTransaction(id={self.transaction_id}, amount={self.amount}, type={self.type}, timestamp={self.timestamp}, description={self.description})>"
+        return f"<BankTransaction(id={self.transaction_id}, amount={self.amount}, type={self.type}, timestamp={self.timestamp}, description={self.description}, salesman_id={self.salesman_id})>"
 
     def to_dict(self):
         def _round(val):
             return round(val, 2) if isinstance(val, float) and val is not None else val
-        return {
+        data = {
             "transaction_id": self.transaction_id,
             "amount": _round(self.amount),
             "type": self.type,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "description": self.description,
+            "salesman_id": self.salesman_id,
         }
+        data["salesman"] = self.salesman.to_dict()
+        return data
+
