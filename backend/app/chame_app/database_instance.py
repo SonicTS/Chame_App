@@ -262,10 +262,14 @@ class Database:
             if user.balance > 0:
                 bank = self.get_bank(session)
                 bank.customer_funds -= user.balance
+                if bank.revenue_funds < 0:
+                    bank.profit_retained += user.balance - bank.revenue_funds
+                else:
+                    bank.profit_retained += user.balance
                 bank.revenue_funds += user.balance
                 bank.revenue_total += user.balance
                 bank.profit_total += user.balance
-                bank.profit_retained += user.balance
+                
                 transaction = BankTransaction(amount=user.balance, type="deposit", description=f"User {user.name} closed account, remaining balance collected as donation: {user.balance}€", salesman_id=salesman_id)
                 user.balance = 0.0
                 session.add(transaction)
