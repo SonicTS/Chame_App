@@ -32,7 +32,7 @@ class ToastRound(Base):
                 "date_time": self.date_time,
                 "salesman_id": self.salesman_id
             }
-            data.update(self.salesman.to_dict())
+            data["salesman"] = self.salesman.to_dict()
             if include_products:
                 try:
                     if self.toast_round_products is None:

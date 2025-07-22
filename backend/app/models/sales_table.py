@@ -51,7 +51,7 @@ class Sale(Base):
             "donator_id": self.donator_id,
             "salesman_id": self.salesman_id
         }
-    data.update(self.salesman.to_dict())
+        data["salesman"] = self.salesman.to_dict()
         if include_user:
             self._add_user_data(data)
         
@@ -61,7 +61,6 @@ class Sale(Base):
         if include_toast_round:
             self._add_toast_round_data(data)
         
-        return data
 
     def _add_user_data(self, data: dict):
         """Add user data with availability status"""
