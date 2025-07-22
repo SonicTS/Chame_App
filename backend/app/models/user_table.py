@@ -101,7 +101,7 @@ class User(Base, EnhancedSoftDeleteMixin):
                                 #log_debug(f"Found None sale in User {self.user_id} sales relationship")
                                 continue
                             try:
-                                sales_data.append(sale.to_dict())
+                                sales_data.append(sale.to_dict(include_salesman=False))
                             except Exception as e:
                                 log_error(f"Error converting sale to dict for User {self.user_id}", 
                                          {"user_id": self.user_id, "sale_id": getattr(sale, 'sale_id', 'unknown')}, 

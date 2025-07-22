@@ -709,6 +709,7 @@ class _SalesTableWidgetState extends State<_SalesTableWidget> {
         DataColumn(label: Text('ID', style: TextStyle(fontWeight: FontWeight.bold))),
         DataColumn(label: Text('Consumer', style: TextStyle(fontWeight: FontWeight.bold))),
         DataColumn(label: Text('Donator', style: TextStyle(fontWeight: FontWeight.bold))),
+        DataColumn(label: Text('Salesman', style: TextStyle(fontWeight: FontWeight.bold))),
         DataColumn(label: Text('Product', style: TextStyle(fontWeight: FontWeight.bold))),
         DataColumn(label: Text('Qty', style: TextStyle(fontWeight: FontWeight.bold))),
         DataColumn(label: Text('Price', style: TextStyle(fontWeight: FontWeight.bold))),
@@ -721,11 +722,13 @@ class _SalesTableWidgetState extends State<_SalesTableWidget> {
   DataRow _buildDataRow(Map<String, dynamic> sale) {
     String consumer = '';
     String donator = '';
+    String salesman = '';
     String product = '';
     
     try {
       final consumerField = sale['consumer'];
       final donatorField = sale['donator'];
+      final salesmanField = sale['salesman'];
       final productField = sale['product'];
       
       consumer = consumerField is Map && consumerField['name'] != null
@@ -736,12 +739,16 @@ class _SalesTableWidgetState extends State<_SalesTableWidget> {
           : (donatorField is Map && donatorField['name'] != null
               ? donatorField['name'].toString()
               : donatorField.toString());
+      salesman = salesmanField is Map && salesmanField['name'] != null
+          ? salesmanField['name'].toString()
+          : salesmanField?.toString() ?? '';
       product = productField is Map && productField['name'] != null
           ? productField['name'].toString()
           : productField?.toString() ?? '';
     } catch (e) {
       consumer = sale['consumer']?.toString() ?? '';
       donator = sale['donator']?.toString() ?? '';
+      salesman = sale['salesman']?.toString() ?? '';
       product = sale['product']?.toString() ?? '';
     }
     
@@ -771,6 +778,7 @@ class _SalesTableWidgetState extends State<_SalesTableWidget> {
         DataCell(Text(sale['sale_id']?.toString() ?? '', style: const TextStyle(fontSize: 12))),
         DataCell(SizedBox(width: 80, child: Text(consumer, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis, maxLines: 2))),
         DataCell(SizedBox(width: 80, child: Text(donator, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis, maxLines: 2))),
+        DataCell(SizedBox(width: 80, child: Text(salesman, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis, maxLines: 2))),
         DataCell(SizedBox(width: 100, child: Text(product, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis, maxLines: 2))),
         DataCell(Text(sale['quantity']?.toString() ?? '', style: const TextStyle(fontSize: 12))),
         DataCell(Text('€${sale['total_price']?.toString() ?? ''}', style: const TextStyle(fontSize: 12))),

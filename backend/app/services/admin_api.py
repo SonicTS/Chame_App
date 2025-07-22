@@ -63,7 +63,7 @@ def change_password(user_id, old_password, new_password):
 # User management
 def add_user(name, balance, role, salesman_id, password=""):
     print("DEBUG: add_user called with:", name, balance, role, salesman_id, password)
-    if not name or balance is None or not role or not salesman_id:
+    if not name or balance is None or role is None or salesman_id is None:
         raise ValueError("Invalid input")
     if role.lower() in ["admin", "wirt"] and password:
         if role.lower() == "admin" and len(password) < 8:
@@ -77,12 +77,12 @@ def add_user(name, balance, role, salesman_id, password=""):
     return database.add_user(username=name, password=password, balance=balance, role=role.lower(), salesman_id=salesman_id)
 
 def withdraw(user_id, amount, salesman_id):
-    if not user_id or not amount or not salesman_id:
+    if not user_id or not amount or salesman_id is None:
         raise ValueError("Invalid input")
     return database.withdraw_cash(user_id=user_id, amount=amount, salesman_id=salesman_id)
 
 def deposit(user_id, amount, salesman_id):
-    if not user_id or not amount or not salesman_id:
+    if not user_id or not amount or salesman_id is None:
         raise ValueError("Invalid input")
     return database.deposit_cash(user_id=user_id, amount=amount, salesman_id=salesman_id)
 
@@ -108,7 +108,7 @@ def add_ingredient(name, price_per_package, stock_quantity, number_ingredients, 
 
 def submit_pfand_return(user_id, product_list, salesman_id):
     print("DEBUG: submit_pfand_return called with user_id:", user_id, "and product_list:", product_list, "salesman_id:", salesman_id)
-    if not user_id or not product_list or not salesman_id:
+    if not user_id or not product_list or salesman_id is None:
         raise ValueError("Invalid input")
     if not isinstance(product_list, list):
         raise ValueError("Product list must be a list")
@@ -146,7 +146,7 @@ def get_all_stock_history():
     return [sh.to_dict(include_ingredient=True) for sh in stock_history]
 
 def restock_ingredients(_list: List[Dict[int, int]], salesman_id):
-    if not _list or not isinstance(_list, list) or not salesman_id:
+    if not _list or not isinstance(_list, list) or salesman_id is None:
         raise ValueError("Invalid input")
     print("DEBUG: restock_ingredients called with:", _list, "salesman_id:", salesman_id)
     return database.restock_ingredients(_list=_list, salesman_id=salesman_id)
@@ -158,7 +158,7 @@ def restock_ingredient(ingredient_id, quantity):
     return database.stock_ingredient(ingredient_id=ingredient_id, quantity=quantity)
 
 def make_multiple_purchases(item_list: List[Dict[str, int]], salesman_id):
-    if not item_list or not isinstance(item_list, list) or not salesman_id:
+    if not item_list or not isinstance(item_list, list) or salesman_id is None:
         raise ValueError("Invalid input")
     if not all(isinstance(item, dict) and 'product_id' in item and 'quantity' in item and 'consumer_id' in item for item in item_list):
         raise ValueError("Each item must be a dict with 'product_id' and 'quantity' and 'consumer_id")
@@ -166,7 +166,7 @@ def make_multiple_purchases(item_list: List[Dict[str, int]], salesman_id):
 
 # Purchase logic
 def make_purchase(consumer_id, product_id, quantity, salesman_id, donator_id=None):
-    if not consumer_id or not product_id or not quantity or not salesman_id:
+    if not consumer_id or not product_id or not quantity or salesman_id is None:
         raise ValueError("Invalid input")
     return database.make_purchase(consumer_id=consumer_id, donator_id=donator_id, product_id=product_id, quantity=quantity, salesman_id=salesman_id)
 
@@ -180,7 +180,7 @@ def change_user_role(user_id, new_role):
 # Toast round logic
 def add_toast_round(product_ids, consumer_selections, donator_selections, salesman_id):
     print("DEBUG: add_toast_round called with product_ids:", product_ids, "and user_selections:", consumer_selections, "and donator_selections:", donator_selections, "and salesman_id:", salesman_id)
-    if not product_ids or not consumer_selections or not donator_selections or not salesman_id:
+    if not product_ids or not consumer_selections or not donator_selections or salesman_id is None:
         raise ValueError("Product IDs, user selections, and salesman ID cannot be empty.")
     if len(product_ids) != len(consumer_selections) or len(product_ids) != len(donator_selections):
         raise ValueError("Mismatch between product IDs and user selections.")
@@ -189,7 +189,7 @@ def add_toast_round(product_ids, consumer_selections, donator_selections, salesm
 
 # Bank logic
 def bank_withdraw(amount, description, salesman_id):
-    if not amount or not salesman_id:
+    if not amount or salesman_id is None:
         raise ValueError("Invalid input")
     return database.withdraw_cash_from_bank(amount=amount, description=description, salesman_id=salesman_id)
 
@@ -223,7 +223,7 @@ def get_all_raw_products():
     return [product.to_dict(True, True, True, True) for product in database.get_all_products_by_category('raw')]
 
 def get_filtered_transaction(user_id="all", tx_type="all"):
-    return [tx.to_dict(True) for tx in database.get_filtered_transaction(user_id=user_id, tx_type=tx_type)]
+    return [tx.to_dict() for tx in database.get_filtered_transaction(user_id=user_id, tx_type=tx_type)]
 
 def get_bank():
     return database.get_bank().to_dict() if database.get_bank() else None

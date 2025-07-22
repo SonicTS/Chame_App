@@ -36,7 +36,7 @@ class Sale(Base):
     def __repr__(self):
         return f"<Sale(consumer_id={self.consumer_id}, product_id={self.product_id}, quantity={self.quantity}, total_price={self.total_price}, timestamp={self.timestamp}, toast_round_id={self.toast_round_id}, donator_id={self.donator_id}, salesman_id={self.salesman_id})>"
 
-    def to_dict(self, include_user=False, include_product=False, include_toast_round=False, show_deleted_entities=False):
+    def to_dict(self, include_user=False, include_product=False, include_toast_round=False, show_deleted_entities=False, include_salesman=True):
         def _round(val):
             return round(val, 2) if isinstance(val, float) and val is not None else val
         
@@ -51,7 +51,8 @@ class Sale(Base):
             "donator_id": self.donator_id,
             "salesman_id": self.salesman_id
         }
-        data["salesman"] = self.salesman.to_dict()
+        if include_salesman:
+            data["salesman"] = self.salesman.to_dict()
         if include_user:
             self._add_user_data(data)
         
@@ -60,6 +61,8 @@ class Sale(Base):
         
         if include_toast_round:
             self._add_toast_round_data(data)
+
+        return data
         
 
     def _add_user_data(self, data: dict):

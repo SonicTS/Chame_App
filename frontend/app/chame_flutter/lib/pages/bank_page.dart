@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:chame_flutter/data/py_bride.dart';
+import 'package:chame_flutter/services/auth_service.dart';
+import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class BankPage extends StatefulWidget {
@@ -30,6 +32,13 @@ class _BankPageState extends State<BankPage> {
   }
 
   Future<void> _submitWithdraw() async {
+    final auth = Provider.of<AuthService>(context, listen: false);
+    final salesmanId = auth.currentUserId;
+    if (salesmanId == null) {
+      _showDialog('Error', 'Unable to identify current user');
+      return;
+    }
+    
     final amount = double.tryParse(_withdrawAmountController.text);
     final description = _withdrawDescriptionController.text.trim();
     if (amount == null || amount <= 0) {
@@ -37,7 +46,7 @@ class _BankPageState extends State<BankPage> {
       return;
     }
     setState(() => _isSubmitting = true);
-    final error = await PyBridge().bankWithdraw(amount: amount, description: description);
+    final error = await PyBridge().bankWithdraw(amount: amount, description: description, salesmanId: salesmanId);
     setState(() => _isSubmitting = false);
     if (error != null) {
       _showDialog('Error', error);
@@ -336,9 +345,19 @@ class _BankPageState extends State<BankPage> {
                                 DataColumn(label: Text('Type')),
                                 DataColumn(label: Text('Amount')),
                                 DataColumn(label: Text('Description')),
+                                DataColumn(label: Text('Salesman')),
                                 DataColumn(label: Text('Date')),
                               ],
                               rows: txs.map((tx) {
+                                // Extract salesman name
+                                String salesman = '';
+                                final salesmanField = tx['salesman'];
+                                if (salesmanField is Map && salesmanField['name'] != null) {
+                                  salesman = salesmanField['name'].toString();
+                                } else if (salesmanField != null) {
+                                  salesman = salesmanField.toString();
+                                }
+                                
                                 return DataRow(cells: [
                                   DataCell(Text(tx['type']?.toString() ?? '')),
                                   DataCell(Text(tx['amount']?.toString() ?? '')),
@@ -368,6 +387,7 @@ class _BankPageState extends State<BankPage> {
                                       ),
                                     ),
                                   ),
+                                  DataCell(Text(salesman)),
                                   DataCell(Text(tx['timestamp']?.toString() ?? '')),
                                 ]);
                               }).toList(),

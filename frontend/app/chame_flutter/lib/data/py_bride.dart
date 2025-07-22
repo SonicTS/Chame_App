@@ -91,6 +91,7 @@ class PyBridge {
     required double balance,
     required String role,
     required String? password,
+    required int salesmanId,
   }) async {
     try {
       await _chan.invokeMethod('add_user', {
@@ -98,6 +99,7 @@ class PyBridge {
         'balance': balance,
         'role': role,
         'password': password,
+        'salesman_id': salesmanId,
       });
       return null;
     } catch (e) {
@@ -180,11 +182,13 @@ class PyBridge {
   Future<String?> restockIngredient({
     required int ingredientId,
     required int quantity,
+    required int salesmanId,
   }) async {
     try {
       await _chan.invokeMethod('restock_ingredient', {
         'ingredient_id': ingredientId,
         'quantity': quantity,
+        'salesman_id': salesmanId,
       });
       return null;
     } catch (e) {
@@ -248,11 +252,13 @@ class PyBridge {
   Future<String?> bankWithdraw({
     required double amount,
     required String description,
+    required int salesmanId,
   }) async {
     try {
       await _chan.invokeMethod('bank_withdraw', {
         'amount': amount,
         'description': description,
+        'salesman_id': salesmanId,
       });
       return null;
     } catch (e) {
@@ -389,11 +395,12 @@ class PyBridge {
     }
   }
 
-  Future<String?> restockIngredients(List<Map<String, dynamic>> restocks) async {
+  Future<String?> restockIngredients(List<Map<String, dynamic>> restocks, int salesmanId) async {
     // restocks: [{ 'name': ..., 'restock': ... }, ...]
     try {
       await _chan.invokeMethod('restock_ingredients', {
         'restocks': jsonEncode(restocks),
+        'salesman_id': salesmanId,
       });
       return null;
     } catch (e) {
@@ -405,12 +412,14 @@ class PyBridge {
     required int ingredientId,
     required int amount,
     String comment = "",
+    required int salesmanId,
   }) async {
     try {
       await _chan.invokeMethod('update_stock', {
         'ingredient_id': ingredientId,
         'amount': amount,
         'comment': comment,
+        'salesman_id': salesmanId,
       });
       return null;
     } catch (e) {
@@ -438,11 +447,13 @@ class PyBridge {
   Future<void> submitPfandReturn(
     int userId,
     List<Map<String, dynamic>> products,
+    int salesmanId,
   ) async {
     try {
       await _chan.invokeMethod('submit_pfand_return', {
         'user_id': userId,
         'product_list': jsonEncode(products),
+        'salesman_id': salesmanId,
       });
     } catch (e) {
       print('Error in submitPfandReturn: \x1b[31m$e\x1b[0m');

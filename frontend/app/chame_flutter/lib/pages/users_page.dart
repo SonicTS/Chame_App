@@ -462,7 +462,7 @@ class UsersTableSection extends StatelessWidget {
     if (balance > 0) {
       // Show withdrawal dialog before closing account
       final shouldProceed = await _showAccountClosureDialog(context, userId, userName, balance);
-      if (!shouldProceed) return;
+      return;
     }
     
     final result = await showSimpleDeletionDialog(
@@ -790,9 +790,19 @@ class TransactionsSection extends StatelessWidget {
                       DataColumn(label: Text('Type')),
                       DataColumn(label: Text('Amount')),
                       DataColumn(label: Text('Comment')),
+                      DataColumn(label: Text('Salesman')),
                       DataColumn(label: Text('Date')),
                     ],
                     rows: txs.map((tx) {
+                      // Extract salesman name
+                      String salesman = '';
+                      final salesmanField = tx['salesman'];
+                      if (salesmanField is Map && salesmanField['name'] != null) {
+                        salesman = salesmanField['name'].toString();
+                      } else if (salesmanField != null) {
+                        salesman = salesmanField.toString();
+                      }
+                      
                       return DataRow(cells: [
                         DataCell(Text(tx['user']?['name'].toString() ?? '')),
                         DataCell(Text(tx['type']?.toString() ?? '')),
@@ -826,6 +836,7 @@ class TransactionsSection extends StatelessWidget {
                             ),
                           ),
                         ),
+                        DataCell(Text(salesman)),
                         DataCell(Text(formatTimestamp(tx['timestamp']))),
                       ]);
                     }).toList(),

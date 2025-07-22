@@ -134,13 +134,13 @@ class SimpleMigrations:
                 ALTER TABLE toast_round ADD COLUMN salesman_id INTEGER;
                 
                 -- Add user_id column to bank_transactions table
-                ALTER TABLE bank_transactions ADD COLUMN user_id INTEGER;
+                ALTER TABLE bank_transactions ADD COLUMN salesman_id INTEGER;
                 
-                -- Update existing records to use admin_id = 0 as default salesman
-                UPDATE transactions SET salesman_id = 0 WHERE salesman_id IS NULL;
-                UPDATE sales SET salesman_id = 0 WHERE salesman_id IS NULL;
-                UPDATE toast_round SET salesman_id = 0 WHERE salesman_id IS NULL;
-                UPDATE bank_transactions SET user_id = 0 WHERE user_id IS NULL;
+                -- Update existing records to use admin_id = 1 as default salesman
+                UPDATE transactions SET salesman_id = 1 WHERE salesman_id IS NULL;
+                UPDATE sales SET salesman_id = 1 WHERE salesman_id IS NULL;
+                UPDATE toast_round SET salesman_id = 1 WHERE salesman_id IS NULL;
+                UPDATE bank_transactions SET salesman_id = 1 WHERE salesman_id IS NULL;
                 
                 -- Create foreign key relationships (SQLite doesn't enforce them strictly, but good for documentation)
                 -- Note: In SQLite, we can't add foreign key constraints to existing tables easily

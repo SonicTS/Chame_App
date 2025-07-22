@@ -30,8 +30,8 @@ class TestDatabaseGenerator:
         print("🔧 Creating minimal test database...")
         
         # Create basic users
-        api.add_user("admin", 100.0, "admin", "admin123")
-        api.add_user("testuser", 50.0, "user")
+        api.add_user("admin", 100.0, "admin", 1, "admin123")
+        api.add_user("testuser", 50.0, "user", 1)
         
         # Create basic ingredients
         api.add_ingredient("Bread", 2.50, 10, 8, 0.0)
@@ -73,15 +73,15 @@ class TestDatabaseGenerator:
         users_data = [
             ("admin_user", 1000.0, "admin", "admin123"),
             ("manager_user", 500.0, "wirt", "wirt1234"),
-            ("customer1", 25.50, "user", ""),
-            ("customer2", 100.0, "user", ""),
-            ("broke_customer", 0.0, "user", ""),
-            ("vip_customer", 500.0, "user", ""),
+            ("customer1", 25.50, "user", "user123"),
+            ("customer2", 100.0, "user", "user123"),
+            ("broke_customer", 0.0, "user", "user123"),
+            ("vip_customer", 500.0, "user", "user123"),
         ]
         
         for name, balance, role, password in users_data:
             try:
-                api.add_user(name, balance, role, password)
+                api.add_user(name, balance, role, 1, password)
                 print(f"  ✅ Created user: {name} ({role})")
             except Exception as e:
                 print(f"  ⚠️ Failed to create user {name}: {e}")
@@ -129,9 +129,11 @@ class TestDatabaseGenerator:
         if users and products:
             # Some realistic purchases - be careful with user indices and balances
             try:
-                api.make_purchase(users[2]["user_id"], products[0]["product_id"], 1)  # customer1 buys toast
-                api.make_purchase(users[3]["user_id"], products[3]["product_id"], 2)  # customer2 buys cola
-                api.make_purchase(users[0]["user_id"], products[5]["product_id"], 1)  # admin buys premium sandwich
+                # Use first user (admin) as salesman for all purchases
+                salesman_id = users[0]["user_id"]
+                api.make_purchase(users[2]["user_id"], products[0]["product_id"], 1, salesman_id)  # customer1 buys toast
+                api.make_purchase(users[3]["user_id"], products[3]["product_id"], 2, salesman_id)  # customer2 buys cola
+                api.make_purchase(users[2]["user_id"], products[5]["product_id"], 1, salesman_id)  # customer1 buys premium sandwich
             except Exception as e:
                 print(f"⚠️ Note: Some sales creation failed: {e}")
         
@@ -143,8 +145,11 @@ class TestDatabaseGenerator:
                 if drinks_with_pfand and len(users) >= 3:
                     # Simulate some pfand returns
                     for drink in drinks_with_pfand[:2]:  # Test with first 2 drinks
-                        api.submit_pfand_return(users[2]["user_id"], [{"product_id": drink["product_id"], "amount": 1}])
-                        api.submit_pfand_return(users[3]["user_id"], [{"product_id": drink["product_id"], "amount": 2}])
+                        salesman_id = users[0]["user_id"]  # Use admin as salesman
+                        api.make_purchase(users[2]["user_id"], drink["product_id"], 1, salesman_id)  # customer1 returns pfand
+                        api.make_purchase(users[3]["user_id"], drink["product_id"], 2, salesman_id)  # customer2 returns pfand
+                        api.submit_pfand_return(users[2]["user_id"], [{"id": drink["product_id"], "amount": 1}], salesman_id)
+                        api.submit_pfand_return(users[3]["user_id"], [{"id": drink["product_id"], "amount": 2}], salesman_id)
                     print("  ✅ Created pfand history entries")
             except Exception as e:
                 print(f"⚠️ Note: Pfand history creation failed: {e}")
@@ -204,15 +209,15 @@ class TestDatabaseGenerator:
         # Edge case users
         edge_users = [
             ("normal_admin", 100.0, "admin", "password123"),
-            ("unicode_user_测试", 50.0, "user", ""),
-            ("negative_balance", -25.0, "user", ""),
-            ("zero_balance", 0.0, "user", ""),
-            ("max_balance", 99999.99, "user", ""),
-            ("special_chars_üöä", 30.0, "user", ""),
+            ("unicode_user_测试", 50.0, "user", "user123"),
+            ("negative_balance", -25.0, "user", "user123"),
+            ("zero_balance", 0.0, "user", "user123"),
+            ("max_balance", 99999.99, "user", "user123"),
+            ("special_chars_üöä", 30.0, "user", "user123"),
         ]
         
         for name, balance, role, password in edge_users:
-            api.add_user(name, balance, role, password)
+            api.add_user(name, balance, role, 1, password)
         
         # Edge case ingredients
         edge_ingredients = [
@@ -281,13 +286,13 @@ class TestDatabaseGenerator:
         
         print("🔧 Creating performance test database...")
         
+        # Admin users first (so we have salesman_id=1 available)
+        api.add_user("admin", 1000.0, "admin", 1, "admin123")
+        api.add_user("manager", 500.0, "wirt", 1, "manager123")
+        
         # Create many users
         for i in range(50):
-            api.add_user(f"user_{i:03d}", float(i * 10), "user")
-        
-        # Admin users
-        api.add_user("admin", 1000.0, "admin", "admin123")
-        api.add_user("manager", 500.0, "wirt", "manager123")
+            api.add_user(f"user_{i:03d}", float(i * 10), "user", 1, "user123")
         
         # Many ingredients
         ingredient_names = [
@@ -479,7 +484,7 @@ if __name__ == "__main__":
     
 
     args = parser.parse_args()
-    if args.version == None:
+    if args.version is None:
         raise ValueError("Version must be specified. Use --version to set the baseline version.") 
     generator = TestDatabaseGenerator(baseline_version=args.version)
     

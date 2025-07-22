@@ -208,7 +208,7 @@ class Product(Base, EnhancedSoftDeleteMixin):
                     for sale in (self.sales or []):
                         if sale:
                             try:
-                                sales_data.append(sale.to_dict())
+                                sales_data.append(sale.to_dict(include_salesman=False))
                             except Exception as e:
                                 log_error(f"Error converting sale to dict for Product {self.product_id}", 
                                          {"product_id": self.product_id, "sale_id": getattr(sale, 'sale_id', 'unknown')}, 

@@ -26,7 +26,7 @@ class ComprehensiveAPITester:
     def __init__(self, version=None, database_type=None):
         self.version = version
         self.database_type = database_type
-        self.test_databases_dir = "testing/test_databases"
+        self.test_databases_dir = r"E:\GitHub\Chame_Project\Chame_App\backend\app\testing\test_databases"
         self.temp_dir = None
         self.current_db_path = None
         self.available_versions = []
@@ -1225,8 +1225,8 @@ if __name__ == "__main__":
         print(f"📊 Requested database type: {args.database_type}")
     
     print()
-    
-    tester = ComprehensiveAPITester(version=args.version, database_type=args.database_type)
+    tester = ComprehensiveAPITester(version="v1.3", database_type="comprehensive")
+    # tester = ComprehensiveAPITester(version=args.version, database_type=args.database_type)
     success = tester.run_comprehensive_test_suite()
     
     if success:

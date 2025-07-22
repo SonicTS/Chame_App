@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:chame_flutter/data/py_bride.dart';
+import 'package:chame_flutter/services/auth_service.dart';
+import 'package:provider/provider.dart';
 
 class ReturnPfandPage extends StatefulWidget {
   const ReturnPfandPage({super.key});
@@ -116,7 +118,16 @@ void _onUserSelected(int? userId) async {
     }
 
     try {
-      await PyBridge().submitPfandReturn(_selectedUser!, selectedProducts);
+      final auth = Provider.of<AuthService>(context, listen: false);
+      final salesmanId = auth.currentUserId;
+      if (salesmanId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to identify current user')),
+        );
+        return;
+      }
+      
+      await PyBridge().submitPfandReturn(_selectedUser!, selectedProducts, salesmanId);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Submit pressed!')),
       );

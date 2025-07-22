@@ -220,10 +220,18 @@ class _IngredientsPageState extends State<IngredientsPage> {
   // Perform stock update
   Future<void> _performStockUpdate(BuildContext context, int ingredientId, String ingredientName, int newStock, String comment) async {
     try {
+      final auth = Provider.of<AuthService>(context, listen: false);
+      final salesmanId = auth.currentUserId;
+      if (salesmanId == null) {
+        _showDialog(context, 'Error', 'Unable to identify current user');
+        return;
+      }
+      
       final error = await PyBridge().updateStock(
         ingredientId: ingredientId,
         amount: newStock,
         comment: comment.isEmpty ? 'Stock updated via Flutter admin' : comment,
+        salesmanId: salesmanId,
       );
       
       if (error != null) {

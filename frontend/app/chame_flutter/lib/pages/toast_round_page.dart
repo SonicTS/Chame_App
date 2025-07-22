@@ -418,6 +418,7 @@ class _ToastRoundPageState extends State<ToastRoundPage> {
               child: DataTable(
                 columns: const [
                   DataColumn(label: Text('Toast-Consumer')),
+                  DataColumn(label: Text('Salesman')),
                   DataColumn(label: Text('Time')),
                 ],
                 rows: rounds.reversed.map((round) {
@@ -452,8 +453,19 @@ class _ToastRoundPageState extends State<ToastRoundPage> {
                     }
                     return ret;
                   }).join(', ');
+                  
+                  // Extract salesman from the toast round
+                  String salesman = '';
+                  final salesmanField = round['salesman'];
+                  if (salesmanField is Map && salesmanField['name'] != null) {
+                    salesman = salesmanField['name'].toString();
+                  } else if (salesmanField != null) {
+                    salesman = salesmanField.toString();
+                  }
+                  
                   return DataRow(cells: [
                     DataCell(Text(summary)),
+                    DataCell(Text(salesman)),
                     DataCell(Text(formattedDate)),
                   ]);
                 }).toList(),

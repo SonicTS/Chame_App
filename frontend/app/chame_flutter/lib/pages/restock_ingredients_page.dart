@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:chame_flutter/data/py_bride.dart';
+import 'package:chame_flutter/services/auth_service.dart';
+import 'package:provider/provider.dart';
 
 import 'add_ingredients_page.dart';
 
@@ -142,7 +144,8 @@ class _RestockIngredientsPageState extends State<RestockIngredientsPage> {
       final restock = int.tryParse(ingredient['restock']?.toString() ?? '0') ?? 0;
       final effectivePrice = _getEffectivePrice(ingredient);
       final pfand = ingredient['pfand'] ?? 0.0;
-      total += restock * (effectivePrice + pfand);
+      final numberOfUnits = (ingredient['number_of_units'] as num?)?.toDouble() ?? 1.0;
+      total += restock * (effectivePrice + pfand * numberOfUnits);
     }
     return total;
   }
@@ -165,7 +168,8 @@ class _RestockIngredientsPageState extends State<RestockIngredientsPage> {
                   final restock = int.tryParse(ingredient['restock']?.toString() ?? '0') ?? 0;
                   final effectivePrice = _getEffectivePrice(ingredient);
                   final pfand = ingredient['pfand'] ?? 0.0;
-                  final lineTotal = restock * (effectivePrice + pfand * ingredient['number_of_units']);
+                  final numberOfUnits = (ingredient['number_of_units'] as num?)?.toDouble() ?? 1.0;
+                  final lineTotal = restock * (effectivePrice + pfand * numberOfUnits);
                   
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
@@ -212,7 +216,16 @@ class _RestockIngredientsPageState extends State<RestockIngredientsPage> {
           : null,
     }).toList();
     try {
-      final error = await PyBridge().restockIngredients(restockData);
+      final auth = Provider.of<AuthService>(context, listen: false);
+      final salesmanId = auth.currentUserId;
+      if (salesmanId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to identify current user')),
+        );
+        return;
+      }
+      
+      final error = await PyBridge().restockIngredients(restockData, salesmanId);
       if (error == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Restock submitted!')),

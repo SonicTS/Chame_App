@@ -123,11 +123,12 @@ class MainActivity : FlutterActivity() {
                         val name = call.argument<String>("name")
                         val balance = call.argument<Number>("balance")
                         val role = call.argument<String>("role")
+                        val salesmanId = call.argument<Number>("salesman_id")
                         var password = call.argument<String>("password")
                         if (password == null) {
                             password = "" // Set a default password if none provided
                         }
-                        if (name == null || balance == null || role == null) {
+                        if (name == null || balance == null || role == null || salesmanId == null) {
                             result.error("ARGUMENT_ERROR", "Missing argument for add_user", null)
                             return@setMethodCallHandler
                         }
@@ -136,6 +137,7 @@ class MainActivity : FlutterActivity() {
                             name,
                             balance.toDouble(),
                             role,
+                            salesmanId.toInt(),
                             password
                         )
                         result.success(null)
@@ -283,11 +285,12 @@ class MainActivity : FlutterActivity() {
                     try {
                         val amount = call.argument<Number>("amount")
                         val description = call.argument<String>("description")
-                        if (amount == null || description == null) {
+                        val salesmanId = call.argument<Number>("salesman_id")
+                        if (amount == null || description == null || salesmanId == null) {
                             result.error("ARGUMENT_ERROR", "Missing argument for bank_withdraw", null)
                             return@setMethodCallHandler
                         }
-                        pyModule.callAttr("bank_withdraw", amount.toDouble(), description)
+                        pyModule.callAttr("bank_withdraw", amount.toDouble(), description, salesmanId.toInt())
                         result.success(null)
                     } catch (e: Exception) {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
@@ -459,14 +462,15 @@ class MainActivity : FlutterActivity() {
                         )
                     try {
                         val restocksJson = call.argument<String>("restocks")
-                        if (restocksJson == null) {
+                        val salesmanId = call.argument<Number>("salesman_id")
+                        if (restocksJson == null || salesmanId == null) {
                             result.error("ARGUMENT_ERROR", "Missing argument for restock_ingredients", null)
                             return@setMethodCallHandler
                         }
                         val json = py.getModule("json")
                         val restocksList = json.callAttr("loads", restocksJson)
                         // Each item: {"id": ..., "restock": ...}
-                        pyModule.callAttr("restock_ingredients", restocksList)
+                        pyModule.callAttr("restock_ingredients", restocksList, salesmanId.toInt())
                         result.success(null)
                     } catch (e: Exception) {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
@@ -587,13 +591,14 @@ class MainActivity : FlutterActivity() {
                     try {
                         val userId = call.argument<Number>("user_id")
                         val product_json = call.argument<String>("product_list")
-                        if (userId == null || product_json == null) {
+                        val salesmanId = call.argument<Number>("salesman_id")
+                        if (userId == null || product_json == null || salesmanId == null) {
                             result.error("ARGUMENT_ERROR", "Missing argument for submit_pfand_return", null)
                             return@setMethodCallHandler
                         }
                         val json = py.getModule("json")
                         val productList = json.callAttr("loads", product_json)
-                        pyModule.callAttr("submit_pfand_return", userId.toInt(), productList)
+                        pyModule.callAttr("submit_pfand_return", userId.toInt(), productList, salesmanId.toInt())
                         result.success(null)
                     } catch (e: Exception) {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)

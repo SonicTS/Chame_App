@@ -47,11 +47,21 @@ class _AddUserPageState extends State<AddUserPage> {
     setState(() => _isSubmitting = true);
     
     try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUserId = authService.currentUserId;
+      
+      if (currentUserId == null) {
+        setState(() => _isSubmitting = false);
+        _showDialog('Error', 'You must be logged in to add users');
+        return;
+      }
+      
       final error = await PyBridge().addUser(
         name: _nameController.text.trim(),
         balance: double.parse(_balanceController.text),
         role: _role,
         password: _role == 'wirt' || _role == 'admin' ? _passwordController.text : null,
+        salesmanId: currentUserId,
       );
       
       setState(() => _isSubmitting = false);
