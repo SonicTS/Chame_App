@@ -1225,7 +1225,7 @@ if __name__ == "__main__":
         print(f"📊 Requested database type: {args.database_type}")
     
     print()
-    tester = ComprehensiveAPITester(version="v1.3", database_type="comprehensive")
+    tester = ComprehensiveAPITester(version="markus", database_type="comprehensive")
     # tester = ComprehensiveAPITester(version=args.version, database_type=args.database_type)
     success = tester.run_comprehensive_test_suite()
     

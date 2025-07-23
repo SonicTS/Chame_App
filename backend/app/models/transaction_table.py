@@ -40,5 +40,5 @@ class Transaction(Base):
             "salesman_id": self.salesman_id
         }
         data["user"] = self.user.to_dict()
-        data["salesman"] = self.salesman.to_dict()
+        data["salesman"] = self.salesman.to_dict() if self.salesman else None
         return data

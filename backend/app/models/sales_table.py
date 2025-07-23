@@ -52,7 +52,7 @@ class Sale(Base):
             "salesman_id": self.salesman_id
         }
         if include_salesman:
-            data["salesman"] = self.salesman.to_dict()
+            data["salesman"] = self.salesman.to_dict() if self.salesman else None if self.salesman else None
         if include_user:
             self._add_user_data(data)
         
