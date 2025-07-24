@@ -19,7 +19,7 @@ class ToastRound(Base):
         self.salesman_id = salesman_id
         self.date_time = date_time
 
-    def to_dict(self, include_products=False, include_sales=False):
+    def to_dict(self, include_sales=False, include_salesman=True):
         try:
             # log_debug(f"Converting ToastRound {self.toast_round_id} to dict", {
             #     "toast_round_id": self.toast_round_id,
@@ -32,33 +32,8 @@ class ToastRound(Base):
                 "date_time": self.date_time,
                 "salesman_id": self.salesman_id
             }
-            data["salesman"] = self.salesman.to_dict() if self.salesman else None
-            if include_products:
-                try:
-                    if self.toast_round_products is None:
-                        #log_debug(f"ToastRound {self.toast_round_id} has None toast_round_products relationship")
-                        data["products"] = []
-                    else:
-                        products_data = []
-                        for ptr in self.toast_round_products:
-                            if ptr is None:
-                                #log_debug(f"Found None product_toast_round in ToastRound {self.toast_round_id}")
-                                continue
-                            if ptr.product is None:
-                                log_error(f"ToastRound {self.toast_round_id} has product_toast_round with None product", 
-                                         {"toast_round_id": self.toast_round_id, "ptr_id": getattr(ptr, 'id', 'unknown')})
-                                continue
-                            try:
-                                products_data.append(ptr.product.to_dict())
-                            except Exception as e:
-                                log_error(f"Error converting product to dict for ToastRound {self.toast_round_id}", 
-                                         {"toast_round_id": self.toast_round_id, "product_id": getattr(ptr.product, 'product_id', 'unknown')}, 
-                                         exception=e)
-                        data["products"] = products_data
-                except Exception as e:
-                    log_error(f"Error processing products for ToastRound {self.toast_round_id}", 
-                             {"toast_round_id": self.toast_round_id}, exception=e)
-                    data["products"] = []
+            if include_salesman:
+                data["salesman"] = self.salesman.to_dict(include_sales=False) if self.salesman else None
             
             if include_sales:
                 try:
@@ -72,7 +47,7 @@ class ToastRound(Base):
                                 #log_debug(f"Found None sale in ToastRound {self.toast_round_id}")
                                 continue
                             try:
-                                sales_data.append(sale.to_dict(include_product=True, include_user=True))
+                                sales_data.append(sale.to_dict(include_product=True, include_user=True, include_salesman=False))
                             except Exception as e:
                                 log_error(f"Error converting sale to dict for ToastRound {self.toast_round_id}", 
                                          {"toast_round_id": self.toast_round_id, "sale_id": getattr(sale, 'sale_id', 'unknown')}, 

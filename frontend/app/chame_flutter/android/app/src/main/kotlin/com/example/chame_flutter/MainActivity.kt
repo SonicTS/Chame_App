@@ -347,6 +347,25 @@ class MainActivity : FlutterActivity() {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
                     }
                 }
+                "get_sales_paginated" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val page = call.argument<Int>("page") ?: 1
+                        val pageSize = call.argument<Int>("page_size") ?: 100
+                        val pyResult = pyModule.callAttr("get_sales_paginated", page, pageSize)
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
                 "get_all_toast_products" -> {
                     val pyModule = py.getModule("services.admin_api")
                         ?: return@setMethodCallHandler result.error(

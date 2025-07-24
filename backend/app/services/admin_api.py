@@ -212,6 +212,27 @@ def get_all_ingredients():
 def get_all_sales():
     return [sale.to_dict(True, True, True) for sale in database.get_all_sales()]
 
+def get_sales_paginated(page=1, page_size=100):
+    """Get paginated sales data.
+    
+    Args:
+        page: Page number (1-based, default: 1)
+        page_size: Number of records per page (default: 100)
+        
+    Returns:
+        dict: Contains 'sales', 'total_count', 'page', 'page_size', 'total_pages'
+    """
+    sales, total_count = database.get_sales_paginated(page=page, page_size=page_size)
+    total_pages = (total_count + page_size - 1) // page_size  # Ceiling division
+    
+    return {
+        'sales': [sale.to_dict(True, True, True) for sale in sales],
+        'total_count': total_count,
+        'page': page,
+        'page_size': page_size,
+        'total_pages': total_pages
+    }
+
 def get_all_toast_products():
     return [tp.to_dict(True, True, True, True) for tp in database.get_all_toast_products()]
 
@@ -220,7 +241,7 @@ def get_all_toast_rounds():
 
 def get_all_raw_products():
     """Get all products without eager loading ingredients or sales"""
-    return [product.to_dict(True, True, True, True) for product in database.get_all_products_by_category('raw')]
+    return [product.to_dict(True, False, False, True) for product in database.get_all_products_by_category('raw')]
 
 def get_filtered_transaction(user_id="all", tx_type="all"):
     return [tx.to_dict() for tx in database.get_filtered_transaction(user_id=user_id, tx_type=tx_type)]
@@ -235,6 +256,7 @@ def get_pfand_history():
     pfand_history = database.get_all_pfand_history()
     if not pfand_history:
         return []
+    print(pfand_history)
     return [ph.to_dict(include_user=True, include_product=True) for ph in pfand_history]
 
 # ========== BACKUP FUNCTIONS ==========

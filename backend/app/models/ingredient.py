@@ -94,7 +94,7 @@ class Ingredient(Base, EnhancedSoftDeleteMixin):
                                          {"ingredient_id": self.ingredient_id, "ip_id": getattr(ip, 'id', 'unknown')})
                                 continue
                             try:
-                                products_data.append(ip.product.to_dict())
+                                products_data.append(ip.product.to_dict(include_ingredients=False, include_sales=False, include_toast_rounds=False, include_product_ingredients=False))
                             except Exception as e:
                                 log_error(f"Error converting product to dict for Ingredient {self.ingredient_id}", 
                                          {"ingredient_id": self.ingredient_id, "product_id": getattr(ip.product, 'product_id', 'unknown')}, 

@@ -61,7 +61,7 @@ class BankTransaction(Base):
     def __repr__(self):
         return f"<BankTransaction(id={self.transaction_id}, amount={self.amount}, type={self.type}, timestamp={self.timestamp}, description={self.description}, salesman_id={self.salesman_id})>"
 
-    def to_dict(self):
+    def to_dict(self, include_salesman=True):
         def _round(val):
             return round(val, 2) if isinstance(val, float) and val is not None else val
         data = {
@@ -72,6 +72,7 @@ class BankTransaction(Base):
             "description": self.description,
             "salesman_id": self.salesman_id,
         }
-        data["salesman"] = self.salesman.to_dict() if self.salesman else None
+        if include_salesman:
+            data["salesman"] = self.salesman.to_dict(include_sales=False) if self.salesman else None
         return data
 

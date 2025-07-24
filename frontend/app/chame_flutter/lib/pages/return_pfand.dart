@@ -239,11 +239,11 @@ void _onUserSelected(int? userId) async {
                               }
                               return Card(
                                 child: ListTile(
-                                  title: Text(product['name'] ?? ''),
+                                  title: Text(product['product']['name'] ?? ''),
                                   subtitle: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text('Pfand: ${product['pfand']}'),
+                                      Text('Pfand: ${product['product']['pfand']}'),
                                       const SizedBox(height: 8),
                                       Row(
                                         children: [
@@ -286,8 +286,8 @@ void _onUserSelected(int? userId) async {
                                 return Card(
                                   color: Colors.grey[200],
                                   child: ListTile(
-                                    title: Text(product['name'] ?? ''),
-                                    subtitle: Text('Pfand: ${product['pfand']}'),
+                                    title: Text(product['product']['name'] ?? ''),
+                                    subtitle: Text('Pfand: ${product['product']['pfand']}'),
                                     trailing: const Icon(Icons.undo, color: Colors.green),
                                     onTap: () => _revertProduct(product),
                                   ),

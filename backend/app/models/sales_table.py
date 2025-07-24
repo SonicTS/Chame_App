@@ -52,7 +52,7 @@ class Sale(Base):
             "salesman_id": self.salesman_id
         }
         if include_salesman:
-            data["salesman"] = self.salesman.to_dict() if self.salesman else None if self.salesman else None
+            data["salesman"] = self.salesman.to_dict(include_sales=False) if self.salesman else None
         if include_user:
             self._add_user_data(data)
         
@@ -86,7 +86,21 @@ class Sale(Base):
         
         if entity_obj:
             is_available = getattr(entity_obj, 'is_available', True)
-            result[entity_name] = entity_obj.to_dict()
+            
+            # Call to_dict with parameters that avoid accessing unloaded relationships
+            if entity_name == "product":
+                # For products, don't include sales or other relationships that weren't eagerly loaded
+                result[entity_name] = entity_obj.to_dict(include_ingredients=False, include_sales=False, include_toast_rounds=False, include_product_ingredients=False)
+            elif entity_name == "toast_round":
+                # For toast rounds, don't include sales or salesman that weren't eagerly loaded
+                result[entity_name] = entity_obj.to_dict(include_sales=False, include_salesman=False)
+            elif entity_name in ["consumer", "donator"]:
+                # For users, don't include their sales or other relationships
+                result[entity_name] = entity_obj.to_dict(include_sales=False)
+            else:
+                # For other entities, use default parameters
+                result[entity_name] = entity_obj.to_dict()
+                    
             result[f"{entity_name}_available"] = is_available
             
             if not is_available:

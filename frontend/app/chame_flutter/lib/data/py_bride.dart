@@ -308,6 +308,29 @@ class PyBridge {
     }
   }
 
+  Future<Map<String, dynamic>> getSalesPaginated({int page = 1, int pageSize = 100}) async {
+    try {
+      final result = await _chan.invokeMethod('get_sales_paginated', {
+        'page': page,
+        'page_size': pageSize,
+      });
+      if (result == null || result == 'null') {
+        return {
+          'sales': <Map<String, dynamic>>[],
+          'total_count': 0,
+          'page': page,
+          'page_size': pageSize,
+          'total_pages': 0,
+        };
+      }
+      final Map<String, dynamic> decoded = jsonDecode(result as String);
+      return decoded;
+    } catch (e, stack) {
+      print('Error in getSalesPaginated: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getAllToastProducts() async {
     try {
       final result = await _chan.invokeMethod('get_all_toast_products');

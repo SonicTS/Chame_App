@@ -31,7 +31,7 @@ class PfandHistory(Base):
             "counter": self.counter,
         }
         if include_user and self.user:
-            data["user"] = self.user.to_dict()
+            data["user"] = self.user.to_dict(include_sales=False)
         if include_product and self.product:
-            data["product"] = self.product.to_dict()
+            data["product"] = self.product.to_dict(include_ingredients=False, include_sales=False, include_toast_rounds=False, include_product_ingredients=False)
         return data

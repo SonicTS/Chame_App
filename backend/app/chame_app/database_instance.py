@@ -1044,7 +1044,7 @@ class Database:
                 joinedload(Sale.product)
                 .joinedload(Product.product_ingredients)
                 .joinedload(ProductIngredient.ingredient),
-                joinedload(Sale.toast_round)
+                joinedload(Sale.toast_round).joinedload(ToastRound.salesman)
             ).all()
             return sales
         except Exception as e:
@@ -1052,6 +1052,47 @@ class Database:
         finally:
             if close_session:
                 session.close()
+    
+    def get_sales_paginated(self, page=1, page_size=100, session=None) -> 'tuple[List[Sale], int]':
+        """Get paginated sales with eager loading of user, product, toast_round, and product ingredients.
+        
+        Args:
+            page: Page number (1-based)
+            page_size: Number of records per page
+            session: Optional database session
+            
+        Returns:
+            tuple: (sales_list, total_count)
+        """
+        close_session = False
+        if session is None:
+            session = self.get_session()
+            close_session = True
+        try:
+            # Get total count first
+            total_count = session.query(Sale).count()
+            
+            # Calculate offset
+            offset = (page - 1) * page_size
+            
+            # Get paginated sales ordered by sale_id descending (most recent first)
+            sales = session.query(Sale).options(
+                joinedload(Sale.consumer),
+                joinedload(Sale.donator),
+                joinedload(Sale.salesman),
+                joinedload(Sale.product)
+                .joinedload(Product.product_ingredients)
+                .joinedload(ProductIngredient.ingredient),
+                joinedload(Sale.toast_round).joinedload(ToastRound.salesman)
+            ).order_by(Sale.sale_id.desc()).offset(offset).limit(page_size).all()
+            
+            return sales, total_count
+        except Exception as e:
+            raise RuntimeError(f"get_sales_paginated failed: {e}") from e
+        finally:
+            if close_session:
+                session.close()
+        
 
     def get_sales_with_category(self, category: str, session=None) -> 'List[Sale]':
         """Get sales with a specific category."""

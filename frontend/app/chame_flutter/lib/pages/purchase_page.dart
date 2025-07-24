@@ -609,14 +609,30 @@ class _SalesConfigWidget extends StatelessWidget {
 
 // Sales Table Widget
 class _SalesTableWidget extends StatefulWidget {
-  final Future<List<Map<String, dynamic>>> salesFuture;
+  final Map<String, dynamic>? paginatedSalesData;
   final String salesConfig;
   final ScrollController mainController;
+  final bool isLoading;
+  final int currentPage;
+  final int totalPages;
+  final int totalSales;
+  final VoidCallback onNextPage;
+  final VoidCallback onPreviousPage;
+  final VoidCallback onFirstPage;
+  final VoidCallback onLastPage;
 
   const _SalesTableWidget({
-    required this.salesFuture,
+    required this.paginatedSalesData,
     required this.salesConfig,
     required this.mainController,
+    required this.isLoading,
+    required this.currentPage,
+    required this.totalPages,
+    required this.totalSales,
+    required this.onNextPage,
+    required this.onPreviousPage,
+    required this.onFirstPage,
+    required this.onLastPage,
   });
 
   @override
@@ -643,59 +659,145 @@ class _SalesTableWidgetState extends State<_SalesTableWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: widget.salesFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final sales = snapshot.data ?? [];
-        final filteredSales = widget.salesConfig == 'all'
-            ? sales
-            : sales.where((s) => s['product']?['category'] == widget.salesConfig).toList();
-        
-        if (filteredSales.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(20.0),
-              child: Text('No sales found.'),
-            ),
-          );
-        }
-        
-        return Container(
-          height: 300,
+    if (widget.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    
+    final salesData = widget.paginatedSalesData;
+    if (salesData == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20.0),
+          child: Text('No sales data available.'),
+        ),
+      );
+    }
+    
+    final allSales = (salesData['sales'] as List<dynamic>?)
+        ?.cast<Map<String, dynamic>>() ?? [];
+    
+    final filteredSales = widget.salesConfig == 'all'
+        ? allSales
+        : allSales.where((s) => s['product']?['category'] == widget.salesConfig).toList();
+    
+    if (filteredSales.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20.0),
+          child: Text('No sales found for the selected category.'),
+        ),
+      );
+    }
+    
+    return Column(
+      children: [
+        // Pagination info and controls
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
+            color: Colors.grey.shade50,
             border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(8),
+              topRight: Radius.circular(8),
+            ),
           ),
-          child: Scrollbar(
-            controller: _horizontalScrollController,
-            thumbVisibility: true,
-            child: SingleChildScrollView(
-              controller: _horizontalScrollController,
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minWidth: MediaQuery.of(context).size.width - 32,
-                ),
-                child: Scrollbar(
-                  controller: _verticalScrollController,
-                  thumbVisibility: true,
-                  child: SingleChildScrollView(
-                    controller: _verticalScrollController,
-                    scrollDirection: Axis.vertical,
-                    physics: _CoordinatedScrollPhysics(
-                      mainController: widget.mainController,
+          child: Column(
+            children: [
+              // Sales count info
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Flexible(
+                    child: Text(
+                      'Showing ${filteredSales.length} of ${widget.totalSales} sales',
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      textAlign: TextAlign.center,
                     ),
-                    child: _buildDataTable(filteredSales),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Pagination controls
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Page ${widget.currentPage} of ${widget.totalPages}',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.first_page),
+                    onPressed: widget.currentPage > 1 ? widget.onFirstPage : null,
+                    iconSize: 18,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    padding: const EdgeInsets.all(2),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left),
+                    onPressed: widget.currentPage > 1 ? widget.onPreviousPage : null,
+                    iconSize: 18,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    padding: const EdgeInsets.all(2),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right),
+                    onPressed: widget.currentPage < widget.totalPages ? widget.onNextPage : null,
+                    iconSize: 18,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    padding: const EdgeInsets.all(2),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.last_page),
+                    onPressed: widget.currentPage < widget.totalPages ? widget.onLastPage : null,
+                    iconSize: 18,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    padding: const EdgeInsets.all(2),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        // Sales table
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(8),
+                bottomRight: Radius.circular(8),
+              ),
+            ),
+            child: Scrollbar(
+              controller: _horizontalScrollController,
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                controller: _horizontalScrollController,
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minWidth: MediaQuery.of(context).size.width - 32,
+                  ),
+                  child: Scrollbar(
+                    controller: _verticalScrollController,
+                    thumbVisibility: true,
+                    child: SingleChildScrollView(
+                      controller: _verticalScrollController,
+                      scrollDirection: Axis.vertical,
+                      physics: _CoordinatedScrollPhysics(
+                        mainController: widget.mainController,
+                      ),
+                      child: _buildDataTable(filteredSales),
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 
@@ -715,7 +817,7 @@ class _SalesTableWidgetState extends State<_SalesTableWidget> {
         DataColumn(label: Text('Price', style: TextStyle(fontWeight: FontWeight.bold))),
         DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
       ],
-      rows: sales.reversed.map((sale) => _buildDataRow(sale)).toList(),
+      rows: sales.map((sale) => _buildDataRow(sale)).toList(),
     );
   }
 
@@ -839,7 +941,6 @@ class _CoordinatedScrollPhysics extends ScrollPhysics {
 class _PurchasePageState extends State<PurchasePage> {
   late Future<List<Map<String, dynamic>>> _usersFuture;
   late Future<List<Map<String, dynamic>>> _productsFuture;
-  late Future<List<Map<String, dynamic>>> _salesFuture;
   int? _selectedUserId;
   Map<String, dynamic>? _selectedUser;
   int? _selectedProductId;
@@ -854,6 +955,14 @@ class _PurchasePageState extends State<PurchasePage> {
   // Main scroll controller for coordinated scrolling
   final ScrollController _mainScrollController = ScrollController();
 
+  // Pagination state
+  int _currentPage = 1;
+  int _pageSize = 100;
+  int _totalPages = 1;
+  int _totalSales = 0;
+  bool _isLoadingSales = false;
+  Map<String, dynamic>? _paginatedSalesData;
+
   @override
   void initState() {
     super.initState();
@@ -864,11 +973,76 @@ class _PurchasePageState extends State<PurchasePage> {
     setState(() {
       _usersFuture = PyBridge().getAllUsers();
       _productsFuture = PyBridge().getAllRawProducts();
-      _salesFuture = PyBridge().getAllSales();
     });
+    
+    // Load paginated sales
+    _loadPaginatedSales();
     
     // Update the selected user data to reflect current balance
     _updateSelectedUserData();
+  }
+
+  Future<void> _loadPaginatedSales() async {
+    if (_isLoadingSales) return;
+    
+    setState(() {
+      _isLoadingSales = true;
+    });
+    
+    try {
+      final salesData = await PyBridge().getSalesPaginated(
+        page: _currentPage, 
+        pageSize: _pageSize
+      );
+      
+      setState(() {
+        _paginatedSalesData = salesData;
+        _totalSales = salesData['total_count'] ?? 0;
+        _totalPages = salesData['total_pages'] ?? 1;
+        _isLoadingSales = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingSales = false;
+      });
+      print('Error loading paginated sales: $e');
+    }
+  }
+
+  void _goToNextPage() {
+    if (_currentPage < _totalPages) {
+      setState(() {
+        _currentPage++;
+      });
+      _loadPaginatedSales();
+    }
+  }
+
+  void _goToPreviousPage() {
+    if (_currentPage > 1) {
+      setState(() {
+        _currentPage--;
+      });
+      _loadPaginatedSales();
+    }
+  }
+
+  void _goToFirstPage() {
+    if (_currentPage != 1) {
+      setState(() {
+        _currentPage = 1;
+      });
+      _loadPaginatedSales();
+    }
+  }
+
+  void _goToLastPage() {
+    if (_currentPage != _totalPages) {
+      setState(() {
+        _currentPage = _totalPages;
+      });
+      _loadPaginatedSales();
+    }
   }
 
   Future<void> _updateSelectedUserData() async {
@@ -1111,15 +1285,29 @@ class _PurchasePageState extends State<PurchasePage> {
                           const SizedBox(height: 24),
                           _SalesConfigWidget(
                             salesConfig: _salesConfig,
-                            onConfigChanged: (val) => setState(() => _salesConfig = val),
+                            onConfigChanged: (val) {
+                              setState(() => _salesConfig = val);
+                              // No need to reload data since filtering is done client-side
+                            },
                           ),
                           const SizedBox(height: 12),
                           const Text('Sales', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                           const SizedBox(height: 12),
-                          _SalesTableWidget(
-                            salesFuture: _salesFuture,
-                            salesConfig: _salesConfig,
-                            mainController: _mainScrollController,
+                          SizedBox(
+                            height: 400, // Fixed height for the table with pagination
+                            child: _SalesTableWidget(
+                              paginatedSalesData: _paginatedSalesData,
+                              salesConfig: _salesConfig,
+                              mainController: _mainScrollController,
+                              isLoading: _isLoadingSales,
+                              currentPage: _currentPage,
+                              totalPages: _totalPages,
+                              totalSales: _totalSales,
+                              onNextPage: _goToNextPage,
+                              onPreviousPage: _goToPreviousPage,
+                              onFirstPage: _goToFirstPage,
+                              onLastPage: _goToLastPage,
+                            ),
                           ),
                         ],
                       );

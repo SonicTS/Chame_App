@@ -86,11 +86,10 @@ def test_firebase_logging():
     try:
         toast_round = ToastRound()
         toast_round.toast_round_id = 1
-        toast_round.toast_round_products = []
         toast_round.sales = []
         
         print("Testing ToastRound.to_dict()...")
-        toast_round_dict = toast_round.to_dict(include_products=True, include_sales=True)
+        toast_round_dict = toast_round.to_dict(include_sales=True)
         print(f"ToastRound dict: {toast_round_dict}")
         
     except Exception as e:
