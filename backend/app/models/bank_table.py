@@ -20,6 +20,31 @@ class Bank(Base):
     
     product_value = Column(Float, default=0.0)
     ingredient_value = Column(Float, default=0.0)
+
+    def get_business_balance(self) -> float:
+        return float(self.total_balance or 0.0) - float(self.customer_funds or 0.0)
+
+    def get_profit_total(self) -> float:
+        return float(self.revenue_total or 0.0) - float(self.costs_total or 0.0)
+
+    def get_break_even_remaining(self) -> float:
+        return max(float(self.costs_total or 0.0) - float(self.revenue_total or 0.0), 0.0)
+
+    def get_break_even_surplus(self) -> float:
+        return max(self.get_profit_total(), 0.0)
+
+    def get_break_even_covered_costs(self) -> float:
+        return max(min(float(self.revenue_total or 0.0), float(self.costs_total or 0.0)), 0.0)
+
+    def get_break_even_progress(self) -> float:
+        costs_total = float(self.costs_total or 0.0)
+        revenue_total = float(self.revenue_total or 0.0)
+        if costs_total <= 0:
+            return 1.0
+        return max(min(revenue_total / costs_total, 1.0), 0.0)
+
+    def is_break_even_reached(self) -> bool:
+        return float(self.revenue_total or 0.0) >= float(self.costs_total or 0.0)
  
     def __repr__(self):
         return f"<Bank(account_id={self.account_id}, total_balance={self.total_balance}, " \
@@ -32,18 +57,30 @@ class Bank(Base):
     def to_dict(self):
         def _round(val):
             return round(val, 2) if isinstance(val, float) and val is not None else val
+        business_balance = self.get_business_balance()
+        break_even_remaining = self.get_break_even_remaining()
+        break_even_surplus = self.get_break_even_surplus()
+        break_even_covered_costs = self.get_break_even_covered_costs()
+        break_even_progress = self.get_break_even_progress()
+        profit_total = self.get_profit_total()
         return {
             "account_id": self.account_id,
             "total_balance": _round(self.total_balance),
             "customer_funds": _round(self.customer_funds),
-            "revenue_funds": _round(self.revenue_funds),
-            "costs_reserved": _round(self.costs_reserved),
-            "profit_retained": _round(self.profit_retained),
+            "revenue_funds": _round(business_balance),
+            "costs_reserved": _round(break_even_remaining),
+            "profit_retained": _round(break_even_surplus),
             "revenue_total": _round(self.revenue_total),
             "costs_total": _round(self.costs_total),
-            "profit_total": _round(self.profit_total),
+            "profit_total": _round(profit_total),
             "product_value": _round(self.product_value),
             "ingredient_value": _round(self.ingredient_value),
+            "business_balance": _round(business_balance),
+            "break_even_remaining": _round(break_even_remaining),
+            "break_even_surplus": _round(break_even_surplus),
+            "break_even_covered_costs": _round(break_even_covered_costs),
+            "break_even_progress": _round(break_even_progress),
+            "break_even_reached": self.is_break_even_reached(),
         }
 
 class BankTransaction(Base):

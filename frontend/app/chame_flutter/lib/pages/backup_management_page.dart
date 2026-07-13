@@ -11,6 +11,7 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
   List<Map<String, dynamic>> _backups = [];
   bool _loading = false;
   bool _creating = false;
+  bool _loadingDiagnostics = false;
   String? _error;
 
   @override
@@ -76,6 +77,352 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
         _creating = false;
       });
     }
+  }
+
+  Future<void> _showStorageDiagnostics() async {
+    setState(() {
+      _loadingDiagnostics = true;
+      _error = null;
+    });
+
+    try {
+      final diagnostics = await _pyBridge.getStorageDiagnostics();
+      final androidDiagnostics = await _pyBridge.getAndroidStorageDiagnostics();
+      diagnostics['android_storage'] = androidDiagnostics;
+      if (!mounted) return;
+
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Storage Diagnostics'),
+          contentPadding: EdgeInsets.fromLTRB(16, 20, 16, 0),
+          content: Container(
+            width: MediaQuery.of(context).size.width * 0.95,
+            constraints: BoxConstraints(
+              maxWidth: 520,
+              maxHeight: MediaQuery.of(context).size.height * 0.75,
+            ),
+            child: SingleChildScrollView(
+              child: _buildDiagnosticsContent(diagnostics),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load storage diagnostics: ${e.toString()}';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingDiagnostics = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildDiagnosticsContent(Map<String, dynamic> diagnostics) {
+    final candidates = (diagnostics['candidates'] as List<dynamic>? ?? [])
+        .whereType<Map>()
+        .map((candidate) => Map<String, dynamic>.from(candidate))
+        .toList();
+    final searchRoots = (diagnostics['search_roots'] as List<dynamic>? ?? [])
+        .map((root) => root.toString())
+        .toList();
+    final topLevelDirectories = (diagnostics['top_level_directories'] as List<dynamic>? ?? [])
+      .whereType<Map>()
+      .map((entry) => Map<String, dynamic>.from(entry))
+      .toList();
+    final largeFiles = (diagnostics['large_files'] as List<dynamic>? ?? [])
+      .whereType<Map>()
+      .map((entry) => Map<String, dynamic>.from(entry))
+      .toList();
+    final sqliteLikeFiles = (diagnostics['sqlite_like_files'] as List<dynamic>? ?? [])
+      .whereType<Map>()
+      .map((entry) => Map<String, dynamic>.from(entry))
+      .toList();
+    final androidStorage = diagnostics['android_storage'] is Map
+      ? Map<String, dynamic>.from(diagnostics['android_storage'] as Map)
+      : <String, dynamic>{};
+    final androidRoots = (androidStorage['roots'] as List<dynamic>? ?? [])
+      .whereType<Map>()
+      .map((entry) => Map<String, dynamic>.from(entry))
+      .toList();
+    final androidTopLevelByRoot = androidStorage['top_level_by_root'] is Map
+      ? Map<String, dynamic>.from(androidStorage['top_level_by_root'] as Map)
+      : <String, dynamic>{};
+    final androidSqliteInventoryByRoot = androidStorage['sqlite_inventory_by_root'] is Map
+      ? Map<String, dynamic>.from(androidStorage['sqlite_inventory_by_root'] as Map)
+      : <String, dynamic>{};
+
+    Widget buildInfoRow(String label, dynamic value) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: TextStyle(fontWeight: FontWeight.bold)),
+            SizedBox(height: 2),
+            SelectableText(value?.toString() ?? 'null', style: TextStyle(fontSize: 12)),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        buildInfoRow('Resolved DB Path', diagnostics['resolved_database_path']),
+        buildInfoRow('Preferred DB Path', diagnostics['preferred_database_path']),
+        buildInfoRow('Resolved Exists', diagnostics['resolved_database_exists']),
+        buildInfoRow('Resolved Valid SQLite', diagnostics['resolved_database_valid']),
+        buildInfoRow('PRIVATE_STORAGE', diagnostics['private_storage']),
+        buildInfoRow('HOME', diagnostics['home']),
+        buildInfoRow('APP_PRIVATE_ROOT', diagnostics['app_private_root']),
+        SizedBox(height: 8),
+        Text('Search Roots', style: TextStyle(fontWeight: FontWeight.bold)),
+        SizedBox(height: 4),
+        if (searchRoots.isEmpty)
+          Text('No search roots available.')
+        else
+          ...searchRoots.map(
+            (root) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: SelectableText(root, style: TextStyle(fontSize: 12)),
+            ),
+          ),
+        SizedBox(height: 12),
+        Text('Database Candidates', style: TextStyle(fontWeight: FontWeight.bold)),
+        SizedBox(height: 8),
+        if (candidates.isEmpty)
+          Text('No candidate files found.')
+        else
+          ...candidates.map(
+            (candidate) => Card(
+              margin: EdgeInsets.only(bottom: 8),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SelectableText(
+                      candidate['path']?.toString() ?? 'unknown',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                    SizedBox(height: 6),
+                    Text('Exists: ${candidate['exists']}'),
+                    Text('Valid SQLite: ${candidate['is_valid_sqlite']}'),
+                    Text('Size: ${_formatDynamicFileSize(candidate['size_bytes'])}'),
+                    Text('Preferred Path: ${candidate['is_preferred_path']}'),
+                    Text('Resolved Path: ${candidate['is_resolved_path']}'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        SizedBox(height: 12),
+        Text('Top-Level Storage Usage', style: TextStyle(fontWeight: FontWeight.bold)),
+        SizedBox(height: 8),
+        if (topLevelDirectories.isEmpty)
+          Text('No top-level storage entries found.')
+        else
+          ...topLevelDirectories.map(
+            (entry) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: SelectableText(entry['path']?.toString() ?? 'unknown', style: TextStyle(fontSize: 12)),
+              subtitle: Text(
+                '${entry['is_dir'] == true ? 'Directory' : 'File'} • ${_formatDynamicFileSize(entry['size_bytes'])}',
+              ),
+            ),
+          ),
+        SizedBox(height: 12),
+        Text('Largest Files', style: TextStyle(fontWeight: FontWeight.bold)),
+        SizedBox(height: 8),
+        if (largeFiles.isEmpty)
+          Text('No files found.')
+        else
+          ...largeFiles.map(
+            (entry) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: SelectableText(entry['path']?.toString() ?? 'unknown', style: TextStyle(fontSize: 12)),
+              subtitle: Text('Size: ${_formatDynamicFileSize(entry['size_bytes'])}'),
+            ),
+          ),
+        SizedBox(height: 12),
+        Text('SQLite-Like Files', style: TextStyle(fontWeight: FontWeight.bold)),
+        SizedBox(height: 8),
+        if (sqliteLikeFiles.isEmpty)
+          Text('No SQLite-like files found.')
+        else
+          ...sqliteLikeFiles.map(
+            (entry) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: SelectableText(entry['path']?.toString() ?? 'unknown', style: TextStyle(fontSize: 12)),
+              subtitle: Text(
+                'Size: ${_formatDynamicFileSize(entry['size_bytes'])} • Valid SQLite: ${entry['is_valid_sqlite']}',
+              ),
+            ),
+          ),
+        SizedBox(height: 12),
+        Text('Android Storage Roots', style: TextStyle(fontWeight: FontWeight.bold)),
+        SizedBox(height: 8),
+        if (androidRoots.isEmpty)
+          Text('No Android-native storage roots reported.')
+        else
+          ...androidRoots.map(
+            (entry) => Card(
+              margin: EdgeInsets.only(bottom: 8),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(entry['label']?.toString() ?? 'unknown', style: TextStyle(fontWeight: FontWeight.bold)),
+                    SizedBox(height: 4),
+                    SelectableText(entry['path']?.toString() ?? 'null', style: TextStyle(fontSize: 12)),
+                    SizedBox(height: 4),
+                    Text('Exists: ${entry['exists']} • Directory: ${entry['is_directory']}'),
+                    Text('Size: ${_formatDynamicFileSize(entry['size_bytes'])}'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        SizedBox(height: 12),
+        Text('Android Top-Level By Root', style: TextStyle(fontWeight: FontWeight.bold)),
+        SizedBox(height: 8),
+        if (androidTopLevelByRoot.isEmpty)
+          Text('No Android-native top-level breakdown reported.')
+        else
+          ...androidTopLevelByRoot.entries.map(
+            (rootEntry) {
+              final entries = (rootEntry.value as List<dynamic>? ?? [])
+                  .whereType<Map>()
+                  .map((entry) => Map<String, dynamic>.from(entry))
+                  .toList();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SelectableText(rootEntry.key, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    SizedBox(height: 6),
+                    if (entries.isEmpty)
+                      Text('No entries reported.')
+                    else
+                      ...entries.map(
+                        (entry) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          title: SelectableText(entry['path']?.toString() ?? 'unknown', style: TextStyle(fontSize: 12)),
+                          subtitle: Text(
+                            '${entry['is_dir'] == true ? 'Directory' : 'File'} • ${_formatDynamicFileSize(entry['size_bytes'])}',
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        SizedBox(height: 12),
+        Text('Android SQLite Inventory', style: TextStyle(fontWeight: FontWeight.bold)),
+        SizedBox(height: 8),
+        if (androidSqliteInventoryByRoot.isEmpty)
+          Text('No Android-native SQLite inventory reported.')
+        else
+          ...androidSqliteInventoryByRoot.entries.map(
+            (rootEntry) {
+              final isExternalGroup = rootEntry.key == 'external_roots';
+              final groupValue = rootEntry.value;
+
+              List<Widget> buildInventoryCards(List<Map<String, dynamic>> entries) {
+                if (entries.isEmpty) {
+                  return [Text('No SQLite files reported.')];
+                }
+                return entries.map((entry) {
+                  final tables = (entry['tables'] as List<dynamic>? ?? []).map((table) => table.toString()).toList();
+                  return Card(
+                    margin: EdgeInsets.only(bottom: 8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SelectableText(entry['path']?.toString() ?? 'unknown', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                          SizedBox(height: 4),
+                          Text('Size: ${_formatDynamicFileSize(entry['size_bytes'])}'),
+                          Text('Likely packaged runtime: ${entry['likely_packaged_runtime']}'),
+                          Text('Tables: ${tables.isEmpty ? 'none detected' : tables.join(', ')}'),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList();
+              }
+
+              if (isExternalGroup) {
+                final externalGroups = (groupValue as List<dynamic>? ?? [])
+                    .whereType<Map>()
+                    .map((entry) => Map<String, dynamic>.from(entry))
+                    .toList();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(rootEntry.key, style: TextStyle(fontWeight: FontWeight.bold)),
+                      SizedBox(height: 6),
+                      ...externalGroups.map((externalGroup) {
+                        final entries = (externalGroup['files'] as List<dynamic>? ?? [])
+                            .whereType<Map>()
+                            .map((entry) => Map<String, dynamic>.from(entry))
+                            .toList();
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SelectableText(externalGroup['root']?.toString() ?? 'unknown', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              SizedBox(height: 6),
+                              ...buildInventoryCards(entries),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                );
+              }
+
+              final entries = (groupValue as List<dynamic>? ?? [])
+                  .whereType<Map>()
+                  .map((entry) => Map<String, dynamic>.from(entry))
+                  .toList();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(rootEntry.key, style: TextStyle(fontWeight: FontWeight.bold)),
+                    SizedBox(height: 6),
+                    ...buildInventoryCards(entries),
+                  ],
+                ),
+              );
+            },
+          ),
+      ],
+    );
   }
 
   Future<String?> _showDescriptionDialog() async {
@@ -369,65 +716,9 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
                     ),
                     SizedBox(height: 12),
                     
-                    // Load files button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: isLoading ? null : () async {
-                          if (formKey.currentState?.validate() == true) {
-                            setState(() {
-                              isLoading = true;
-                              errorMessage = null;
-                            });
-                            
-                            try {
-                              final config = {
-                                'method': 'http',
-                                'url': '$serverUrl/list',
-                              };
-                              
-                              final result = await _pyBridge.listServerBackups(serverConfig: config);
-                              
-                              if (result['success'] == true) {
-                                // Filter to only show .db files
-                                final allFiles = result['files'] as List<dynamic>? ?? [];
-                                final dbFiles = allFiles.where((file) {
-                                  final fileName = file['filename'] as String? ?? '';
-                                  return fileName.toLowerCase().endsWith('.db');
-                                }).toList();
-                                
-                                setState(() {
-                                  availableFiles = dbFiles;
-                                  selectedFile = null;
-                                  if (dbFiles.isEmpty) {
-                                    errorMessage = 'No .db backup files found on server';
-                                  }
-                                });
-                              } else {
-                                setState(() {
-                                  errorMessage = result['message'] as String? ?? 'Failed to load files';
-                                });
-                              }
-                            } catch (e) {
-                              setState(() {
-                                errorMessage = 'Error: ${e.toString()}';
-                              });
-                            } finally {
-                              setState(() {
-                                isLoading = false;
-                              });
-                            }
-                          }
-                        },
-                        icon: isLoading 
-                            ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                            : Icon(Icons.refresh),
-                        label: Text(isLoading ? 'Loading...' : 'Load Available Files'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
+                    Text(
+                      'Use the button below to load available backup files from the server.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                     ),
                     SizedBox(height: 12),
                     
@@ -541,31 +832,99 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
             ),
           ),
           actions: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text('Cancel'),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: isLoading ? null : () async {
+                      if (formKey.currentState?.validate() == true) {
+                        setState(() {
+                          isLoading = true;
+                          errorMessage = null;
+                        });
+
+                        try {
+                          final config = {
+                            'method': 'http',
+                            'url': '$serverUrl/list',
+                          };
+
+                          final result = await _pyBridge.listServerBackups(serverConfig: config);
+
+                          if (result['success'] == true) {
+                            final allFiles = result['files'] as List<dynamic>? ?? [];
+                            final dbFiles = allFiles.where((file) {
+                              final fileName = file['filename'] as String? ?? '';
+                              return fileName.toLowerCase().endsWith('.db');
+                            }).toList();
+
+                            setState(() {
+                              availableFiles = dbFiles;
+                              selectedFile = null;
+                              if (dbFiles.isEmpty) {
+                                errorMessage = 'No .db backup files found on server';
+                              }
+                            });
+                          } else {
+                            setState(() {
+                              errorMessage = result['message'] as String? ?? 'Failed to load files';
+                            });
+                          }
+                        } catch (e) {
+                          setState(() {
+                            errorMessage = 'Error: ${e.toString()}';
+                          });
+                        } finally {
+                          setState(() {
+                            isLoading = false;
+                          });
+                        }
+                      }
+                    },
+                    icon: isLoading
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(Icons.refresh),
+                    label: Text(isLoading ? 'Loading...' : 'Load Available Files'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
                   ),
                 ),
-                SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: (selectedFile != null) ? () {
-                      if (formKey.currentState?.validate() == true) {
-                        Navigator.pop(context, {
-                          'serverConfig': {
-                            'method': 'http',
-                            'url': '$serverUrl/download',
-                          },
-                          'selectedFile': selectedFile,
-                        });
-                      }
-                    } : null,
-                    child: Text('Download'),
-                  ),
+                SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text('Cancel'),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: (selectedFile != null) ? () {
+                          if (formKey.currentState?.validate() == true) {
+                            Navigator.pop(context, {
+                              'serverConfig': {
+                                'method': 'http',
+                                'url': '$serverUrl/download',
+                              },
+                              'selectedFile': selectedFile,
+                            });
+                          }
+                        } : null,
+                        child: Text('Download'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -884,6 +1243,12 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
+  String _formatDynamicFileSize(dynamic value) {
+    if (value is int) return _formatFileSize(value);
+    if (value is double) return _formatFileSize(value.toInt());
+    return value?.toString() ?? '0 B';
+  }
+
   String _formatDate(String? dateStr) {
     if (dateStr == null) return 'Unknown';
     try {
@@ -968,6 +1333,25 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
                       foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _loadingDiagnostics ? null : _showStorageDiagnostics,
+                    icon: _loadingDiagnostics
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(Icons.storage),
+                    label: Text(
+                      _loadingDiagnostics
+                          ? 'Loading Diagnostics...'
+                          : 'Storage Diagnostics',
                     ),
                   ),
                 ),

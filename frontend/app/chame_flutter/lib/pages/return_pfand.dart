@@ -28,9 +28,10 @@ class _ReturnPfandPageState extends State<ReturnPfandPage> {
   @override
 void initState() {
   super.initState();
+  final auth = Provider.of<AuthService>(context, listen: false);
   _productsFuture = PyBridge().getAllProducts();
-  _usersFuture = PyBridge().getAllUsers();
-  _pfandHistory = PyBridge().getPfandHistory();
+  _usersFuture = PyBridge().getAllUsers().then(auth.filterVisibleUsers);
+  _pfandHistory = PyBridge().getPfandHistory().then(auth.filterVisibleRecords);
 }
 
 void _onUserSelected(int? userId) async {
@@ -132,7 +133,7 @@ void _onUserSelected(int? userId) async {
         const SnackBar(content: Text('Submit pressed!')),
       );
       // Refresh pfand history and update UI
-      final pfandData = await PyBridge().getPfandHistory();
+      final pfandData = await PyBridge().getPfandHistory().then(auth.filterVisibleRecords);
       // Filter by selected user and counter > 0
       final userProducts = pfandData.where((p) => p['user_id'] == _selectedUser! && (p['counter'] ?? 0) > 0).toList();
       setState(() {

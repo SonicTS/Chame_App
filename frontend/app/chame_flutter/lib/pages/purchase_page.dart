@@ -5,6 +5,35 @@ import 'package:dropdown_search/dropdown_search.dart';
 import 'package:collection/collection.dart';
 import 'package:provider/provider.dart';
 
+double _roundToVisibleAmount(double amount) {
+  return double.parse(amount.toStringAsFixed(2));
+}
+
+String _formatVisibleAmount(double amount) {
+  var visible = _roundToVisibleAmount(amount).toStringAsFixed(2);
+  visible = visible.replaceFirst(RegExp(r'0+$'), '');
+  visible = visible.replaceFirst(RegExp(r'\.$'), '');
+  if (!visible.contains('.')) {
+    visible = '$visible.0';
+  }
+  return visible;
+}
+
+double _getVisibleUnitPrice(Map<String, dynamic> product) {
+  final basePrice = (product['price_per_unit'] as num?)?.toDouble() ?? 0.0;
+  final pfand = (product['pfand'] as num?)?.toDouble() ?? 0.0;
+  return _roundToVisibleAmount(basePrice + pfand);
+}
+
+double _getCheckoutTotal(Map<String, dynamic> product, int quantity) {
+  final visibleTotal = _getVisibleUnitPrice(product) * quantity;
+  final roundingDifference = (product['rounding_difference_per_unit'] as num?)?.toDouble() ?? 0.0;
+  if (roundingDifference <= 0) {
+    return _roundToVisibleAmount(visibleTotal);
+  }
+  return double.parse('${_formatVisibleAmount(visibleTotal)}9');
+}
+
 class PurchasePage extends StatefulWidget {
   const PurchasePage({super.key});
 
@@ -17,12 +46,14 @@ class _UserSelectionWidget extends StatelessWidget {
   final List<Map<String, dynamic>> users;
   final int? selectedUserId;
   final Map<String, dynamic>? selectedUser;
+  final double? pendingDeduction;
   final Function(Map<String, dynamic>?) onUserChanged;
 
   const _UserSelectionWidget({
     required this.users,
     required this.selectedUserId,
     required this.selectedUser,
+    required this.pendingDeduction,
     required this.onUserChanged,
   });
 
@@ -51,7 +82,10 @@ class _UserSelectionWidget extends StatelessWidget {
         ),
         if (selectedUser != null) ...[
           const SizedBox(height: 12),
-          _UserBalanceCard(balance: (selectedUser!['balance'] as num?)?.toDouble() ?? 0.0),
+          _UserBalanceCard(
+            balance: (selectedUser!['balance'] as num?)?.toDouble() ?? 0.0,
+            pendingDeduction: pendingDeduction,
+          ),
         ],
       ],
     );
@@ -327,8 +361,10 @@ class _CartItemWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final product = item['product'] as Map<String, dynamic>;
     final quantity = item['quantity'] as int;
-    final price = (product['price_per_unit'] as num?)?.toDouble() ?? 0.0;
-    final total = price * quantity;
+    final basePrice = (product['price_per_unit'] as num?)?.toDouble() ?? 0.0;
+    final pfand = (product['pfand'] as num?)?.toDouble() ?? 0.0;
+    final visibleUnitPrice = _getVisibleUnitPrice(product);
+    final total = _getCheckoutTotal(product, quantity);
 
     return Padding(
       padding: const EdgeInsets.all(12.0),
@@ -355,7 +391,9 @@ class _CartItemWidget extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '€${price.toStringAsFixed(2)} each',
+            pfand > 0
+                ? '€${visibleUnitPrice.toStringAsFixed(2)} each (€${basePrice.toStringAsFixed(2)} + €${pfand.toStringAsFixed(2)} pfand)'
+                : '€${visibleUnitPrice.toStringAsFixed(2)} each',
             style: TextStyle(
               color: Colors.grey[600],
               fontSize: 14,
@@ -970,8 +1008,9 @@ class _PurchasePageState extends State<PurchasePage> {
   }
 
   void _fetchAll() {
+    final auth = Provider.of<AuthService>(context, listen: false);
     setState(() {
-      _usersFuture = PyBridge().getAllUsers();
+      _usersFuture = PyBridge().getAllUsers().then(auth.filterVisibleUsers);
       _productsFuture = PyBridge().getAllRawProducts();
     });
     
@@ -990,15 +1029,25 @@ class _PurchasePageState extends State<PurchasePage> {
     });
     
     try {
+      final auth = Provider.of<AuthService>(context, listen: false);
       final salesData = await PyBridge().getSalesPaginated(
         page: _currentPage, 
         pageSize: _pageSize
       );
+      final filteredSales = auth.filterVisibleRecords(
+        (salesData['sales'] as List<dynamic>? ?? const <dynamic>[])
+            .cast<Map<String, dynamic>>(),
+      );
       
       setState(() {
-        _paginatedSalesData = salesData;
-        _totalSales = salesData['total_count'] ?? 0;
-        _totalPages = salesData['total_pages'] ?? 1;
+        _paginatedSalesData = {
+          ...salesData,
+          'sales': filteredSales,
+          'total_count': filteredSales.length,
+          'total_pages': 1,
+        };
+        _totalSales = filteredSales.length;
+        _totalPages = 1;
         _isLoadingSales = false;
       });
     } catch (e) {
@@ -1107,9 +1156,9 @@ class _PurchasePageState extends State<PurchasePage> {
 
   void _updateTotalCost() {
     _totalCost = _shoppingCart.fold<double>(0.0, (sum, item) {
-      final price = (item['product']['price_per_unit'] as num?)?.toDouble() ?? 0.0;
       final quantity = item['quantity'] as int;
-      return sum + (price * quantity);
+      final product = item['product'] as Map<String, dynamic>;
+      return sum + _getCheckoutTotal(product, quantity);
     });
   }
 
@@ -1244,6 +1293,7 @@ class _PurchasePageState extends State<PurchasePage> {
                             users: users,
                             selectedUserId: _selectedUserId,
                             selectedUser: _selectedUser,
+                            pendingDeduction: _shoppingCart.isEmpty ? null : _totalCost,
                             onUserChanged: (val) => setState(() {
                               _selectedUserId = val?['user_id'] as int?;
                               _selectedUser = val;

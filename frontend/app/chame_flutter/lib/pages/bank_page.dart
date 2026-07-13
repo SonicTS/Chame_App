@@ -25,9 +25,10 @@ class _BankPageState extends State<BankPage> {
   }
 
   void _reload() {
+    final auth = Provider.of<AuthService>(context, listen: false);
     setState(() {
       _bankFuture = PyBridge().getBank();
-      _transactionsFuture = PyBridge().getBankTransaction();
+      _transactionsFuture = PyBridge().getBankTransaction().then(auth.filterVisibleRecords);
     });
   }
 
@@ -77,10 +78,15 @@ class _BankPageState extends State<BankPage> {
   }
 
   Widget _buildBankBarChart(Map<String, dynamic> bank) {
-    final double userFunds = (bank['customer_funds'] ?? 0).toDouble();
-    final double revenueFunds = (bank['revenue_funds'] ?? 0).toDouble();
-    final double costsReserved = (bank['costs_reserved'] ?? 0).toDouble();
-    final double profitRetained = (bank['profit_retained'] ?? 0).toDouble();
+    final double coveredCosts = (bank['break_even_covered_costs'] ?? 0).toDouble();
+    final double remainingCosts = (bank['break_even_remaining'] ?? 0).toDouble();
+    final double breakEvenSurplus = (bank['break_even_surplus'] ?? 0).toDouble();
+    final double costsTotal = (bank['costs_total'] ?? 0).toDouble();
+    final double revenueTotal = (bank['revenue_total'] ?? 0).toDouble();
+    final double chartMax = [costsTotal, revenueTotal, coveredCosts + remainingCosts, coveredCosts + breakEvenSurplus]
+            .reduce((a, b) => a > b ? a : b) *
+        1.2 +
+        1;
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -93,7 +99,7 @@ class _BankPageState extends State<BankPage> {
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: [userFunds, revenueFunds].reduce((a, b) => a > b ? a : b) * 1.2 + 1,
+                maxY: chartMax,
                 barTouchData: BarTouchData(enabled: false),
                 titlesData: FlTitlesData(
                   leftTitles: AxisTitles(
@@ -105,9 +111,9 @@ class _BankPageState extends State<BankPage> {
                       getTitlesWidget: (value, meta) {
                         switch (value.toInt()) {
                           case 0:
-                            return const Text('User Funds');
+                            return const Text('Costs');
                           case 1:
-                            return const Text('Revenue Funds');
+                            return const Text('Revenue');
                           default:
                             return const SizedBox.shrink();
                         }
@@ -123,8 +129,11 @@ class _BankPageState extends State<BankPage> {
                     x: 0,
                     barRods: [
                       BarChartRodData(
-                        toY: userFunds,
-                        color: Colors.blue,
+                        toY: coveredCosts + remainingCosts,
+                        rodStackItems: [
+                          BarChartRodStackItem(0, coveredCosts, Colors.green),
+                          BarChartRodStackItem(coveredCosts, coveredCosts + remainingCosts, Colors.redAccent),
+                        ],
                         width: 32,
                         borderRadius: BorderRadius.circular(6),
                       ),
@@ -134,10 +143,12 @@ class _BankPageState extends State<BankPage> {
                     x: 1,
                     barRods: [
                       BarChartRodData(
-                        toY: costsReserved + profitRetained,
+                        toY: coveredCosts + breakEvenSurplus,
                         rodStackItems: [
-                          BarChartRodStackItem(0, costsReserved, Colors.redAccent),
-                          BarChartRodStackItem(costsReserved, costsReserved + profitRetained, Colors.green),
+                          if (coveredCosts > 0)
+                            BarChartRodStackItem(0, coveredCosts, Colors.blue),
+                          if (breakEvenSurplus > 0)
+                            BarChartRodStackItem(coveredCosts, coveredCosts + breakEvenSurplus, Colors.amber),
                         ],
                         width: 32,
                         borderRadius: BorderRadius.circular(6),
@@ -179,9 +190,9 @@ class _BankPageState extends State<BankPage> {
     final summaryItems = [
       _summaryTile('Total Balance', bank['total_balance'], Colors.black),
       _summaryTile('User Funds', bank['customer_funds'], Colors.blue),
-      _summaryTile('Revenue Funds', bank['revenue_funds'], Colors.deepPurple),
-      _summaryTile('Costs Reserved', bank['costs_reserved'], Colors.redAccent),
-      _summaryTile('Profit Retained', bank['profit_retained'], Colors.green),
+      _summaryTile('Business Balance', bank['business_balance'], Colors.deepPurple),
+      _summaryTile('Break-Even Left', bank['break_even_remaining'], Colors.redAccent),
+      _summaryTile('Surplus', bank['break_even_surplus'], Colors.green),
     ];
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -273,16 +284,25 @@ class _BankPageState extends State<BankPage> {
                             _buildBankSummary(bank),
                             _buildBankBarChart(bank),
                             const SizedBox(height: 8),
+                            Text(
+                              (bank['break_even_reached'] ?? false)
+                                  ? 'Break-even reached'
+                                  : 'Break-even progress: ${(((bank['break_even_progress'] ?? 0) as num) * 100).toStringAsFixed(0)}%',
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 8),
                             SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  _legendDot(Colors.blue, 'User Funds'),
+                                  _legendDot(Colors.green, 'Costs Covered'),
                                   const SizedBox(width: 12),
-                                  _legendDot(Colors.redAccent, 'Costs Reserved'),
+                                  _legendDot(Colors.redAccent, 'Still To Cover'),
                                   const SizedBox(width: 12),
-                                  _legendDot(Colors.green, 'Profit Retained'),
+                                  _legendDot(Colors.blue, 'Revenue Applied'),
+                                  const SizedBox(width: 12),
+                                  _legendDot(Colors.amber, 'Surplus After Break-Even'),
                                 ],
                               ),
                             ),

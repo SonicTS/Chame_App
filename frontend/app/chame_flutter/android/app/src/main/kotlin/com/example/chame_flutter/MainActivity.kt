@@ -7,9 +7,12 @@ import io.flutter.plugin.common.MethodChannel
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import android.content.Intent
+import android.content.Context
 import android.net.Uri
+import android.database.sqlite.SQLiteDatabase
 import androidx.core.content.FileProvider
 import java.io.File
+import java.io.RandomAccessFile
 import java.text.SimpleDateFormat
 import java.util.Date
 
@@ -35,6 +38,12 @@ class MainActivity : FlutterActivity() {
         try {
             val os = py.getModule("os")
             os?.get("environ")?.callAttr("__setitem__", "FLUTTER_ENV", "true")
+            val privateStoragePath = filesDir.absolutePath
+            val privateRootPath = filesDir.parentFile?.absolutePath ?: privateStoragePath
+            os?.get("environ")?.callAttr("__setitem__", "PRIVATE_STORAGE", privateStoragePath)
+            os?.get("environ")?.callAttr("__setitem__", "HOME", privateStoragePath)
+            os?.get("environ")?.callAttr("__setitem__", "APP_PRIVATE_ROOT", privateRootPath)
+            android.util.Log.i("MainActivity", "Python storage path set to $privateStoragePath")
             
             // Set up activity reference for the firebase logger
             val main = py.getModule("__main__")
@@ -583,6 +592,18 @@ class MainActivity : FlutterActivity() {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
                     }
                 }
+                "logout" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        pyModule.callAttr("logout")
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
                 "change_password" -> {
                     val pyModule = py.getModule("services.admin_api")
                         ?: return@setMethodCallHandler result.error(
@@ -679,6 +700,32 @@ class MainActivity : FlutterActivity() {
                         }
                     } catch (e: Exception) {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+
+                "get_storage_diagnostics" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val pyResult = pyModule.callAttr("get_storage_diagnostics")
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+
+                "get_android_storage_diagnostics" -> {
+                    try {
+                        result.success(getAndroidStorageDiagnostics())
+                    } catch (e: Exception) {
+                        result.error("ANDROID_STORAGE_ERROR", e.localizedMessage, null)
                     }
                 }
                 
@@ -1454,6 +1501,62 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun getAndroidStorageDiagnostics(): HashMap<String, Any?> {
+        val credentialRoot = filesDir.parentFile
+        val deviceProtectedContext = createDeviceProtectedStorageContext()
+        val deviceProtectedRoot = deviceProtectedContext.filesDir?.parentFile
+        val externalDirs = getExternalFilesDirs(null).filterNotNull()
+
+        val roots = arrayListOf<HashMap<String, Any?>>()
+        roots.add(buildStorageRootEntry("credential_protected_root", credentialRoot))
+        roots.add(buildStorageRootEntry("device_protected_root", deviceProtectedRoot))
+        roots.add(buildStorageRootEntry("files_dir", filesDir))
+        roots.add(buildStorageRootEntry("databases_dir", getDatabasePath("placeholder.db")?.parentFile))
+        roots.add(buildStorageRootEntry("cache_dir", cacheDir))
+        roots.add(buildStorageRootEntry("code_cache_dir", codeCacheDir))
+        roots.add(buildStorageRootEntry("no_backup_dir", noBackupFilesDir))
+
+        val externalRootEntries = arrayListOf<HashMap<String, Any?>>()
+        for ((index, dir) in externalDirs.withIndex()) {
+            externalRootEntries.add(buildStorageRootEntry("external_files_dir_$index", dir))
+        }
+
+        val topLevelByRoot = hashMapOf<String, Any?>()
+        credentialRoot?.absolutePath?.let { topLevelByRoot[it] = getTopLevelEntries(credentialRoot) }
+        if (deviceProtectedRoot != null && deviceProtectedRoot.absolutePath != credentialRoot?.absolutePath) {
+            topLevelByRoot[deviceProtectedRoot.absolutePath] = getTopLevelEntries(deviceProtectedRoot)
+        }
+        externalDirs.forEach { dir ->
+            topLevelByRoot[dir.absolutePath] = getTopLevelEntries(dir)
+        }
+
+        return hashMapOf(
+            "roots" to roots,
+            "external_roots" to externalRootEntries,
+            "top_level_by_root" to topLevelByRoot,
+            "largest_files_by_root" to hashMapOf(
+                "credential_protected_root" to getLargestFiles(credentialRoot),
+                "device_protected_root" to getLargestFiles(deviceProtectedRoot),
+                "external_roots" to externalDirs.map { dir ->
+                    hashMapOf(
+                        "root" to dir.absolutePath,
+                        "files" to getLargestFiles(dir)
+                    )
+                }
+            ),
+            "sqlite_inventory_by_root" to hashMapOf(
+                "credential_protected_root" to getSQLiteInventory(credentialRoot),
+                "device_protected_root" to getSQLiteInventory(deviceProtectedRoot),
+                "external_roots" to externalDirs.map { dir ->
+                    hashMapOf(
+                        "root" to dir.absolutePath,
+                        "files" to getSQLiteInventory(dir)
+                    )
+                }
+            )
+        )
+    }
+
     // ========== REVERSE BRIDGE METHODS (Python → Flutter) ==========
     
     /**
@@ -1588,6 +1691,145 @@ class MainActivity : FlutterActivity() {
             println("Failed to cleanup shared files: ${e.message}")
             // Don't throw - this is not critical
         }
+    }
+
+    private fun buildStorageRootEntry(label: String, file: File?): HashMap<String, Any?> {
+        val exists = file?.exists() == true
+        return hashMapOf(
+            "label" to label,
+            "path" to file?.absolutePath,
+            "exists" to exists,
+            "is_directory" to (file?.isDirectory == true),
+            "size_bytes" to if (exists) calculatePathSize(file) else 0L,
+        )
+    }
+
+    private fun getTopLevelEntries(root: File?): ArrayList<HashMap<String, Any?>> {
+        val entries = arrayListOf<HashMap<String, Any?>>()
+        if (root == null || !root.exists() || !root.isDirectory) {
+            return entries
+        }
+
+        root.listFiles()?.forEach { child ->
+            entries.add(
+                hashMapOf(
+                    "path" to child.absolutePath,
+                    "name" to child.name,
+                    "is_dir" to child.isDirectory,
+                    "size_bytes" to calculatePathSize(child)
+                )
+            )
+        }
+
+        entries.sortByDescending { (it["size_bytes"] as? Long) ?: 0L }
+        return ArrayList(entries.take(20))
+    }
+
+    private fun getLargestFiles(root: File?): ArrayList<HashMap<String, Any?>> {
+        val files = arrayListOf<HashMap<String, Any?>>()
+        if (root == null || !root.exists() || !root.isDirectory) {
+            return files
+        }
+
+        root.walkTopDown().forEach { file ->
+            if (!file.isFile) {
+                return@forEach
+            }
+            files.add(
+                hashMapOf(
+                    "path" to file.absolutePath,
+                    "name" to file.name,
+                    "size_bytes" to file.length()
+                )
+            )
+        }
+
+        files.sortByDescending { (it["size_bytes"] as? Long) ?: 0L }
+        return ArrayList(files.take(20))
+    }
+
+    private fun getSQLiteInventory(root: File?): ArrayList<HashMap<String, Any?>> {
+        val files = arrayListOf<HashMap<String, Any?>>()
+        if (root == null || !root.exists() || !root.isDirectory) {
+            return files
+        }
+
+        root.walkTopDown().forEach { file ->
+            if (!file.isFile) {
+                return@forEach
+            }
+            if (!isSQLiteFile(file)) {
+                return@forEach
+            }
+
+            files.add(
+                hashMapOf(
+                    "path" to file.absolutePath,
+                    "name" to file.name,
+                    "size_bytes" to file.length(),
+                    "likely_packaged_runtime" to isLikelyPackagedRuntimePath(file),
+                    "tables" to getSQLiteTableNames(file)
+                )
+            )
+        }
+
+        files.sortByDescending { (it["size_bytes"] as? Long) ?: 0L }
+        return ArrayList(files.take(50))
+    }
+
+    private fun isSQLiteFile(file: File): Boolean {
+        if (!file.exists() || !file.isFile || file.length() < 16) {
+            return false
+        }
+
+        return try {
+            RandomAccessFile(file, "r").use { raf ->
+                val header = ByteArray(16)
+                raf.readFully(header)
+                String(header, Charsets.US_ASCII) == "SQLite format 3\u0000"
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun getSQLiteTableNames(file: File): ArrayList<String> {
+        val tables = arrayListOf<String>()
+        return try {
+            val db = SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
+            db.rawQuery(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+                null
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    tables.add(cursor.getString(0))
+                }
+            }
+            db.close()
+            tables
+        } catch (_: Exception) {
+            tables
+        }
+    }
+
+    private fun isLikelyPackagedRuntimePath(file: File): Boolean {
+        val normalized = file.absolutePath.lowercase()
+        return normalized.contains("/chaquopy/") || normalized.contains("/app_flutter/flutter_assets/")
+    }
+
+    private fun calculatePathSize(file: File?): Long {
+        if (file == null || !file.exists()) {
+            return 0L
+        }
+        if (file.isFile) {
+            return file.length()
+        }
+
+        var total = 0L
+        file.listFiles()?.forEach { child ->
+            total += calculatePathSize(child)
+        }
+        return total
     }
     
     /**

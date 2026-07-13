@@ -2,3 +2,4 @@ sqlalchemy
 passlib
 argon2-cffi
 schedule
+reportlab

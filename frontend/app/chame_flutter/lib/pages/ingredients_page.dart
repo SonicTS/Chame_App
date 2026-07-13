@@ -285,7 +285,7 @@ class _IngredientsPageState extends State<IngredientsPage> {
                           const Expanded(
                             child: Text('Ingredients', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                           ),
-                          if (auth.role == 'admin')
+                          if (auth.hasAdminRights)
                             Wrap(
                               spacing: 8,
                               children: [
@@ -346,7 +346,7 @@ class _IngredientsPageState extends State<IngredientsPage> {
                               DataCell(Text(ingredient['number_of_units']?.toString() ?? '')),
                               DataCell(Text(ingredient['price_per_unit']?.toString() ?? '')),
                               DataCell(
-                                auth.role == 'admin'
+                                auth.hasAdminRights
                                     ? GestureDetector(
                                         onTap: () => _showStockUpdateDialog(
                                           context,
@@ -374,7 +374,7 @@ class _IngredientsPageState extends State<IngredientsPage> {
                               ),
                               DataCell(Text(ingredient['pfand']?.toString() ?? '')),
                               DataCell(
-                                auth.role == 'admin'
+                                auth.hasAdminRights
                                     ? IconButton(
                                         icon: const Icon(Icons.delete, color: Colors.red),
                                         onPressed: () => _showIngredientDeletionDialog(

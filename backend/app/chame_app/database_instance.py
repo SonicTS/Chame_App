@@ -1,5 +1,6 @@
 from __future__ import annotations
 import datetime
+from decimal import Decimal
 from typing import Any, List, Optional
 from models.stock_history import StockHistory
 from models.pfand_table import PfandHistory
@@ -12,7 +13,6 @@ from models.toast_round import ToastRound
 from models.user_table import User
 from models.transaction_table import Transaction
 from models.bank_table import Bank, BankTransaction
-from chame_app.database import Base
 from sqlalchemy.orm import joinedload
 from sqlalchemy import text
 from utils.firebase_logger import log_info, log_warn, log_error, log_debug
@@ -22,6 +22,25 @@ DEBUG = False
 
 BANK_NOT_FOUND_MSG = "Bank account not found"
 USER_NOT_FOUND_MSG = "User not found"
+
+
+def _build_rounding_comment(product: Product, quantity: int, base_total: float, checkout_total: float) -> str:
+    return (
+        f"Applied hidden transaction rounding for {product.name} x{quantity} from "
+        f"{Product._format_visible_decimal(Decimal(str(base_total)))}EUR to "
+        f"{Decimal(str(checkout_total)).normalize()}EUR. Difference collected by god account."
+    )
+
+
+def _sync_bank_financials(bank: Bank) -> None:
+    bank.profit_total = bank.get_profit_total()
+    bank.revenue_funds = bank.get_business_balance()
+    bank.costs_reserved = bank.get_break_even_remaining()
+    bank.profit_retained = bank.get_break_even_surplus()
+
+
+def _get_active_privileged_user(session):
+    return User.active_only(session.query(User)).filter(User.role.in_(["admin", "god"])).first()
 
 class Database:
     def __init__(self, apply_migrations: bool = True):
@@ -35,17 +54,26 @@ class Database:
             self.session.add(bank)
             self.session.commit()
             self.session.refresh(bank)
-        if not self.session.query(User).filter_by(role="admin").first():
+        active_privileged_user = _get_active_privileged_user(self.session)
+        if not active_privileged_user:
             if DEBUG:
-                print("[DEBUG] No admin user found, creating default admin user")
+                print("[DEBUG] No privileged user found, creating default admin user")
             admin_user = User(name="admin", balance=0, password_hash="password", role="admin")
             self.session.add(admin_user)
             self.session.commit()
             self.session.refresh(admin_user)
-        else:
-            admin_user = self.session.query(User).filter_by(role="admin").first()
+        elif DEBUG:
+            print(f"[DEBUG] Found existing privileged user: {active_privileged_user.name} ({active_privileged_user.role})")
+        active_god = User.active_only(self.session.query(User)).filter_by(role="god").first()
+        if not active_god:
             if DEBUG:
-                print(f"[DEBUG] Found existing admin user: {admin_user.name}")
+                print("[DEBUG] No god user found, creating default god user")
+            god_user = User(name="god", balance=0, password_hash="god_password", role="god")
+            self.session.add(god_user)
+            self.session.commit()
+            self.session.refresh(god_user)
+        elif DEBUG:
+            print(f"[DEBUG] Found existing god user: {active_god.name}")
         for product in self.session.query(Product).all():
             product.update_stock()
         self.session.close()
@@ -174,6 +202,7 @@ class Database:
                 bank = self.get_bank(session)
                 bank.ingredient_value += price_per_unit * stock + pfand * stock
                 bank.costs_total += price_per_unit * stock + pfand * stock
+                _sync_bank_financials(bank)
             session.add(ingredient)
             if close_session:
                 session.commit()
@@ -211,21 +240,7 @@ class Database:
             if bank.total_balance < total_cost:
                 raise ValueError(f"Insufficient balance {bank.total_balance}")
             bank.total_balance -= total_cost
-            if bank.revenue_funds < total_cost:
-                if DEBUG:
-                    print("DEBUG: Not enough revenue funds, draining customer_funds")
-                bank.revenue_funds -= total_cost
-                bank.profit_retained = 0
-                bank.costs_reserved = 0
-            elif bank.costs_reserved < total_cost:
-                # Assuming first draining cost_reserves, then profit_retained
-                bank.profit_retained -= (total_cost - bank.costs_reserved)
-                bank.costs_reserved = 0
-                bank.revenue_funds -= total_cost
-            else:
-                bank.costs_reserved -= total_cost
-                bank.revenue_funds -= total_cost
-            bank.profit_total = bank.revenue_total - bank.costs_total
+            _sync_bank_financials(bank)
             description = "Restock: "
             for item in _list:
                 ingredient = self.get_ingredient_by_id(item['id'], session)
@@ -262,13 +277,8 @@ class Database:
             if user.balance > 0:
                 bank = self.get_bank(session)
                 bank.customer_funds -= user.balance
-                if bank.revenue_funds < 0:
-                    bank.profit_retained += user.balance + bank.revenue_funds
-                else:
-                    bank.profit_retained += user.balance
-                bank.revenue_funds += user.balance
                 bank.revenue_total += user.balance
-                bank.profit_total += user.balance
+                _sync_bank_financials(bank)
                 
                 transaction = BankTransaction(amount=user.balance, type="deposit", description=f"User {user.name} closed account, remaining balance collected as donation: {user.balance}€", salesman_id=salesman_id)
                 user.balance = 0.0
@@ -308,6 +318,7 @@ class Database:
                 print(f"DEBUG: Stocking ingredient {ingredient_name} with price={price}, quantity={quantity}")
             bank.costs_total += price * quantity + ingredient.pfand * quantity
             bank.ingredient_value += price * quantity + ingredient.pfand * quantity
+            _sync_bank_financials(bank)
             for product_assoc in ingredient.ingredient_products:
                 product = product_assoc.product
                 current_stock = product.stock_quantity
@@ -478,17 +489,7 @@ class Database:
                 pfand = product.get_pfand() * quantity
                 user.balance += pfand
                 bank.customer_funds += pfand
-                bank.revenue_funds -= pfand
-                if bank.revenue_funds < 0:
-                    bank.costs_reserved = 0
-                    bank.profit_retained = 0
-                else:
-                    if bank.profit_retained > pfand:
-                        bank.profit_retained -= pfand
-                    else:
-                        bank.costs_reserved -= pfand
-                        bank.costs_reserved += bank.profit_retained
-                        bank.profit_retained = 0
+                _sync_bank_financials(bank)
                 total_pfand += pfand
             comment = f"User {user_name} returned deposit for " + ", ".join([f"{item['amount']}x {self.get_product_by_id(item['id'], session).name}" for item in product_quantity_list])
             transaction = Transaction(user_id=user_id, amount=total_pfand, type="deposit", timestamp=datetime.datetime.now().replace(second=0, microsecond=0), comment=comment, salesman_id=salesman_id)
@@ -559,7 +560,9 @@ class Database:
             self._check_product_stock(product, quantity)
             self._check_and_update_ingredient_stock(product, quantity, bank)
             product.update_stock()
-            total_cost = product.price_per_unit * quantity + product.get_pfand() * quantity
+            base_total_cost = product.get_base_total_price(quantity)
+            total_cost = product.get_checkout_total_price(quantity)
+            rounding_difference = product.get_rounding_difference_total(quantity)
             payer = self.get_user_by_id(payer_id, session=session)
             payer_name = payer.name
             if payer.balance < total_cost:
@@ -577,16 +580,22 @@ class Database:
                     session.add(pfand_history)
             payer.balance -= total_cost
             bank.customer_funds -= total_cost
-            bank.revenue_total += total_cost
-            if bank.revenue_funds < 0 and total_cost > abs(bank.revenue_funds):
-                if product.cost_per_unit * quantity + product.get_pfand() * quantity >= bank.revenue_funds + total_cost:
-                    bank.costs_reserved = bank.revenue_funds + total_cost
-                    bank.profit_retained = 0
-                else:
-                    bank.costs_reserved = product.cost_per_unit * quantity + product.get_pfand() * quantity
-                    bank.profit_retained = bank.revenue_funds + total_cost - bank.costs_reserved
-            bank.revenue_funds += total_cost
-            bank.profit_total = bank.revenue_total - bank.costs_total
+            bank.revenue_total += base_total_cost
+            if rounding_difference > 0:
+                god_user = User.active_only(session.query(User)).filter(User.role == "god").first()
+                if not god_user:
+                    raise ValueError("God user not found")
+                god_user.balance += rounding_difference
+                bank.customer_funds += rounding_difference
+                session.add(Transaction(
+                    user_id=god_user.user_id,
+                    amount=rounding_difference,
+                    type="deposit",
+                    timestamp=datetime.datetime.now().replace(second=0, microsecond=0),
+                    comment=_build_rounding_comment(product, quantity, base_total_cost, total_cost),
+                    salesman_id=salesman_id,
+                ))
+            _sync_bank_financials(bank)
             session.add(purchase)
             if close_session:
                 session.commit()
@@ -594,7 +603,7 @@ class Database:
                 session.close()
             
             print("🔥 [DATABASE] Logging successful purchase to Firebase...")
-            log_info("Purchase completed successfully", {"operation": "make_purchase", "consumer_id": consumer_id, "product": product_name, "quantity": quantity, "total_cost": total_cost, "payer": payer_name, "sale_id": purchase.sale_id})
+            log_info("Purchase completed successfully", {"operation": "make_purchase", "consumer_id": consumer_id, "product": product_name, "quantity": quantity, "total_cost": total_cost, "base_total_cost": base_total_cost, "rounding_difference": rounding_difference, "payer": payer_name, "sale_id": purchase.sale_id})
             print("✅ [DATABASE] Purchase success logged to Firebase")
             
             return purchase
@@ -634,6 +643,7 @@ class Database:
             user.balance += amount
             bank.total_balance += amount
             bank.customer_funds += amount
+            _sync_bank_financials(bank)
             transaction = Transaction(user_id=user_id, amount=amount, type="deposit", timestamp=datetime.datetime.now().replace(second=0, microsecond=0), salesman_id=salesman_id)
             session.add(transaction)
             if close_session:
@@ -674,6 +684,7 @@ class Database:
             user.balance -= amount
             bank.total_balance -= amount
             bank.customer_funds -= amount
+            _sync_bank_financials(bank)
             transaction = Transaction(user_id=user_id, amount=amount, type="withdraw", timestamp=datetime.datetime.now().replace(second=0, microsecond=0), salesman_id=salesman_id)
             session.add(transaction)
             if close_session:
@@ -697,25 +708,12 @@ class Database:
             amount = float(amount)
             if amount <= 0:
                 raise ValueError("Amount must be greater than 0 ")
-            if bank.total_balance < amount:
-                raise ValueError(f"Insufficient balance {bank.total_balance}")
+            available_business_balance = bank.get_business_balance()
+            if available_business_balance < amount:
+                raise ValueError(f"Insufficient business balance {available_business_balance}")
             bank.total_balance -= amount
-            if bank.revenue_funds < amount:
-                if DEBUG:
-                    print("DEBUG: Not enough revenue funds, draining customer_funds")
-                bank.revenue_funds -= amount
-                bank.profit_retained = 0
-                bank.costs_reserved = 0
-            elif bank.costs_reserved < amount:
-                # Assuming first draining cost_reserves, then profit_retained
-                bank.profit_retained -= (amount - bank.costs_reserved)
-                bank.costs_reserved = 0
-                bank.revenue_funds -= amount
-            else:
-                bank.costs_reserved -= amount
-                bank.revenue_funds -= amount
             bank.costs_total += amount
-            bank.profit_total = bank.revenue_total - bank.costs_total
+            _sync_bank_financials(bank)
             # Use provided salesman_id or default to admin user
             transaction = BankTransaction(amount=amount, type="withdraw", description=description, salesman_id=salesman_id)
             session.add(transaction)
@@ -789,6 +787,7 @@ class Database:
             bank = session.query(Bank).filter_by(account_id=1).first()
             if not bank:
                 raise ValueError(BANK_NOT_FOUND_MSG)
+            _sync_bank_financials(bank)
             return bank
         except Exception as e:
             raise RuntimeError(f"get_bank failed: {e}") from e
@@ -1434,12 +1433,12 @@ class Database:
                 'message': error_msg
             }
     
-    def export_data(self, format: str = "json", include_sensitive: bool = False):
+    def export_data(self, format: str = "json", include_sensitive: bool = False, database_path: Optional[str] = None):
         """Export database data in various formats"""
         try:
             from services.database_backup import DatabaseBackupManager
             
-            backup_manager = DatabaseBackupManager()
+            backup_manager = DatabaseBackupManager(database_path=database_path)
             result = backup_manager.export_data(format=format, include_sensitive=include_sensitive)
             
             if result['success']:
@@ -1451,6 +1450,40 @@ class Database:
             
         except Exception as e:
             error_msg = f"Failed to export data: {e}"
+            print(f"❌ {error_msg}")
+            return {
+                'success': False,
+                'error': str(e),
+                'message': error_msg
+            }
+
+    def generate_database_report(
+        self,
+        include_sensitive: bool = False,
+        trend_days: int = 30,
+        output_path: Optional[str] = None,
+        database_path: Optional[str] = None,
+    ):
+        """Generate a PDF report documenting schema, current state, and recent changes."""
+        try:
+            from services.database_backup import DatabaseBackupManager
+
+            backup_manager = DatabaseBackupManager(database_path=database_path)
+            result = backup_manager.generate_database_report(
+                include_sensitive=include_sensitive,
+                trend_days=trend_days,
+                output_path=output_path,
+            )
+
+            if result['success']:
+                print(f"✅ Database report created: {result['message']}")
+            else:
+                print(f"❌ Database report failed: {result['message']}")
+
+            return result
+
+        except Exception as e:
+            error_msg = f"Failed to generate database report: {e}"
             print(f"❌ {error_msg}")
             return {
                 'success': False,

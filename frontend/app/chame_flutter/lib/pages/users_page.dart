@@ -37,9 +37,10 @@ class _UsersPageState extends State<UsersPage> {
   }
 
   void _reload() {
+    final auth = Provider.of<AuthService>(context, listen: false);
     setState(() {
-      _usersFuture = PyBridge().getAllUsers();
-      _transactionsFuture = PyBridge().getFilteredTransaction(userId: _txUserFilter, txType: _txTypeFilter);
+      _usersFuture = PyBridge().getAllUsers().then(auth.filterVisibleUsers);
+      _transactionsFuture = PyBridge().getFilteredTransaction(userId: _txUserFilter, txType: _txTypeFilter).then(auth.filterVisibleRecords);
     });
   }
 
@@ -228,7 +229,7 @@ class _UsersPageState extends State<UsersPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 1. USERS TABLE SECTION HEADER
-                if (auth.role == 'admin' || auth.role == 'wirt')
+                if (auth.canManageUsers)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16.0),
                     child: Row(
@@ -254,7 +255,7 @@ class _UsersPageState extends State<UsersPage> {
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               ),
                             ),
-                            if (auth.role == 'admin') ...[
+                            if (auth.hasAdminRights) ...[
                               const SizedBox(width: 8),
                               ElevatedButton(
                                 onPressed: () => _showRestoreUsersDialog(context),
@@ -322,7 +323,7 @@ class _UsersPageState extends State<UsersPage> {
                               onChanged: (val) {
                                 setState(() {
                                   _txUserFilter = val?['user_id'].toString() ?? 'all';
-                                  _transactionsFuture = PyBridge().getFilteredTransaction(userId: _txUserFilter, txType: _txTypeFilter);
+                                  _transactionsFuture = PyBridge().getFilteredTransaction(userId: _txUserFilter, txType: _txTypeFilter).then(auth.filterVisibleRecords);
                                 });
                               },
                               popupProps: const PopupProps.menu(
@@ -348,7 +349,7 @@ class _UsersPageState extends State<UsersPage> {
                         onChanged: (val) {
                           setState(() {
                             _txTypeFilter = val!;
-                            _transactionsFuture = PyBridge().getFilteredTransaction(userId: _txUserFilter, txType: _txTypeFilter);
+                            _transactionsFuture = PyBridge().getFilteredTransaction(userId: _txUserFilter, txType: _txTypeFilter).then(auth.filterVisibleRecords);
                           });
                         },
                       ),
@@ -650,6 +651,8 @@ class UsersTableSection extends StatelessWidget {
                       rows: filteredUsers.map((user) {
                         final userId = user['user_id'] as int;
                         final userRole = user['role']?.toString() ?? 'user';
+                        const editableRoles = {'user', 'admin', 'wirt'};
+                        final canEditRole = authService.hasAdminRights && editableRoles.contains(userRole);
                         depositControllers.putIfAbsent(userId, () => TextEditingController());
                         withdrawControllers.putIfAbsent(userId, () => TextEditingController());
                         return DataRow(cells: [
@@ -657,7 +660,7 @@ class UsersTableSection extends StatelessWidget {
                           DataCell(Text(user['balance']?.toString() ?? '')),
                           // Role dropdown (only for admin users)
                           DataCell(
-                            authService.role == 'admin' 
+                            canEditRole
                               ? DropdownButton<String>(
                                   value: userRole,
                                   isDense: true,
@@ -710,7 +713,7 @@ class UsersTableSection extends StatelessWidget {
                           )),
                           // Actions column (only for admin users)
                           DataCell(
-                            authService.role == 'admin'
+                            authService.hasAdminRights
                               ? IconButton(
                                   icon: const Icon(Icons.delete, color: Colors.red),
                                   tooltip: 'Delete User',

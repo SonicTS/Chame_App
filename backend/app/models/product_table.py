@@ -1,14 +1,14 @@
-from typing import List
-from models.ingredient import Ingredient
-from sqlalchemy import Column, Integer, String, Float, Table, ForeignKey
+from decimal import Decimal
+from sqlalchemy import Column, Integer, String, Float
 from sqlalchemy.orm import relationship
 from chame_app.database import Base
 from models.enhanced_soft_delete_mixin import EnhancedSoftDeleteMixin, SoftDeleteCascadeRule, HardDeleteCascadeRule
-from utils.firebase_logger import log_debug, log_error
+from utils.firebase_logger import log_error
 
 
 class Product(Base, EnhancedSoftDeleteMixin):
     __tablename__ = "products"
+    TRANSACTION_ROUNDING_ENABLED = False
 
     # Define cascade rules for products
     _cascade_rules = [
@@ -108,6 +108,48 @@ class Product(Base, EnhancedSoftDeleteMixin):
             if ingredient and ingredient.pfand:
                 total_deposit += ingredient.pfand * assoc.ingredient_quantity
         return round(total_deposit, 2)
+
+    @classmethod
+    def _get_display_decimal(cls, amount: float) -> Decimal:
+        if amount is None:
+            return Decimal("0.00")
+        return Decimal(str(amount)).quantize(Decimal("0.01"))
+
+    @classmethod
+    def _format_visible_decimal(cls, amount: Decimal) -> str:
+        visible = format(amount.quantize(Decimal("0.01")), "f").rstrip("0").rstrip(".")
+        if "." not in visible:
+            visible += ".0"
+        return visible
+
+    @classmethod
+    def _append_transaction_suffix(cls, amount: Decimal) -> Decimal:
+        if not cls.TRANSACTION_ROUNDING_ENABLED:
+            return amount.quantize(Decimal("0.01"))
+        visible_amount = cls._format_visible_decimal(amount)
+        return Decimal(f"{visible_amount}9")
+
+    def get_display_price_per_unit(self) -> float:
+        return float(self._get_display_decimal(self.price_per_unit))
+
+    def get_checkout_price_per_unit(self) -> float:
+        return float(self._append_transaction_suffix(self._get_display_decimal(self.price_per_unit)))
+
+    def get_rounding_difference_per_unit(self) -> float:
+        return float(self._append_transaction_suffix(self._get_display_decimal(self.price_per_unit)) - self._get_display_decimal(self.price_per_unit))
+
+    def get_base_total_price(self, quantity: int = 1) -> float:
+        base_total = Decimal(str(self.price_per_unit or 0.0)) * Decimal(str(quantity))
+        pfand_total = Decimal(str(self.get_pfand())) * Decimal(str(quantity))
+        return float((base_total + pfand_total).quantize(Decimal("0.01")))
+
+    def get_checkout_total_price(self, quantity: int = 1) -> float:
+        visible_total = Decimal(str(self.get_base_total_price(quantity)))
+        return float(self._append_transaction_suffix(visible_total))
+
+    def get_rounding_difference_total(self, quantity: int = 1) -> float:
+        visible_total = Decimal(str(self.get_base_total_price(quantity)))
+        return float(self._append_transaction_suffix(visible_total) - visible_total)
     
     def __init__(self, name: str, category: str, price_per_unit: float = 0, cost_per_unit: float = 0, profit_per_unit: float = 0, stock_quantity: int = 0, toaster_space: int = 0):
         self.name = name
@@ -139,7 +181,9 @@ class Product(Base, EnhancedSoftDeleteMixin):
                 "product_id": self.product_id,
                 "name": self.name,
                 "category": self.category,
-                "price_per_unit": _round(self.price_per_unit),
+                "price_per_unit": _round(self.get_display_price_per_unit()),
+                "base_price_per_unit": _round(self.price_per_unit),
+                "rounding_difference_per_unit": _round(self.get_rounding_difference_per_unit()),
                 "cost_per_unit": _round(self.cost_per_unit),
                 "profit_per_unit": _round(self.profit_per_unit),
                 "stock_quantity": self.stock_quantity,

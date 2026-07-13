@@ -15,6 +15,7 @@ The backup system provides multiple ways to create, manage, and restore database
 
 - **Multiple backup types**: Manual, daily, weekly
 - **Data export formats**: JSON, CSV, SQL
+- **PDF database report**: Schema documentation, table counts, financial snapshot, recent changes, and activity trends
 - **Metadata tracking**: Version, checksum, description, timestamps
 - **Integrity verification**: Database integrity checks
 - **Automatic cleanup**: Configurable retention policies
@@ -103,6 +104,25 @@ python backup_cli.py export --format csv
 
 # Export to SQL with sensitive data
 python backup_cli.py export --format sql --include-sensitive
+
+# Export a specific local SQLite file
+python backup_cli.py export --database "E:/path/to/kassensystem.db"
+```
+
+### PDF Database Report
+
+```bash
+# Generate the default PDF report
+python backup_cli.py report
+
+# Include a longer activity window and choose the output file
+python backup_cli.py report --trend-days 60 --output backups/reports/monthly_database_report.pdf
+
+# Include sensitive fields when you explicitly need a full internal document
+python backup_cli.py report --include-sensitive
+
+# Generate a report for a specific local SQLite file
+python backup_cli.py report --database "E:/path/to/kassensystem.db"
 ```
 
 ### Cleanup Old Backups
@@ -167,6 +187,16 @@ result = db.export_data(format="csv")
 
 # Export to SQL with all data
 result = db.export_data(format="sql", include_sensitive=True)
+
+# Export a specific local SQLite file
+result = db.export_data(format="json", database_path="E:/path/to/kassensystem.db")
+
+# Generate a PDF database documentation report
+report = db.generate_database_report(trend_days=30)
+print(report["report_path"])
+
+# Generate a PDF report for a specific local SQLite file
+report = db.generate_database_report(database_path="E:/path/to/kassensystem.db")
 ```
 
 ### Cleanup Old Backups
@@ -198,6 +228,12 @@ backups = api.list_backups()
 
 # Export data
 result = api.export_data(format="json")
+
+# Generate PDF database documentation
+report = api.generate_database_report(trend_days=45)
+
+# Use an explicit local SQLite file
+report = api.generate_database_report(database_path="E:/path/to/kassensystem.db")
 
 # Cleanup old backups
 result = api.cleanup_old_backups(daily_keep=7, weekly_keep=4)

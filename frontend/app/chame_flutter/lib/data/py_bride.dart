@@ -60,6 +60,15 @@ class PyBridge {
     }
   }
 
+  Future<void> logout() async {
+    try {
+      await _chan.invokeMethod('logout');
+    } catch (e, stack) {
+      print('Error in logout: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
 
 
   Future<String?> addIngredient({
@@ -517,6 +526,35 @@ class PyBridge {
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
       print('Error in createBackup: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getStorageDiagnostics() async {
+    try {
+      final result = await _chan.invokeMethod('get_storage_diagnostics');
+      if (result == null || result == 'null') {
+        throw Exception('Failed to load storage diagnostics: No response from backend');
+      }
+      return jsonDecode(result as String) as Map<String, dynamic>;
+    } catch (e, stack) {
+      print('Error in getStorageDiagnostics: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getAndroidStorageDiagnostics() async {
+    try {
+      final result = await _chan.invokeMethod('get_android_storage_diagnostics');
+      if (result == null) {
+        throw Exception('Failed to load Android storage diagnostics: No response from platform');
+      }
+      if (result is Map) {
+        return Map<String, dynamic>.from(result);
+      }
+      throw Exception('Unexpected Android storage diagnostics response type: ${result.runtimeType}');
+    } catch (e, stack) {
+      print('Error in getAndroidStorageDiagnostics: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
       rethrow;
     }
   }

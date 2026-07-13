@@ -51,10 +51,11 @@ class _ToastRoundPageState extends State<ToastRoundPage> {
   }
 
   void _fetchAll() {
+    final auth = Provider.of<AuthService>(context, listen: false);
     setState(() {
-      _usersFuture = PyBridge().getAllUsers();
+      _usersFuture = PyBridge().getAllUsers().then(auth.filterVisibleUsers);
       _productsFuture = PyBridge().getAllToastProducts();
-      _toastRoundsFuture = PyBridge().getAllToastRounds();
+      _toastRoundsFuture = PyBridge().getAllToastRounds().then(auth.filterVisibleRecords);
       for (var i = 0; i < 6; i++) {
         _selectedUserIds[i] = null;
         _selectedDonatorIds[i] = null;

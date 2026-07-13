@@ -8,11 +8,88 @@ class AuthService extends ChangeNotifier {
   String? _token;
   String? _role;
   bool _initialized = false;
+  final Set<int> _knownGodUserIds = <int>{};
 
   bool get initialized => _initialized;
   bool get isLoggedIn => _token != null;
   String get role => _role ?? '';
   int? get currentUserId => _token != null ? int.tryParse(_token!) : null;
+  bool get hasAdminRights => _role == 'admin' || _role == 'god';
+  bool get canManageUsers => hasAdminRights || _role == 'wirt';
+  bool get canSeeGodUser => _role == 'god';
+
+  void _rememberGodUserIds(Iterable<Map<String, dynamic>> users) {
+    for (final user in users) {
+      if (user['role']?.toString() != 'god') {
+        continue;
+      }
+      final userId = user['user_id'];
+      if (userId is int) {
+        _knownGodUserIds.add(userId);
+      } else if (userId is num) {
+        _knownGodUserIds.add(userId.toInt());
+      }
+    }
+  }
+
+  bool _mapContainsGodLink(Map<dynamic, dynamic> record) {
+    if (record['role']?.toString() == 'god') {
+      return true;
+    }
+
+    for (final key in ['user_id', 'consumer_id', 'donator_id', 'salesman_id']) {
+      final value = record[key];
+      if (value is int && _knownGodUserIds.contains(value)) {
+        return true;
+      }
+      if (value is num && _knownGodUserIds.contains(value.toInt())) {
+        return true;
+      }
+    }
+
+    for (final value in record.values) {
+      if (_containsGodLink(value)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  bool _containsGodLink(dynamic value) {
+    if (value is Map) {
+      return _mapContainsGodLink(value);
+    }
+    if (value is Iterable) {
+      for (final item in value) {
+        if (_containsGodLink(item)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  List<Map<String, dynamic>> filterVisibleUsers(Iterable<Map<String, dynamic>> users) {
+    _rememberGodUserIds(users);
+    if (canSeeGodUser) {
+      return users.map((user) => Map<String, dynamic>.from(user)).toList();
+    }
+    return users
+        .where((user) => user['role']?.toString() != 'god')
+        .map((user) => Map<String, dynamic>.from(user))
+        .toList();
+  }
+
+  List<Map<String, dynamic>> filterVisibleRecords(Iterable<Map<String, dynamic>> records) {
+    if (canSeeGodUser) {
+      return records.map((record) => Map<String, dynamic>.from(record)).toList();
+    }
+    return records
+        .where((record) => !_containsGodLink(record))
+        .map((record) => Map<String, dynamic>.from(record))
+        .toList();
+  }
 
   AuthService() {
     _loadFromStorage();
@@ -40,6 +117,7 @@ class AuthService extends ChangeNotifier {
       }
       _token = fetched['user_id'].toString();          // e.g. JWT
       _role  = fetched['role'];           // e.g. "admin" or "user"
+      _rememberGodUserIds([fetched]);
       await _storage.write(key: 'user_id', value: _token);
       await _storage.write(key: 'user_role',    value: _role);
       notifyListeners();
@@ -73,6 +151,11 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    try {
+      await PyBridge().logout();
+    } catch (e) {
+      print('Exception during logout: $e');
+    }
     _token = null;
     _role  = null;
     await _storage.deleteAll();

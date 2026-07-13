@@ -12,6 +12,7 @@ alembic = "^1.7"
 requests = "^2.25"
 passlib = "^1.7"
 argon2-cffi = "^21.1"
+reportlab = "^4.2"
 
 [tool.black]
 line-length = 88

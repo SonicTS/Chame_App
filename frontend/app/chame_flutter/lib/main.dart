@@ -456,7 +456,7 @@ class HomePage extends StatelessWidget {
                         onPressed: () => Navigator.pushNamed(context, '/products'),
                         child: const Text('Products'),
                       ),
-                      if (auth.role == "admin") ElevatedButton(
+                      if (auth.hasAdminRights) ElevatedButton(
                         onPressed: () => Navigator.pushNamed(context, '/bank'),
                         child: const Text('Bank'),
                       ),
@@ -472,7 +472,7 @@ class HomePage extends StatelessWidget {
                         onPressed: () => Navigator.pushNamed(context, '/users'),
                         child: const Text('Users'),
                       ),
-                      if (auth.role == "admin")
+                      if (auth.hasAdminRights)
                         ElevatedButton(
                           onPressed: () => Navigator.pushNamed(context, '/restock_ingredients'),
                           child: const Text('Restock Ingredients'),
@@ -509,6 +509,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _userCtrl = TextEditingController(text: 'admin');
   final _passCtrl = TextEditingController();
   bool _loading = false, _error = false;
   List<Map<String, dynamic>> _availableUsers = [];
@@ -572,8 +573,25 @@ class _LoginScreenState extends State<LoginScreen> {
     return '${user['name']} (${user['role']})';
   }
 
+  bool get _useManualLogin => _availableUsers.isEmpty || _selectedUserId == null;
+
+  @override
+  void dispose() {
+    _userCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
+  }
+
   void _submit() async {
-    if (_selectedUserId == null && _availableUsers.isNotEmpty) {
+    final manualUsername = _userCtrl.text.trim();
+    if (_useManualLogin && manualUsername.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please enter a username')),
+      );
+      return;
+    }
+
+    if (_selectedUserId == null && _availableUsers.isNotEmpty && manualUsername.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please select a user')),
       );
@@ -588,15 +606,14 @@ class _LoginScreenState extends State<LoginScreen> {
       await Future.microtask(() async {
         String username;
         
-        if (_selectedUserId != null) {
+        if (!_useManualLogin && _selectedUserId != null) {
           // Use selected user from dropdown
           final selectedUser = _availableUsers.firstWhere(
             (user) => user['user_id'] == _selectedUserId
           );
           username = selectedUser['name'];
         } else {
-          // Fallback: manual username entry (shouldn't happen with current UI)
-          username = 'admin'; // Default fallback
+          username = manualUsername;
         }
         
         // Allow empty password
@@ -669,11 +686,24 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _selectedUserId = null;
+                        if (_userCtrl.text.trim().isEmpty) {
+                          _userCtrl.text = 'admin';
+                        }
+                      });
+                    },
+                    icon: const Icon(Icons.person_outline),
+                    label: const Text('Use Manual Login Instead'),
+                  ),
+                  const SizedBox(height: 8),
                 ] else if (_usersLoaded && _availableUsers.isEmpty) ...[
                   const Icon(Icons.warning, color: Colors.orange, size: 48),
                   const SizedBox(height: 16),
                   const Text(
-                    'No admin or wirt users found.\nPlease contact an administrator.',
+                    'No admin or wirt users found.\nTry manual login with the default admin account.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.orange),
                   ),
@@ -682,6 +712,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   const CircularProgressIndicator(),
                   const SizedBox(height: 16),
                   const Text('Loading users...'),
+                  const SizedBox(height: 16),
+                ],
+
+                if (_useManualLogin) ...[
+                  TextField(
+                    controller: _userCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Username',
+                      hintText: 'Enter username',
+                    ),
+                  ),
                   const SizedBox(height: 16),
                 ],
                 
@@ -705,7 +746,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 
                 // Login button
                 ElevatedButton(
-                  onPressed: (_loading || (!_usersLoaded || _availableUsers.isEmpty)) 
+                  onPressed: (_loading || !_usersLoaded)
                     ? null 
                     : _submit,
                   child: _loading 
@@ -758,7 +799,7 @@ class SettingsPage extends StatelessWidget {
               ),
               
               // Backup Management button (admin only)
-              if (auth.role == "admin") ...[
+              if (auth.hasAdminRights) ...[
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
                   onPressed: () => Navigator.pushNamed(context, '/backup_management'),

@@ -110,12 +110,12 @@ class _AddUserPageState extends State<AddUserPage> {
     final auth = Provider.of<AuthService>(context);
     
     // Check if user has permission to add users
-    if (auth.role != 'admin' && auth.role != 'wirt') {
+    if (!auth.canManageUsers) {
       return Scaffold(
         appBar: AppBar(title: const Text('Add User')),
         body: const Center(
           child: Text(
-            'Access Denied\nOnly Admin and Wirt users can add new users.',
+            'Access Denied\nOnly Admin, God, and Wirt users can add new users.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 18),
           ),

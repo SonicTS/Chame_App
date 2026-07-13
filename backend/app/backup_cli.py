@@ -51,6 +51,16 @@ def main():
                               default='json', help='Export format (default: json)')
     export_parser.add_argument('--include-sensitive', action='store_true', 
                               help='Include sensitive data like passwords')
+    export_parser.add_argument('--database', help='Explicit path to the SQLite database file to export')
+
+    # PDF report command
+    report_parser = subparsers.add_parser('report', help='Generate a PDF database documentation report')
+    report_parser.add_argument('--include-sensitive', action='store_true',
+                              help='Include sensitive fields where applicable')
+    report_parser.add_argument('--trend-days', type=int, default=30,
+                              help='Number of grouped recent activity entries to include (default: 30)')
+    report_parser.add_argument('--output', help='Optional output PDF path')
+    report_parser.add_argument('--database', help='Explicit path to the SQLite database file to document')
     
     # Cleanup command
     cleanup_parser = subparsers.add_parser('cleanup', help='Clean up old backups')
@@ -81,6 +91,8 @@ def main():
             return cmd_delete_backup(args)
         elif args.command == 'export':
             return cmd_export_data(args)
+        elif args.command == 'report':
+            return cmd_generate_report(args)
         elif args.command == 'cleanup':
             return cmd_cleanup_backups(args)
         elif args.command == 'info':
@@ -129,7 +141,7 @@ def cmd_list_backups(args):
     
     # Filter by type if specified
     if args.type:
-        backups = [b for b in backups if b['type'] == args.type]
+        backups = [b for b in backups if b['backup_type'] == args.type]
     
     # Limit results
     backups = backups[:args.limit]
@@ -195,7 +207,7 @@ def cmd_export_data(args):
     """Export database data"""
     print(f"📤 Exporting data in {args.format} format...")
     
-    manager = DatabaseBackupManager()
+    manager = DatabaseBackupManager(database_path=args.database)
     result = manager.export_data(
         format=args.format,
         include_sensitive=args.include_sensitive
@@ -206,6 +218,25 @@ def cmd_export_data(args):
         print(f"   📁 Export path: {result['export_path']}")
         if 'files' in result:
             print(f"   📄 Files: {', '.join(result['files'])}")
+        return 0
+    else:
+        print(f"❌ {result['message']}")
+        return 1
+
+def cmd_generate_report(args):
+    """Generate a PDF database documentation report"""
+    print("📄 Generating PDF database report...")
+
+    manager = DatabaseBackupManager(database_path=args.database)
+    result = manager.generate_database_report(
+        include_sensitive=args.include_sensitive,
+        trend_days=args.trend_days,
+        output_path=args.output,
+    )
+
+    if result['success']:
+        print(f"✅ {result['message']}")
+        print(f"   📁 Report path: {result['report_path']}")
         return 0
     else:
         print(f"❌ {result['message']}")

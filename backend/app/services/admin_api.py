@@ -4,10 +4,84 @@
 from chame_app.database_instance import Database
 from chame_app.simple_migrations import SimpleMigrations
 import logging
-from typing import Dict, List
+from typing import Any, Dict, Iterable, List, Optional, Set
+from chame_app.database import get_database_storage_diagnostics
+from models.user_table import User
 import traceback
 
-database = None
+_database = None
+_current_viewer_id: Optional[int] = None
+_current_viewer_role: Optional[str] = None
+
+
+class _DatabaseProxy:
+    def __getattr__(self, name):
+        return getattr(create_database(), name)
+
+
+database = _DatabaseProxy()
+
+
+def _set_current_viewer(user: User) -> None:
+    global _current_viewer_id, _current_viewer_role
+    _current_viewer_id = user.user_id
+    _current_viewer_role = user.role
+
+
+def _clear_current_viewer() -> None:
+    global _current_viewer_id, _current_viewer_role
+    _current_viewer_id = None
+    _current_viewer_role = None
+
+
+def _viewer_can_see_god() -> bool:
+    return (_current_viewer_role or "").lower() == "god"
+
+
+def _get_god_user_ids() -> Set[int]:
+    session = database.get_session()
+    return {
+        user.user_id
+        for user in session.query(User).filter(User.role == "god").all()
+        if user.user_id is not None
+    }
+
+
+def _contains_god_link(value: Any, god_user_ids: Set[int]) -> bool:
+    if isinstance(value, dict):
+        if value.get("role") == "god":
+            return True
+
+        for key in ("user_id", "consumer_id", "donator_id", "salesman_id"):
+            linked_id = value.get(key)
+            if isinstance(linked_id, (int, float)) and int(linked_id) in god_user_ids:
+                return True
+
+        return any(_contains_god_link(nested_value, god_user_ids) for nested_value in value.values())
+
+    if isinstance(value, (list, tuple, set)):
+        return any(_contains_god_link(item, god_user_ids) for item in value)
+
+    return False
+
+
+def _filter_visible_records(records: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    materialized_records = list(records)
+    if _viewer_can_see_god():
+        return materialized_records
+
+    god_user_ids = _get_god_user_ids()
+    return [record for record in materialized_records if not _contains_god_link(record, god_user_ids)]
+
+
+def _filter_visible_record(record: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if record is None or _viewer_can_see_god():
+        return record
+
+    god_user_ids = _get_god_user_ids()
+    if _contains_god_link(record, god_user_ids):
+        return None
+    return record
 
 def run_migrations():
     """Run database migrations - uses simple migrations"""
@@ -32,15 +106,15 @@ def run_simple_migrations():
         traceback.print_exc()
 
 def create_database(apply_migration: bool = True) -> Database:
-    global database
+    global _database
     print("DEBUG: create_database called with apply_migration:", apply_migration)
-    if database is None:
+    if _database is None:
         print("DEBUG: Creating new Database instance")
-        database = Database(apply_migration)
+        _database = Database(apply_migration)
         logging.info("Database instance created and migrations run.")
     else:
         logging.warning("Database instance already exists.")
-    return database
+    return _database
 
 def login(username, password):
     if not username:
@@ -49,9 +123,15 @@ def login(username, password):
     if not password:
         password = ""
     if user and user.verify_password(password):
+        _set_current_viewer(user)
         return user.to_dict(True)
     else:
         raise ValueError("Invalid username or password")
+
+
+def logout():
+    _clear_current_viewer()
+    return True
 
 def change_password(user_id, old_password, new_password):
     if not user_id or not old_password or not new_password:
@@ -134,7 +214,7 @@ def get_stock_history(ingredient_id: int):
         print("DEBUG: No stock history found for ingredient_id:", ingredient_id)
         return []
     
-    return [sh.to_dict(include_ingredient=True) for sh in stock_history]
+    return _filter_visible_records([sh.to_dict(include_ingredient=True) for sh in stock_history])
 
 def get_all_stock_history():
     print("DEBUG: get_all_stock_history called")
@@ -143,7 +223,7 @@ def get_all_stock_history():
         print("DEBUG: No stock history found")
         return []
     
-    return [sh.to_dict(include_ingredient=True) for sh in stock_history]
+    return _filter_visible_records([sh.to_dict(include_ingredient=True) for sh in stock_history])
 
 def restock_ingredients(_list: List[Dict[int, int]], salesman_id):
     if not _list or not isinstance(_list, list) or salesman_id is None:
@@ -195,13 +275,13 @@ def bank_withdraw(amount, description, salesman_id):
 
 # Data fetchers
 def get_all_users():
-    return [user.to_dict(True) for user in database.get_all_users()]
+    return _filter_visible_records([user.to_dict(True) for user in database.get_all_users()])
 
 def get_all_products():
-    return [product.to_dict(True, True, True, True) for product in database.get_all_products()]
+    return _filter_visible_records([product.to_dict(True, True, True, True) for product in database.get_all_products()])
 
 def get_all_ingredients():
-    result = [ingredient.to_dict(True) for ingredient in database.get_all_ingredients(eager_load=True)]
+    result = _filter_visible_records([ingredient.to_dict(True) for ingredient in database.get_all_ingredients(eager_load=True)])
     # print("DEBUG get_all_ingredients result:", result)
     # print("DEBUG types:", [type(x) for x in result])
     if len(result) == 0:
@@ -210,7 +290,7 @@ def get_all_ingredients():
     return result
 
 def get_all_sales():
-    return [sale.to_dict(True, True, True) for sale in database.get_all_sales()]
+    return _filter_visible_records([sale.to_dict(True, True, True) for sale in database.get_all_sales()])
 
 def get_sales_paginated(page=1, page_size=100):
     """Get paginated sales data.
@@ -223,11 +303,13 @@ def get_sales_paginated(page=1, page_size=100):
         dict: Contains 'sales', 'total_count', 'page', 'page_size', 'total_pages'
     """
     sales, total_count = database.get_sales_paginated(page=page, page_size=page_size)
-    total_pages = (total_count + page_size - 1) // page_size  # Ceiling division
+    filtered_sales = _filter_visible_records([sale.to_dict(True, True, True) for sale in sales])
+    filtered_total_count = len(filtered_sales)
+    total_pages = (filtered_total_count + page_size - 1) // page_size if filtered_total_count else 0
     
     return {
-        'sales': [sale.to_dict(True, True, True) for sale in sales],
-        'total_count': total_count,
+        'sales': filtered_sales,
+        'total_count': filtered_total_count,
         'page': page,
         'page_size': page_size,
         'total_pages': total_pages
@@ -237,27 +319,36 @@ def get_all_toast_products():
     return [tp.to_dict(True, True, True, True) for tp in database.get_all_toast_products()]
 
 def get_all_toast_rounds():
-    return [tr.to_dict(True, True) for tr in database.get_all_toast_rounds()]
+    return _filter_visible_records([tr.to_dict(True, True) for tr in database.get_all_toast_rounds()])
 
 def get_all_raw_products():
     """Get all products without eager loading ingredients or sales"""
-    return [product.to_dict(True, False, False, True) for product in database.get_all_products_by_category('raw')]
+    return _filter_visible_records([product.to_dict(True, False, False, True) for product in database.get_all_products_by_category('raw')])
 
 def get_filtered_transaction(user_id="all", tx_type="all"):
-    return [tx.to_dict() for tx in database.get_filtered_transaction(user_id=user_id, tx_type=tx_type)]
+    return _filter_visible_records([tx.to_dict() for tx in database.get_filtered_transaction(user_id=user_id, tx_type=tx_type)])
 
 def get_bank():
-    return database.get_bank().to_dict() if database.get_bank() else None
+    bank = database.get_bank()
+    return _filter_visible_record(bank.to_dict()) if bank else None
 
 def get_bank_transaction():
-    return [bt.to_dict() for bt in database.get_bank_transaction()]
+    return _filter_visible_records([bt.to_dict() for bt in database.get_bank_transaction()])
+
+
+def get_storage_diagnostics():
+    try:
+        return get_database_storage_diagnostics()
+    except Exception as e:
+        print(f"get_storage_diagnostics error: {e}")
+        raise RuntimeError(f"Failed to load storage diagnostics: {e}") from e
 
 def get_pfand_history():
     pfand_history = database.get_all_pfand_history()
     if not pfand_history:
         return []
     print(pfand_history)
-    return [ph.to_dict(include_user=True, include_product=True) for ph in pfand_history]
+    return _filter_visible_records([ph.to_dict(include_user=True, include_product=True) for ph in pfand_history])
 
 # ========== BACKUP FUNCTIONS ==========
 
@@ -413,6 +504,41 @@ def import_backup_from_share(shared_file_path):
         print(f"import_backup_from_share error: {e}")
         raise RuntimeError(f"Failed to import backup: {e}") from e
 
+def export_data(format="json", include_sensitive=False, database_path=None):
+    """Export database data in JSON, CSV, or SQL format."""
+    try:
+        result = database.export_data(
+            format=format,
+            include_sensitive=include_sensitive,
+            database_path=database_path,
+        )
+
+        if result['success']:
+            return result
+        raise RuntimeError(result['message'])
+
+    except Exception as e:
+        print(f"export_data error: {e}")
+        raise RuntimeError(f"Failed to export data: {e}") from e
+
+def generate_database_report(include_sensitive=False, trend_days=30, output_path=None, database_path=None):
+    """Generate a PDF report covering schema, current state, and recent activity."""
+    try:
+        result = database.generate_database_report(
+            include_sensitive=include_sensitive,
+            trend_days=trend_days,
+            output_path=output_path,
+            database_path=database_path,
+        )
+
+        if result['success']:
+            return result
+        raise RuntimeError(result['message'])
+
+    except Exception as e:
+        print(f"generate_database_report error: {e}")
+        raise RuntimeError(f"Failed to generate database report: {e}") from e
+
 # ========== DELETION FUNCTIONS ==========
 
 def check_deletion_dependencies(entity_type, entity_id):
@@ -522,7 +648,9 @@ def get_deleted_products():
             'product_id': product.product_id,
             'name': product.name,
             'category': product.category,
-            'price_per_unit': float(product.price_per_unit),
+            'price_per_unit': float(product.get_display_price_per_unit()),
+            'base_price_per_unit': float(product.price_per_unit),
+            'rounding_difference_per_unit': float(product.get_rounding_difference_per_unit()),
             'cost_per_unit': float(product.cost_per_unit),
             'profit_per_unit': float(product.profit_per_unit),
             'stock_quantity': product.stock_quantity,
