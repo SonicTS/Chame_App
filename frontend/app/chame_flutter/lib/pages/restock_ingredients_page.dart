@@ -57,6 +57,7 @@ class _RestockIngredientsPageState extends State<RestockIngredientsPage> {
         'name': i['name'],
         'price_per_package': i['price_per_package'],
         'pfand': i['pfand'],
+        'number_of_units': i['number_of_units'],
         'restock': '',
         'price': '',
         'removed': removedIngredientNames.contains(i['name']),
@@ -156,35 +157,37 @@ class _RestockIngredientsPageState extends State<RestockIngredientsPage> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Confirm Restock'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('List:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                ...visibleIngredients.map((ingredient) {
-                  final restock = int.tryParse(ingredient['restock']?.toString() ?? '0') ?? 0;
-                  final effectivePrice = _getEffectivePrice(ingredient);
-                  final pfand = ingredient['pfand'] ?? 0.0;
-                  final numberOfUnits = (ingredient['number_of_units'] as num?)?.toDouble() ?? 1.0;
-                  final lineTotal = restock * (effectivePrice + pfand * numberOfUnits);
-                  
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text(
-                      '${ingredient['name']} x$restock: €${effectivePrice.toStringAsFixed(2)}${pfand > 0 ? ' (+€${pfand.toStringAsFixed(2)})' : ''} = €${lineTotal.toStringAsFixed(2)}',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  );
-                }).toList(),
-                const SizedBox(height: 16),
-                Text(
-                  'Total sum: €${_calculateTotal().toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              ],
+          content: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('List:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  ...visibleIngredients.map((ingredient) {
+                    final restock = int.tryParse(ingredient['restock']?.toString() ?? '0') ?? 0;
+                    final effectivePrice = _getEffectivePrice(ingredient);
+                    final pfand = ingredient['pfand'] ?? 0.0;
+                    final numberOfUnits = (ingredient['number_of_units'] as num?)?.toDouble() ?? 1.0;
+                    // Show totals per package where pfand is applied per unit
+                    final lineTotal = restock * (effectivePrice + pfand * numberOfUnits);
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Text(
+                        '${ingredient['name']} x$restock: €${effectivePrice.toStringAsFixed(2)}${pfand > 0 ? ' (+€${pfand.toStringAsFixed(2)})' : ''} = €${lineTotal.toStringAsFixed(2)}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    );
+                  }).toList(),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Total sum: €${_calculateTotal().toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [

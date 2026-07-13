@@ -248,7 +248,9 @@ class Database:
                 pfand = ingredient.pfand if ingredient.pfand else 0.0
                 if DEBUG:
                     print(f"DEBUG: Ingredient {ingredient.name} restock={item['restock']}, price={price}, pfand={pfand}")
-                description += f"{ingredient.name} x{item['restock']}: {price}(+{pfand})€ = {item['restock'] * (price + pfand)}\n"
+                # price is package price; pfand applies per unit
+                per_package_pfand = pfand * ingredient.number_of_units
+                description += f"{ingredient.name} x{item['restock']}: {price}(+{per_package_pfand})€ = {item['restock'] * (price + per_package_pfand)}\n"
             transaction = BankTransaction(amount=total_cost, type="withdraw", description=description, salesman_id=salesman_id)
             session.add(transaction)
             if close_session:
@@ -305,8 +307,9 @@ class Database:
             ingredient = self.get_ingredient_by_id(ingredient_id, session)
             ingredient_name = ingredient.name
             quantity = int(quantity)
-            quantity = quantity * ingredient.number_of_units
-            ingredient.stock_quantity += quantity
+            packages = quantity
+            units = packages * ingredient.number_of_units
+            ingredient.stock_quantity += units
             bank = self.get_bank(session)
             if price is None:
                 price = ingredient.price_per_unit
@@ -315,9 +318,10 @@ class Database:
                 if price <= 0:
                     raise ValueError("Price must be greater than 0")
             if DEBUG:
-                print(f"DEBUG: Stocking ingredient {ingredient_name} with price={price}, quantity={quantity}")
-            bank.costs_total += price * quantity + ingredient.pfand * quantity
-            bank.ingredient_value += price * quantity + ingredient.pfand * quantity
+                print(f"DEBUG: Stocking ingredient {ingredient_name} with price={price}, quantity={units}")
+            # pfand is applied per unit: multiply by units
+            bank.costs_total += price * units + ingredient.pfand * units
+            bank.ingredient_value += price * units + ingredient.pfand * units
             _sync_bank_financials(bank)
             for product_assoc in ingredient.ingredient_products:
                 product = product_assoc.product
@@ -330,7 +334,7 @@ class Database:
                 session.commit()
                 session.refresh(ingredient)
                 session.close()
-            return price * quantity + ingredient.pfand * quantity
+            return price * units + ingredient.pfand * units
         except Exception as e:
             if session:
                 session.rollback()
