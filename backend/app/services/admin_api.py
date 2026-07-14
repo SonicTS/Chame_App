@@ -58,10 +58,22 @@ def _contains_god_link(value: Any, god_user_ids: Set[int]) -> bool:
             if isinstance(linked_id, (int, float)) and int(linked_id) in god_user_ids:
                 return True
 
-        return any(_contains_god_link(nested_value, god_user_ids) for nested_value in value.values())
-
-    if isinstance(value, (list, tuple, set)):
-        return any(_contains_god_link(item, god_user_ids) for item in value)
+        # Only recurse into embedded *singular* related-entity dicts (e.g. a
+        # sale's nested "salesman"/"consumer"/"donator"/"product" sub-object),
+        # which describe this record's own identity/relations. Deliberately do
+        # NOT recurse into nested collections (lists) of unrelated child
+        # records - e.g. a user's own "sales" history, a product's
+        # "ingredients", etc. Those are independent records whose own
+        # god-linkage must not cause the containing top-level record (the
+        # user/product/etc. itself) to be hidden entirely - that previously
+        # caused unrelated users to randomly vanish from user lists whenever
+        # any one of their past sales happened to reference the god account
+        # (e.g. as the salesman who rang it up).
+        return any(
+            _contains_god_link(nested_value, god_user_ids)
+            for nested_value in value.values()
+            if isinstance(nested_value, dict)
+        )
 
     return False
 
