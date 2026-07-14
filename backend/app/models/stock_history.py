@@ -24,12 +24,10 @@ class StockHistory(Base):
         return f"<Transaction(history_id={self.history_id}, ingredient={self.ingredient_id}, amount={self.amount}, timestamp={self.timestamp}, comment={self.comment})>"
     
     def to_dict(self, include_ingredient=False):
-        def _round(val):
-            return round(val, 2) if isinstance(val, float) and val is not None else val
         data = {
             "history_id": self.history_id,
             "ingredient_id": self.ingredient_id,
-            "amount": _round(self.amount),
+            "amount": self.amount,
             "timestamp": self.timestamp,
             "comment": self.comment
         }

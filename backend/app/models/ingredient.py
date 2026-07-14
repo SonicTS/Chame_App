@@ -59,17 +59,14 @@ class Ingredient(Base, EnhancedSoftDeleteMixin):
             #     "include_products": include_products
             # })
             
-            def _round(val):
-                return round(val, 2) if isinstance(val, float) and val is not None else val
-            
             data = {
                 "ingredient_id": self.ingredient_id,
                 "name": self.name,
-                "price_per_package": _round(self.price_per_package),
+                "price_per_package": self.price_per_package,
                 "number_of_units": self.number_of_units,
-                "price_per_unit": _round(self.price_per_unit),
-                "stock_quantity": _round(self.stock_quantity),
-                "pfand": _round(self.pfand),
+                "price_per_unit": self.price_per_unit,
+                "stock_quantity": self.stock_quantity,
+                "pfand": self.pfand,
                 # Add soft delete fields for restore functionality
                 "is_deleted": getattr(self, 'is_deleted', False),
                 "deleted_at": self.deleted_at.isoformat() if getattr(self, 'deleted_at', None) else None,

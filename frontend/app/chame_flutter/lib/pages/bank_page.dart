@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:chame_flutter/data/py_bride.dart';
 import 'package:chame_flutter/services/auth_service.dart';
+import 'package:chame_flutter/utils/formatters.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -221,7 +222,7 @@ class _BankPageState extends State<BankPage> {
           children: [
             Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13)),
             const SizedBox(height: 4),
-            Text(value?.toString() ?? '-', style: TextStyle(fontSize: 15, color: color)),
+            Text(formatMoney(value, fallback: '-'), style: TextStyle(fontSize: 15, color: color)),
           ],
         ),
       ),
@@ -247,7 +248,7 @@ class _BankPageState extends State<BankPage> {
       children: [
         Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13)),
         const SizedBox(height: 4),
-        Text(value?.toString() ?? '-', style: TextStyle(fontSize: 15, color: color)),
+        Text(formatMoney(value, fallback: '-'), style: TextStyle(fontSize: 15, color: color)),
       ],
     );
   }
@@ -380,7 +381,7 @@ class _BankPageState extends State<BankPage> {
                                 
                                 return DataRow(cells: [
                                   DataCell(Text(tx['type']?.toString() ?? '')),
-                                  DataCell(Text(tx['amount']?.toString() ?? '')),
+                                  DataCell(Text(formatMoney(tx['amount']))),
                                   DataCell(
                                     InkWell(
                                       onTap: () {

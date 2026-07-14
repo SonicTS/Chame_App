@@ -1,6 +1,7 @@
 import 'package:chame_flutter/data/py_bride.dart';
 import 'package:chame_flutter/services/auth_service.dart';
 import 'package:chame_flutter/widgets/simple_deletion_dialog.dart';
+import 'package:chame_flutter/utils/formatters.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -102,8 +103,8 @@ class _IngredientsPageState extends State<IngredientsPage> {
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Price: ${ingredient['price_per_unit']?.toString() ?? 'N/A'}'),
-                        Text('Stock: ${ingredient['stock_quantity']?.toString() ?? 'N/A'}'),
+                        Text('Price: ${formatMoney(ingredient['price_per_unit'], fallback: 'N/A')}'),
+                        Text('Stock: ${formatMoney(ingredient['stock_quantity'], fallback: 'N/A')}'),
                         Text('Deleted: ${ingredient['deleted_at']?.toString().split('T')[0] ?? 'N/A'}'),
                         Text('By: ${ingredient['deleted_by']?.toString() ?? 'Unknown'}'),
                       ],
@@ -342,9 +343,9 @@ class _IngredientsPageState extends State<IngredientsPage> {
                             final ingredientId = ingredient['ingredient_id'] as int;
                             return DataRow(cells: [
                               DataCell(Text(ingredient['name']?.toString() ?? '')),
-                              DataCell(Text(ingredient['price_per_package']?.toString() ?? '')),
+                              DataCell(Text(formatMoney(ingredient['price_per_package']))),
                               DataCell(Text(ingredient['number_of_units']?.toString() ?? '')),
-                              DataCell(Text(ingredient['price_per_unit']?.toString() ?? '')),
+                              DataCell(Text(formatMoney(ingredient['price_per_unit']))),
                               DataCell(
                                 auth.hasAdminRights
                                     ? GestureDetector(
@@ -363,16 +364,16 @@ class _IngredientsPageState extends State<IngredientsPage> {
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              Text(ingredient['stock_quantity']?.toString() ?? '0'),
+                                              Text(formatMoney(ingredient['stock_quantity'], fallback: '0')),
                                               const SizedBox(width: 4),
                                               const Icon(Icons.edit, size: 12, color: Colors.grey),
                                             ],
                                           ),
                                         ),
                                       )
-                                    : Text(ingredient['stock_quantity']?.toString() ?? '0'),
+                                    : Text(formatMoney(ingredient['stock_quantity'], fallback: '0')),
                               ),
-                              DataCell(Text(ingredient['pfand']?.toString() ?? '')),
+                              DataCell(Text(formatMoney(ingredient['pfand']))),
                               DataCell(
                                 auth.hasAdminRights
                                     ? IconButton(

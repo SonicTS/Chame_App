@@ -366,7 +366,7 @@ class Database:
             log_debug(f"Adding product {name} with price={price}, category={category}, toaster_space={toaster_space}, ingredients={ingredients}")
             cost_per_unit = 0.0
             for ingredient_obj, quantity in ingredients:
-                ingredient_quantity = extend_float_precision(float(quantity))
+                ingredient_quantity = float(quantity)
                 if ingredient_quantity <= 0:
                     raise ValueError(f"Ingredient quantity must be greater than 0 (ingredient={ingredient_obj.name})")
                 cost_per_unit += ingredient_obj.price_per_unit * ingredient_quantity
@@ -378,7 +378,7 @@ class Database:
             session.add(product)
             session.flush()
             for ingredient_obj, quantity in ingredients:
-                ingredient_quantity = extend_float_precision(float(quantity))
+                ingredient_quantity = float(quantity)
                 existing_ingredient = self.get_ingredient_by_id(ingredient_obj.ingredient_id, session)
                 association = ProductIngredient(product=product, ingredient=existing_ingredient, ingredient_quantity=ingredient_quantity)
                 session.add(association)
@@ -1900,23 +1900,6 @@ class Database:
         except Exception as e:
             print(f"safe_delete_ingredient error: {e}")
             raise RuntimeError(f"Failed to delete ingredient: {e}") from e
-
-def extend_float_precision(value: float, precision: int = 16) -> float:
-    """
-    Extends the last digit of a float's decimal part to the specified precision.
-    E.g., 0.33 -> 0.3333333333333333
-    """
-    s = str(value)
-    if '.' not in s:
-        return value
-    int_part, dec_part = s.split('.')
-    if len(dec_part) <= 1:
-        return value
-    last_digit = dec_part[-1]
-    extended_dec = dec_part + last_digit * (precision - len(dec_part))
-    extended_str = f"{int_part}.{extended_dec[:precision]}"
-
-    return float(extended_str)
 
 # Initialize database instance when module is imported
 # database = Database()

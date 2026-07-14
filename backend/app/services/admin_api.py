@@ -6,6 +6,7 @@ from chame_app.simple_migrations import SimpleMigrations
 import logging
 from typing import Any, Dict, Iterable, List, Optional, Set
 from chame_app.database import get_database_storage_diagnostics
+
 from models.user_table import User
 import traceback
 
@@ -173,6 +174,36 @@ def add_product(name, category, price, ingredients_ids, quantities, toaster_spac
     ingredients = database.get_ingredients_by_ids(ingredients_ids)
     ingredient_quantity_pairs = list(zip(ingredients, quantities))
     return database.add_product(name=name, ingredients=ingredient_quantity_pairs, price_per_unit=price, category=category, toaster_space=toaster_space)
+
+
+def preview_product_cost(ingredient_ids, quantities):
+    """Return detailed cost preview for a product composed of given ingredients and quantities.
+
+    Returns a dict with 'total_cost' and 'per_ingredient' list containing
+    ingredient_id, name, price_per_unit, quantity, row_cost.
+    """
+    if not ingredient_ids or not quantities or len(ingredient_ids) != len(quantities):
+        raise ValueError("Invalid input for preview_product_cost")
+    ingredients = database.get_ingredients_by_ids(ingredient_ids)
+    total = 0.0
+    per = []
+    for ing, qty in zip(ingredients, quantities):
+        # Use DB stored price_per_unit (full precision) for authoritative calculation
+        price_per_unit = float(getattr(ing, 'price_per_unit', 0.0))
+        qtyf = float(qty)
+        row = price_per_unit * qtyf
+        per.append({
+            'ingredient_id': ing.ingredient_id,
+            'name': ing.name,
+            'price_per_unit': price_per_unit,
+            'quantity': qtyf,
+            'row_cost': row,
+        })
+        total += row
+    return {
+        'total_cost': total,
+        'per_ingredient': per,
+    }
 
 # Ingredient management
 def add_ingredient(name, price_per_package, stock_quantity, number_ingredients, pfand):

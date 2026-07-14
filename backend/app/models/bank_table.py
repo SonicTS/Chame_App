@@ -55,8 +55,6 @@ class Bank(Base):
                f"product_value={self.product_value})>"
 
     def to_dict(self):
-        def _round(val):
-            return round(val, 2) if isinstance(val, float) and val is not None else val
         business_balance = self.get_business_balance()
         break_even_remaining = self.get_break_even_remaining()
         break_even_surplus = self.get_break_even_surplus()
@@ -65,21 +63,21 @@ class Bank(Base):
         profit_total = self.get_profit_total()
         return {
             "account_id": self.account_id,
-            "total_balance": _round(self.total_balance),
-            "customer_funds": _round(self.customer_funds),
-            "revenue_funds": _round(business_balance),
-            "costs_reserved": _round(break_even_remaining),
-            "profit_retained": _round(break_even_surplus),
-            "revenue_total": _round(self.revenue_total),
-            "costs_total": _round(self.costs_total),
-            "profit_total": _round(profit_total),
-            "product_value": _round(self.product_value),
-            "ingredient_value": _round(self.ingredient_value),
-            "business_balance": _round(business_balance),
-            "break_even_remaining": _round(break_even_remaining),
-            "break_even_surplus": _round(break_even_surplus),
-            "break_even_covered_costs": _round(break_even_covered_costs),
-            "break_even_progress": _round(break_even_progress),
+            "total_balance": self.total_balance,
+            "customer_funds": self.customer_funds,
+            "revenue_funds": business_balance,
+            "costs_reserved": break_even_remaining,
+            "profit_retained": break_even_surplus,
+            "revenue_total": self.revenue_total,
+            "costs_total": self.costs_total,
+            "profit_total": profit_total,
+            "product_value": self.product_value,
+            "ingredient_value": self.ingredient_value,
+            "business_balance": business_balance,
+            "break_even_remaining": break_even_remaining,
+            "break_even_surplus": break_even_surplus,
+            "break_even_covered_costs": break_even_covered_costs,
+            "break_even_progress": break_even_progress,
             "break_even_reached": self.is_break_even_reached(),
         }
 
@@ -99,11 +97,9 @@ class BankTransaction(Base):
         return f"<BankTransaction(id={self.transaction_id}, amount={self.amount}, type={self.type}, timestamp={self.timestamp}, description={self.description}, salesman_id={self.salesman_id})>"
 
     def to_dict(self, include_salesman=True):
-        def _round(val):
-            return round(val, 2) if isinstance(val, float) and val is not None else val
         data = {
             "transaction_id": self.transaction_id,
-            "amount": _round(self.amount),
+            "amount": self.amount,
             "type": self.type,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "description": self.description,

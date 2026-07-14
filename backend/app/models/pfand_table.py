@@ -23,8 +23,6 @@ class PfandHistory(Base):
         return f"<PfandHistory(user_id={self.user_id}, product_id={self.product_id}, counter={self.counter})>"
 
     def to_dict(self, include_user=False, include_product=False):
-        def _round(val):
-            return round(val, 2) if isinstance(val, float) and val is not None else val
         data = {
             "user_id": self.user_id,
             "product_id": self.product_id,

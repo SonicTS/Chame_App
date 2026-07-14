@@ -2,6 +2,7 @@ import 'package:chame_flutter/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:chame_flutter/data/py_bride.dart';
 import 'package:chame_flutter/widgets/simple_deletion_dialog.dart';
+import 'package:chame_flutter/utils/formatters.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import 'package:collection/collection.dart';
 import 'package:provider/provider.dart';
@@ -120,7 +121,7 @@ class _UsersPageState extends State<UsersPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Role: ${user['role']?.toString() ?? 'N/A'}'),
-                        Text('Balance: ${user['balance']?.toString() ?? 'N/A'}'),
+                        Text('Balance: ${formatMoney(user['balance'], fallback: 'N/A')}'),
                         Text('Deleted: ${user['deleted_at']?.toString().split('T')[0] ?? 'N/A'}'),
                         Text('By: ${user['deleted_by']?.toString() ?? 'Unknown'}'),
                       ],
@@ -657,7 +658,7 @@ class UsersTableSection extends StatelessWidget {
                         withdrawControllers.putIfAbsent(userId, () => TextEditingController());
                         return DataRow(cells: [
                           DataCell(Text(user['name']?.toString() ?? '')),
-                          DataCell(Text(user['balance']?.toString() ?? '')),
+                          DataCell(Text(formatMoney(user['balance']))),
                           // Role dropdown (only for admin users)
                           DataCell(
                             canEditRole
@@ -809,7 +810,7 @@ class TransactionsSection extends StatelessWidget {
                       return DataRow(cells: [
                         DataCell(Text(tx['user']?['name'].toString() ?? '')),
                         DataCell(Text(tx['type']?.toString() ?? '')),
-                        DataCell(Text(tx['amount']?.toString() ?? '')),
+                        DataCell(Text(formatMoney(tx['amount']))),
                         DataCell(
                           InkWell(
                             onTap: () {

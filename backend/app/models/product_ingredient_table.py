@@ -6,7 +6,8 @@ class ProductIngredient(Base):
     __tablename__ = "product_ingredient"
     product_id = Column(Integer, ForeignKey("products.product_id", ondelete="CASCADE"), primary_key=True)
     ingredient_id = Column(Integer, ForeignKey("ingredients.ingredient_id", ondelete="CASCADE"), primary_key=True)
-    ingredient_quantity = Column(Integer, default=0)
+    # Fractional quantities (e.g. 0.33 of an ingredient unit) are required, so this must be Float, not Integer.
+    ingredient_quantity = Column(Float, default=0)
 
     product = relationship("Product", back_populates="product_ingredients")
     ingredient = relationship("Ingredient", back_populates="ingredient_products")

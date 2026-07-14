@@ -188,6 +188,26 @@ class PyBridge {
     }
   }
 
+  Future<Map<String, dynamic>> previewProductCost({
+    required List<int> ingredientIds,
+    required List<double> quantities,
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('preview_product_cost', {
+        'ingredient_ids': ingredientIds,
+        'quantities': quantities,
+      });
+      if (result == null || result == 'null') {
+        return {'total_cost': 0.0, 'per_ingredient': []};
+      }
+      if (result is String) return jsonDecode(result as String) as Map<String, dynamic>;
+      return Map<String, dynamic>.from(result as Map);
+    } catch (e, stack) {
+      print('Error in previewProductCost: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
   Future<String?> restockIngredient({
     required int ingredientId,
     required int quantity,

@@ -107,7 +107,7 @@ class Product(Base, EnhancedSoftDeleteMixin):
             ingredient = assoc.ingredient
             if ingredient and ingredient.pfand:
                 total_deposit += ingredient.pfand * assoc.ingredient_quantity
-        return round(total_deposit, 2)
+        return total_deposit
 
     @classmethod
     def _get_display_decimal(cls, amount: float) -> Decimal:
@@ -173,19 +173,16 @@ class Product(Base, EnhancedSoftDeleteMixin):
             #     "include_product_ingredients": include_product_ingredients,
             # })
             
-            def _round(val):
-                return round(val, 2) if isinstance(val, float) and val is not None else val
-            
             # Get basic product data
             data = {
                 "product_id": self.product_id,
                 "name": self.name,
                 "category": self.category,
-                "price_per_unit": _round(self.get_display_price_per_unit()),
-                "base_price_per_unit": _round(self.price_per_unit),
-                "rounding_difference_per_unit": _round(self.get_rounding_difference_per_unit()),
-                "cost_per_unit": _round(self.cost_per_unit),
-                "profit_per_unit": _round(self.profit_per_unit),
+                "price_per_unit": self.get_display_price_per_unit(),
+                "base_price_per_unit": self.price_per_unit,
+                "rounding_difference_per_unit": self.get_rounding_difference_per_unit(),
+                "cost_per_unit": self.cost_per_unit,
+                "profit_per_unit": self.profit_per_unit,
                 "stock_quantity": self.stock_quantity,
                 "toaster_space": self.toaster_space,
                 "is_available": self.is_available,  # Add availability status

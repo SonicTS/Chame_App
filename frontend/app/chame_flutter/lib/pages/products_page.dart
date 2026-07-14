@@ -2,6 +2,7 @@ import 'package:chame_flutter/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:chame_flutter/data/py_bride.dart';
 import 'package:chame_flutter/widgets/simple_deletion_dialog.dart';
+import 'package:chame_flutter/utils/formatters.dart';
 import 'package:provider/provider.dart';
 
 class ProductsPage extends StatefulWidget {
@@ -85,8 +86,8 @@ class _ProductsPageState extends State<ProductsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Category: ${product['category']?.toString() ?? 'N/A'}'),
-                        Text('Price: ${product['price_per_unit']?.toString() ?? 'N/A'}'),
-                        Text('Stock: ${product['stock_quantity']?.toString() ?? 'N/A'}'),
+                        Text('Price: ${formatMoney(product['price_per_unit'], fallback: 'N/A')}'),
+                        Text('Stock: ${formatMoney(product['stock_quantity'], fallback: 'N/A')}'),
                         Text('Deleted: ${product['deleted_at']?.toString().split('T')[0] ?? 'N/A'}'),
                         Text('By: ${product['deleted_by']?.toString() ?? 'Unknown'}'),
                       ],
@@ -229,10 +230,10 @@ class _ProductsPageState extends State<ProductsPage> {
                               return DataRow(cells: [
                                 DataCell(Text(product['name']?.toString() ?? '')),
                                 DataCell(Text(product['category']?.toString() ?? '')),
-                                DataCell(Text(product['price_per_unit']?.toString() ?? '')),
-                                DataCell(Text(product['cost_per_unit']?.toString() ?? '')),
-                                DataCell(Text(product['profit_per_unit']?.toString() ?? '')),
-                                DataCell(Text(product['stock_quantity']?.toString() ?? '')),
+                                DataCell(Text(formatMoney(product['price_per_unit']))),
+                                DataCell(Text(formatMoney(product['cost_per_unit']))),
+                                DataCell(Text(formatMoney(product['profit_per_unit']))),
+                                DataCell(Text(formatMoney(product['stock_quantity']))),
                                 DataCell(Text(product['toaster_space']?.toString() ?? '')),
                                 DataCell(
                                     auth.hasAdminRights
