@@ -15,14 +15,33 @@ class BankPage extends StatefulWidget {
 class _BankPageState extends State<BankPage> {
   late Future<Map<String, dynamic>?> _bankFuture;
   late Future<List<Map<String, dynamic>>> _transactionsFuture;
+  Map<String, dynamic>? _bankData;
   final _withdrawAmountController = TextEditingController();
   final _withdrawDescriptionController = TextEditingController();
   bool _isSubmitting = false;
+
+  List<Map<String, dynamic>> _editableBankFields = [];
+  String? _selectedBankField;
+  final _adjustNewValueController = TextEditingController();
+  final _adjustCommentController = TextEditingController();
+  bool _isAdjusting = false;
 
   @override
   void initState() {
     super.initState();
     _reload();
+    _loadEditableBankFields();
+  }
+
+  Future<void> _loadEditableBankFields() async {
+    final fields = await PyBridge().getEditableBankFields();
+    if (!mounted) return;
+    setState(() {
+      _editableBankFields = fields;
+      if (_editableBankFields.isNotEmpty) {
+        _selectedBankField = _editableBankFields.first['field'] as String?;
+      }
+    });
   }
 
   void _reload() {
@@ -30,6 +49,9 @@ class _BankPageState extends State<BankPage> {
     setState(() {
       _bankFuture = PyBridge().getBank();
       _transactionsFuture = PyBridge().getBankTransaction().then(auth.filterVisibleRecords);
+    });
+    _bankFuture.then((data) {
+      if (mounted) setState(() => _bankData = data);
     });
   }
 
@@ -71,10 +93,52 @@ class _BankPageState extends State<BankPage> {
     );
   }
 
+  Future<void> _submitBankFieldAdjustment() async {
+    final auth = Provider.of<AuthService>(context, listen: false);
+    final salesmanId = auth.currentUserId;
+    if (salesmanId == null) {
+      _showDialog('Error', 'Unable to identify current user');
+      return;
+    }
+    final field = _selectedBankField;
+    if (field == null) {
+      _showDialog('Error', 'Select a field to edit');
+      return;
+    }
+    final newValue = double.tryParse(_adjustNewValueController.text);
+    if (newValue == null) {
+      _showDialog('Error', 'Enter a valid number');
+      return;
+    }
+    final comment = _adjustCommentController.text.trim();
+    if (comment.isEmpty) {
+      _showDialog('Error', 'Please enter a comment explaining this adjustment');
+      return;
+    }
+    setState(() => _isAdjusting = true);
+    final error = await PyBridge().adjustBankField(
+      field: field,
+      newValue: newValue,
+      comment: comment,
+      salesmanId: salesmanId,
+    );
+    setState(() => _isAdjusting = false);
+    if (error != null) {
+      _showDialog('Error', error);
+    } else {
+      _showDialog('Success', 'Bank field updated!');
+      _adjustNewValueController.clear();
+      _adjustCommentController.clear();
+      _reload();
+    }
+  }
+
   @override
   void dispose() {
     _withdrawAmountController.dispose();
     _withdrawDescriptionController.dispose();
+    _adjustNewValueController.dispose();
+    _adjustCommentController.dispose();
     super.dispose();
   }
 
@@ -256,6 +320,7 @@ class _BankPageState extends State<BankPage> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthService>(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Bank Entry')),
       body: SafeArea(
@@ -346,6 +411,67 @@ class _BankPageState extends State<BankPage> {
                       ),
                     ),
                     const SizedBox(height: 32),
+                    if (auth.hasAdminRights) ...[
+                      const Text('Adjust Bank Field', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                      const Text(
+                        'Directly correct a source-of-truth value (e.g. after a bookkeeping mistake). '
+                        'Derived figures (profit, business balance, break-even) are recalculated automatically.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 8),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 180,
+                              child: DropdownButtonFormField<String>(
+                                value: _selectedBankField,
+                                decoration: const InputDecoration(labelText: 'Field'),
+                                items: _editableBankFields
+                                    .map((f) => DropdownMenuItem<String>(
+                                          value: f['field'] as String,
+                                          child: Text(f['label']?.toString() ?? f['field'].toString()),
+                                        ))
+                                    .toList(),
+                                onChanged: (val) {
+                                  setState(() {
+                                    _selectedBankField = val;
+                                    final current = val != null ? (_bankData?[val]) : null;
+                                    _adjustNewValueController.text = current != null ? formatMoney(current) : '';
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            SizedBox(
+                              width: 140,
+                              child: TextField(
+                                controller: _adjustNewValueController,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                                decoration: const InputDecoration(labelText: 'New Value'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            SizedBox(
+                              width: 220,
+                              child: TextField(
+                                controller: _adjustCommentController,
+                                decoration: const InputDecoration(labelText: 'Comment (required)'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton(
+                              onPressed: _isAdjusting ? null : _submitBankFieldAdjustment,
+                              child: _isAdjusting
+                                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : const Text('Save'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
                     const Text('Bank Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                     SizedBox(
                       height: 300,

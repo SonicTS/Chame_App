@@ -23,6 +23,23 @@ DEBUG = False
 BANK_NOT_FOUND_MSG = "Bank account not found"
 USER_NOT_FOUND_MSG = "User not found"
 
+# Bank fields that are directly maintained ("source of truth") and therefore
+# safe to edit manually. Fields like profit_total, revenue_funds,
+# costs_reserved and profit_retained are always recomputed from these by
+# _sync_bank_financials() and must never be edited directly - any manual
+# value would just be silently overwritten on the next transaction.
+# product_value / ingredient_value are also excluded: they are derived from
+# current ingredient/product stock levels, not independent source-of-truth
+# values, so editing them here would just be overwritten by the next stock
+# change.
+BANK_EDITABLE_FIELD_LABELS = {
+    "total_balance": "Total Balance",
+    "customer_funds": "Customer Funds",
+    "revenue_total": "Total Revenue",
+    "costs_total": "Total Costs",
+}
+BANK_EDITABLE_FIELDS = set(BANK_EDITABLE_FIELD_LABELS.keys())
+
 
 def _build_rounding_comment(product: Product, quantity: int, base_total: float, checkout_total: float) -> str:
     return (
@@ -731,7 +748,54 @@ class Database:
                 if close_session:
                     session.close()
             raise RuntimeError(f"withdraw_cash_from_bank failed for amount={amount}: {e}") from e
-   
+
+    def adjust_bank_field(self, field: str, new_value: float, comment: str, salesman_id: int, session=None) -> float:
+        """Directly set a source-of-truth bank field (admin-only, enforced by caller).
+
+        Mirrors update_stock(): the caller supplies the new absolute value, the
+        difference from the current value is computed and recorded as a
+        BankTransaction with a comment, and all derived bank fields
+        (profit_total, revenue_funds/business_balance, costs_reserved,
+        profit_retained) are recomputed afterwards. Only fields in
+        BANK_EDITABLE_FIELDS may be adjusted - everything else is derived and
+        would just be overwritten again.
+        """
+        close_session = False
+        try:
+            if session is None:
+                session = self.get_session()
+                close_session = True
+            if field not in BANK_EDITABLE_FIELDS:
+                raise ValueError(
+                    f"Field '{field}' cannot be edited directly. Allowed fields: {sorted(BANK_EDITABLE_FIELDS)}"
+                )
+            new_value = float(new_value)
+            bank = self.get_bank(session)
+            current_value = float(getattr(bank, field) or 0.0)
+            diff = new_value - current_value
+            setattr(bank, field, new_value)
+            _sync_bank_financials(bank)
+            label = BANK_EDITABLE_FIELD_LABELS.get(field, field)
+            description = (
+                f"Manual bank adjustment: {label} set to {new_value:.2f}EUR "
+                f"(was {current_value:.2f}EUR, diff {diff:+.2f}EUR)"
+            )
+            if comment:
+                description += f" | Comment: {comment}"
+            transaction = BankTransaction(amount=diff, type="adjustment", description=description, salesman_id=salesman_id)
+            session.add(transaction)
+            if close_session:
+                session.commit()
+                session.refresh(bank)
+                session.close()
+            return new_value
+        except Exception as e:
+            if session:
+                session.rollback()
+                if close_session:
+                    session.close()
+            raise RuntimeError(f"adjust_bank_field failed for field={field}, new_value={new_value}: {e}") from e
+
     def add_toast_round(self, product_user_list: List[tuple[int, int, int]], salesman_id: int, session=None):
         close_session = False
         name_list = ["404"]

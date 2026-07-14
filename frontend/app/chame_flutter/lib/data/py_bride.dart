@@ -295,6 +295,39 @@ class PyBridge {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getEditableBankFields() async {
+    try {
+      final result = await _chan.invokeMethod('get_editable_bank_fields');
+      if (result == null || result == 'null') {
+        return <Map<String, dynamic>>[];
+      }
+      final List<dynamic> decoded = jsonDecode(result as String);
+      return decoded.cast<Map<String, dynamic>>();
+    } catch (e, stack) {
+      print('Error in getEditableBankFields: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  Future<String?> adjustBankField({
+    required String field,
+    required double newValue,
+    required String comment,
+    required int salesmanId,
+  }) async {
+    try {
+      await _chan.invokeMethod('adjust_bank_field', {
+        'field': field,
+        'new_value': newValue,
+        'comment': comment,
+        'salesman_id': salesmanId,
+      });
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getAllUsers() async {
     try {
       final result = await _chan.invokeMethod('get_all_users');

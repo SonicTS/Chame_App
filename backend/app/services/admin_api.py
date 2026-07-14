@@ -304,6 +304,25 @@ def bank_withdraw(amount, description, salesman_id):
         raise ValueError("Invalid input")
     return database.withdraw_cash_from_bank(amount=amount, description=description, salesman_id=salesman_id)
 
+def get_editable_bank_fields():
+    """Return the bank fields that are safe to edit directly (source-of-truth,
+    not derived), each with a human readable label for the UI."""
+    from chame_app.database_instance import BANK_EDITABLE_FIELD_LABELS
+    return [{"field": field, "label": label} for field, label in BANK_EDITABLE_FIELD_LABELS.items()]
+
+def adjust_bank_field(field, new_value, comment, salesman_id):
+    """Directly set a source-of-truth bank field to a new value (admin-only).
+
+    Creates a 'adjustment' BankTransaction recording the change (like
+    update_stock does for ingredient stock) and recomputes all derived bank
+    fields afterwards.
+    """
+    if (_current_viewer_role or "").lower() != "admin":
+        raise PermissionError("Only admins can directly adjust bank fields")
+    if not field or new_value is None or salesman_id is None:
+        raise ValueError("Invalid input")
+    return database.adjust_bank_field(field=field, new_value=float(new_value), comment=comment or "", salesman_id=salesman_id)
+
 # Data fetchers
 def get_all_users():
     return _filter_visible_records([user.to_dict(True) for user in database.get_all_users()])

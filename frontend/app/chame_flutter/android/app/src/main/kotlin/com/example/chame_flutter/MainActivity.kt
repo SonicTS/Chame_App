@@ -305,6 +305,43 @@ class MainActivity : FlutterActivity() {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
                     }
                 }
+                "get_editable_bank_fields" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val pyResult = pyModule.callAttr("get_editable_bank_fields")
+                        if (pyResult == null) {
+                            result.success("null")
+                        } else {
+                            val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                            result.success(jsonString)
+                        }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "adjust_bank_field" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val field = call.argument<String>("field")
+                        val newValue = call.argument<Number>("new_value")
+                        val comment = call.argument<String>("comment")
+                        val salesmanId = call.argument<Number>("salesman_id")
+                        if (field == null || newValue == null || salesmanId == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for adjust_bank_field", null)
+                            return@setMethodCallHandler
+                        }
+                        pyModule.callAttr("adjust_bank_field", field, newValue.toDouble(), comment ?: "", salesmanId.toInt())
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
                 "get_all_users" -> {
                     val pyModule = py.getModule("services.admin_api")
                         ?: return@setMethodCallHandler result.error(
