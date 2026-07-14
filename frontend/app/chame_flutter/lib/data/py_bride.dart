@@ -718,6 +718,28 @@ class PyBridge {
     }
   }
 
+  /// Save a file directly to a user-chosen location (e.g. Downloads) using
+  /// Android's Storage Access Framework file picker. Unlike [shareFile], this
+  /// guarantees the result is a normal, visible file at a location the user
+  /// explicitly picked, rather than depending on how a given share-target app
+  /// (e.g. Files, Drive) chooses to handle a generic share intent.
+  /// Returns the destination content URI as a string, or null if cancelled.
+  Future<String?> saveFileToDevice({
+    required String filePath,
+    String? suggestedName,
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('save_file_to_device', {
+        'file_path': filePath,
+        'suggested_name': suggestedName,
+      });
+      return result as String?;
+    } catch (e, stack) {
+      print('Error in saveFileToDevice: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
   /// Download backup from server via HTTP/SFTP
   Future<Map<String, dynamic>> downloadBackupFromServer({
     required Map<String, String> serverConfig,

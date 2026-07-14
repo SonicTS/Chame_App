@@ -1189,6 +1189,44 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
     }
   }
 
+  /// Save the backup directly to a user-chosen location (e.g. Downloads)
+  /// using Android's native file picker, so it ends up as a normal, visible
+  /// file rather than depending on how a share-target app handles it.
+  Future<void> _saveToDevice(Map<String, dynamic> backup) async {
+    try {
+      setState(() => _loading = true);
+
+      final destination = await _pyBridge.saveFileToDevice(
+        filePath: backup['path'],
+        suggestedName: backup['filename'],
+      );
+
+      if (destination == null) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Backup saved to device!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      final message = e.toString();
+      final cancelled = message.contains('SAVE_FILE_CANCELLED');
+      if (!cancelled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Save failed: $message'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
   String _formatServerDate(String dateStr) {
     try {
       final date = DateTime.parse(dateStr);
@@ -1438,6 +1476,9 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
                                     case 'export_share':
                                       _exportViaShare(backup);
                                       break;
+                                    case 'save_to_device':
+                                      _saveToDevice(backup);
+                                      break;
                                     case 'delete':
                                       _deleteBackup(backup);
                                       break;
@@ -1462,6 +1503,16 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
                                         Icon(Icons.cloud_upload, color: Colors.green),
                                         SizedBox(width: 8),
                                         Text('Export to Server'),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'save_to_device',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.save_alt, color: Colors.teal),
+                                        SizedBox(width: 8),
+                                        Text('Save to Device'),
                                       ],
                                     ),
                                   ),

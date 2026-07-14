@@ -13,8 +13,6 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.core.content.FileProvider
 import java.io.File
 import java.io.RandomAccessFile
-import java.text.SimpleDateFormat
-import java.util.Date
 
 class MainActivity : FlutterActivity() {
 
@@ -24,6 +22,11 @@ class MainActivity : FlutterActivity() {
     // File picker constants and state
     private val FILE_PICK_REQUEST_CODE = 12345
     private var pendingFilePickResult: MethodChannel.Result? = null
+
+    // "Save to device" (Storage Access Framework) constants and state
+    private val SAVE_FILE_REQUEST_CODE = 12346
+    private var pendingSaveFileResult: MethodChannel.Result? = null
+    private var pendingSaveFileSourcePath: String? = null
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -1509,6 +1512,40 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 
+                "save_file_to_device" -> {
+                    // Uses the Storage Access Framework so the user picks a real,
+                    // visible destination (e.g. Downloads) via the system file
+                    // picker. This is more reliable than relying on a share-target
+                    // app's own "save" behaviour, which some Files/Drive apps
+                    // handle inconsistently for generic ACTION_SEND intents.
+                    try {
+                        val filePath = call.argument<String>("file_path")
+                        val suggestedName = call.argument<String>("suggested_name")
+                        
+                        if (filePath == null) {
+                            result.error("ARGUMENT_ERROR", "Missing file_path argument for save_file_to_device", null)
+                            return@setMethodCallHandler
+                        }
+                        val sourceFile = File(filePath)
+                        if (!sourceFile.exists()) {
+                            result.error("FILE_NOT_FOUND", "File not found: $filePath", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = guessMimeType(sourceFile.name)
+                            putExtra(Intent.EXTRA_TITLE, suggestedName ?: sourceFile.name)
+                        }
+                        
+                        pendingSaveFileResult = result
+                        pendingSaveFileSourcePath = filePath
+                        startActivityForResult(intent, SAVE_FILE_REQUEST_CODE)
+                    } catch (e: Exception) {
+                        result.error("SAVE_FILE_ERROR", "Failed to open save picker: ${e.localizedMessage}", null)
+                    }
+                }
+                
                 "make_multiple_purchases" -> {
                     val pyModule = py.getModule("services.admin_api")
                         ?: return@setMethodCallHandler result.error(
@@ -1685,7 +1722,7 @@ class MainActivity : FlutterActivity() {
             sourceFile.copyTo(shareFile, overwrite = true)
             
             val intent = Intent(Intent.ACTION_SEND)
-            intent.type = "application/octet-stream"
+            intent.type = guessMimeType(shareFile.name)
             
             // Use FileProvider for the copied file
             val uri: Uri = FileProvider.getUriForFile(
@@ -1696,8 +1733,12 @@ class MainActivity : FlutterActivity() {
             
             intent.putExtra(Intent.EXTRA_STREAM, uri)
             intent.putExtra(Intent.EXTRA_SUBJECT, title)
-            intent.putExtra(Intent.EXTRA_TEXT, "Chame database backup file exported on ${SimpleDateFormat("yyyy-MM-dd HH:mm").format(Date())}")
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            // Deliberately not setting EXTRA_TEXT here: some share targets (e.g. the
+            // system Files app's "Save to device" action) get confused when both a
+            // text body and a file stream are present, and stop offering a plain
+            // "save this file" option. Keeping the intent as a pure file share makes
+            // it behave consistently across receivers.
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
             
             startActivity(Intent.createChooser(intent, title))
             
@@ -1707,6 +1748,23 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             println("Failed to share file: ${e.message}")
             throw e
+        }
+    }
+    
+    /**
+     * Guess a MIME type from a file name/extension. Falls back to
+     * application/octet-stream for unknown extensions (e.g. .db), which is
+     * the correct generic binary type rather than leaving it null.
+     */
+    private fun guessMimeType(fileName: String): String {
+        val extension = fileName.substringAfterLast('.', "").lowercase()
+        return when (extension) {
+            "db", "sqlite", "sqlite3" -> "application/octet-stream"
+            "json" -> "application/json"
+            "zip" -> "application/zip"
+            "txt" -> "text/plain"
+            else -> android.webkit.MimeTypeMap.getSingleton()
+                .getMimeTypeFromExtension(extension) ?: "application/octet-stream"
         }
     }
     
@@ -1898,6 +1956,34 @@ class MainActivity : FlutterActivity() {
                 }
             } else {
                 result.error("FILE_PICKER_CANCELLED", "File selection was cancelled", null)
+            }
+        }
+
+        if (requestCode == SAVE_FILE_REQUEST_CODE) {
+            val result = pendingSaveFileResult
+            val sourcePath = pendingSaveFileSourcePath
+            pendingSaveFileResult = null
+            pendingSaveFileSourcePath = null
+
+            if (result == null) {
+                return
+            }
+
+            if (resultCode == RESULT_OK && data?.data != null && sourcePath != null) {
+                try {
+                    val destinationUri = data.data!!
+                    val sourceFile = File(sourcePath)
+                    contentResolver.openOutputStream(destinationUri)?.use { output ->
+                        sourceFile.inputStream().use { input ->
+                            input.copyTo(output)
+                        }
+                    } ?: throw Exception("Could not open destination for writing")
+                    result.success(destinationUri.toString())
+                } catch (e: Exception) {
+                    result.error("SAVE_FILE_ERROR", "Error saving file: ${e.localizedMessage}", null)
+                }
+            } else {
+                result.error("SAVE_FILE_CANCELLED", "Save was cancelled", null)
             }
         }
     }
