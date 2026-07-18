@@ -180,11 +180,37 @@ def deposit(user_id, amount, salesman_id):
     return database.deposit_cash(user_id=user_id, amount=amount, salesman_id=salesman_id)
 
 # Product management
+def _pair_ingredients_with_quantities(ingredient_ids, quantities):
+    """Pair each requested ingredient_id with its quantity by explicit ID
+    lookup, not by list position.
+
+    database.get_ingredients_by_ids() runs a SQL `IN (...)` query, which does
+    NOT guarantee the returned rows are ordered the same way as the requested
+    ingredient_ids list (e.g. SQLite/SQLAlchemy typically returns them in
+    primary-key order instead). Naively zip()-ing that result with the
+    quantities list (which is in the order the user picked ingredients in the
+    UI) silently mispairs ingredients with the wrong quantities whenever the
+    selection order differs from ascending ingredient_id order - which is
+    common for multi-ingredient (toast) products but never happens for
+    single-ingredient (raw) products. This helper avoids that entirely by
+    matching on ingredient_id explicitly.
+    """
+    if len(ingredient_ids) != len(quantities):
+        raise ValueError("ingredient_ids and quantities must have the same length")
+    ingredients_by_id = {ing.ingredient_id: ing for ing in database.get_ingredients_by_ids(ingredient_ids)}
+    pairs = []
+    for ingredient_id, quantity in zip(ingredient_ids, quantities):
+        ingredient = ingredients_by_id.get(ingredient_id)
+        if ingredient is None:
+            raise ValueError(f"Ingredient not found (ingredient_id={ingredient_id})")
+        pairs.append((ingredient, quantity))
+    return pairs
+
+
 def add_product(name, category, price, ingredients_ids, quantities, toaster_space):
     if not name or not category or not price or not ingredients_ids or not quantities:
         raise ValueError("Invalid input")
-    ingredients = database.get_ingredients_by_ids(ingredients_ids)
-    ingredient_quantity_pairs = list(zip(ingredients, quantities))
+    ingredient_quantity_pairs = _pair_ingredients_with_quantities(ingredients_ids, quantities)
     return database.add_product(name=name, ingredients=ingredient_quantity_pairs, price_per_unit=price, category=category, toaster_space=toaster_space)
 
 
@@ -196,10 +222,9 @@ def preview_product_cost(ingredient_ids, quantities):
     """
     if not ingredient_ids or not quantities or len(ingredient_ids) != len(quantities):
         raise ValueError("Invalid input for preview_product_cost")
-    ingredients = database.get_ingredients_by_ids(ingredient_ids)
     total = 0.0
     per = []
-    for ing, qty in zip(ingredients, quantities):
+    for ing, qty in _pair_ingredients_with_quantities(ingredient_ids, quantities):
         # Use DB stored price_per_unit (full precision) for authoritative calculation
         price_per_unit = float(getattr(ing, 'price_per_unit', 0.0))
         qtyf = float(qty)
