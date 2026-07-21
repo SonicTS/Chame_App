@@ -1,0 +1,106 @@
+// Widget tests for ChangePasswordSheet, covering the "add a user selector,
+// default it to the current user" feature.
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:chame_flutter/main.dart';
+import 'package:chame_flutter/services/auth_service.dart';
+import 'package:chame_flutter/widgets/shared/user_dropdown_selector.dart';
+
+import 'helpers/fake_py_bridge_channel.dart';
+import 'helpers/fake_secure_storage.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late FakePyBridgeChannel bridge;
+  late AuthService auth;
+
+  setUp(() async {
+    bridge = FakePyBridgeChannel()..install();
+    installFakeSecureStorage();
+
+    bridge.onReturn('login', {'user_id': 1, 'role': 'admin'});
+    auth = AuthService();
+    while (!auth.initialized) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    await auth.login('admin', 'secret');
+  });
+
+  tearDown(() {
+    bridge.uninstall();
+  });
+
+  Widget buildSheet() {
+    return ChangeNotifierProvider<AuthService>.value(
+      value: auth,
+      child: const MaterialApp(
+        home: Scaffold(body: ChangePasswordSheet()),
+      ),
+    );
+  }
+
+  testWidgets('defaults the user selector to the currently logged-in user', (tester) async {
+    bridge.onReturn('get_all_users', [
+      {'user_id': 1, 'name': 'admin', 'role': 'admin'},
+      {'user_id': 2, 'name': 'wirt_bob', 'role': 'wirt'},
+    ]);
+
+    await tester.pumpWidget(buildSheet());
+    await tester.pumpAndSettle();
+
+    final selector = tester.widget<UserDropdownSelector>(find.byType(UserDropdownSelector));
+    expect(selector.selectedUserId, 1);
+  });
+
+  testWidgets('changing password targets whichever user is selected', (tester) async {
+    bridge
+      ..onReturn('get_all_users', [
+        {'user_id': 1, 'name': 'admin', 'role': 'admin'},
+        {'user_id': 2, 'name': 'wirt_bob', 'role': 'wirt'},
+      ])
+      ..onReturn('change_password', null);
+
+    await tester.pumpWidget(buildSheet());
+    await tester.pumpAndSettle();
+
+    // Select the other user directly through the widget's callback: driving
+    // the third-party dropdown's popup route isn't worth the brittleness
+    // here, the wiring from selection -> _selectedUserId is what matters.
+    final selector = tester.widget<UserDropdownSelector>(find.byType(UserDropdownSelector));
+    selector.onChanged({'user_id': 2, 'name': 'wirt_bob', 'role': 'wirt'});
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Current Password'), 'old-pass');
+    await tester.enterText(find.widgetWithText(TextField, 'New Password'), 'new-pass');
+    await tester.enterText(find.widgetWithText(TextField, 'Confirm New Password'), 'new-pass');
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Change'));
+    await tester.pumpAndSettle();
+
+    final call = bridge.calls.firstWhere((c) => c.method == 'change_password');
+    expect(call.arguments['user_id'], 2);
+    expect(call.arguments['old_password'], 'old-pass');
+    expect(call.arguments['new_password'], 'new-pass');
+  });
+
+  testWidgets('shows an error and does not submit when passwords do not match', (tester) async {
+    bridge.onReturn('get_all_users', [
+      {'user_id': 1, 'name': 'admin', 'role': 'admin'},
+    ]);
+
+    await tester.pumpWidget(buildSheet());
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Current Password'), 'old-pass');
+    await tester.enterText(find.widgetWithText(TextField, 'New Password'), 'new-pass');
+    await tester.enterText(find.widgetWithText(TextField, 'Confirm New Password'), 'something-else');
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Change'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Passwords do not match'), findsOneWidget);
+    expect(bridge.calls.any((c) => c.method == 'change_password'), isFalse);
+  });
+}

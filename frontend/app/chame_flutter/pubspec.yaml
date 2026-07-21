@@ -43,10 +43,16 @@ dependencies:
   firebase_core: ^3.13.1
   firebase_crashlytics: ^4.3.6
   fl_chart: ^1.0.0
+  image_picker: ^1.1.2
+  image_cropper: ^8.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+  # Lets tests install an in-memory FlutterSecureStoragePlatform instead of
+  # hitting a real platform channel (used by AuthService-related tests).
+  flutter_secure_storage_platform_interface: ^1.1.2
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

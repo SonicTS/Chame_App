@@ -133,13 +133,18 @@ class AuthService extends ChangeNotifier {
     
   }
 
-  Future<bool> changePassword(String oldPassword, String newPassword) async {
-    if (_token == null) {
+  /// Changes the password of [targetUserId] (defaults to the currently
+  /// logged-in user). The backend still requires [oldPassword] to match
+  /// whatever account [targetUserId] refers to, so this doesn't grant any
+  /// extra access beyond what changing your own password already did.
+  Future<bool> changePassword(String oldPassword, String newPassword, {int? targetUserId}) async {
+    final userId = targetUserId ?? currentUserId;
+    if (userId == null) {
       print('Cannot change password: user is not logged in');
       return false; // User is not logged in
     }
     try {
-      await PyBridge().changePassword(user_id: _token!, oldPassword: oldPassword, newPassword: newPassword);
+      await PyBridge().changePassword(user_id: userId.toString(), oldPassword: oldPassword, newPassword: newPassword);
       return true;
     } catch (e) {
       print('Exception while changing password: $e');

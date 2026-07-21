@@ -493,6 +493,95 @@ class PyBridge {
     }
   }
 
+  Future<Map<String, dynamic>> getDefaultReceiptParsingSettings() async {
+    try {
+      final result =
+          await _chan.invokeMethod('get_default_receipt_parsing_settings');
+      if (result == null || result == 'null') {
+        return <String, dynamic>{};
+      }
+      return jsonDecode(result as String) as Map<String, dynamic>;
+    } catch (e, stack) {
+      print('Error in getDefaultReceiptParsingSettings: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  /// Finds clusters of aggregated receipt items whose product_number
+  /// doesn't match exactly but is suspected to be the same product (via
+  /// price-per-package + digit-misread heuristics). See
+  /// services/receipt_parser.find_fuzzy_merge_candidates.
+  Future<List<Map<String, dynamic>>> findReceiptMergeCandidates({
+    required List<Map<String, dynamic>> items,
+    required int minMatchingDigits,
+    required List<List<String>> confusableDigitPairs,
+    int? expectedIdLength,
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('find_receipt_merge_candidates', {
+        'items': jsonEncode(items),
+        'min_matching_digits': minMatchingDigits,
+        'confusable_digit_pairs': jsonEncode(confusableDigitPairs),
+        'expected_id_length': expectedIdLength,
+      });
+      if (result == null || result == 'null') {
+        return <Map<String, dynamic>>[];
+      }
+      final List<dynamic> decoded = jsonDecode(result as String);
+      return decoded.cast<Map<String, dynamic>>();
+    } catch (e, stack) {
+      print('Error in findReceiptMergeCandidates: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  /// Merges a user-confirmed set of aggregated receipt items (see
+  /// findReceiptMergeCandidates) into a single entry.
+  Future<Map<String, dynamic>> mergeReceiptItems(
+    List<Map<String, dynamic>> items,
+  ) async {
+    try {
+      final result = await _chan.invokeMethod('merge_receipt_items', {
+        'items': jsonEncode(items),
+      });
+      if (result == null || result == 'null') {
+        throw Exception('Failed to merge receipt items: No response from backend');
+      }
+      return jsonDecode(result as String) as Map<String, dynamic>;
+    } catch (e, stack) {
+      print('Error in mergeReceiptItems: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
+  /// Suggests, for each item (by index), the app Ingredient (ingredient_id)
+  /// whose name best fuzzy-matches the item's description, to prefill the
+  /// manual ingredient-matching step. See
+  /// services/receipt_parser.suggest_ingredient_matches.
+  Future<Map<String, int?>> suggestReceiptIngredientMatches({
+    required List<Map<String, dynamic>> items,
+    required List<Map<String, dynamic>> ingredients,
+    double? minWordMatchRatio,
+  }) async {
+    try {
+      final result = await _chan.invokeMethod('suggest_receipt_ingredient_matches', {
+        'items': jsonEncode(items),
+        'ingredients': jsonEncode(ingredients),
+        'min_word_match_ratio': minWordMatchRatio,
+      });
+      if (result == null || result == 'null') {
+        return <String, int?>{};
+      }
+      final Map<String, dynamic> decoded = jsonDecode(result as String) as Map<String, dynamic>;
+      final Map<String, dynamic> suggestions =
+          decoded['suggestions'] as Map<String, dynamic>? ?? {};
+      return suggestions.map((key, value) => MapEntry(key, value as int?));
+    } catch (e, stack) {
+      print('Error in suggestReceiptIngredientMatches: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
   Future<String?> updateStock({
     required int ingredientId,
     required int amount,

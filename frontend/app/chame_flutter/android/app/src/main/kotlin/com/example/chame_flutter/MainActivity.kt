@@ -1,5 +1,6 @@
 package com.chame.kasse
 
+import com.chame.kasse.ocr.AndroidOcr
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -18,6 +19,8 @@ class MainActivity : FlutterActivity() {
 
     private val CHANNEL = "samples.flutter.dev/chame/python"
     private var flutterMethodChannel: MethodChannel? = null
+
+    private lateinit var androidOcr: AndroidOcr
     
     // File picker constants and state
     private val FILE_PICK_REQUEST_CODE = 12345
@@ -30,7 +33,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-
+        androidOcr = AndroidOcr(applicationContext)
         // Start Python once per process
         if (!Python.isStarted()) {
             Python.start(AndroidPlatform(this))
@@ -80,6 +83,31 @@ class MainActivity : FlutterActivity() {
                     }
 
                     
+                }
+                "recognize_image" -> {
+                    val imagePath = call.argument<String>("image_path")
+                    if (imagePath.isNullOrBlank()) {
+                        result.error(
+                            "ARGUMENT_ERROR",
+                            "Missing image_path argument",
+                            null
+                        )
+                        return@setMethodCallHandler
+                    }
+
+                    androidOcr.recognizeFile(
+                        imagePath = imagePath,
+                        onSuccess = { jsonResult ->
+                            result.success(jsonResult)
+                        },
+                        onError = { error ->
+                            result.error(
+                                "OCR_ERROR",
+                                error.localizedMessage ?: "OCR failed",
+                                error.stackTraceToString()
+                            )
+                        }
+                    )
                 }
                 "get_all_ingredients" -> {
                     val pyModule = py.getModule("services.admin_api")
@@ -519,6 +547,151 @@ class MainActivity : FlutterActivity() {
                             val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
                             result.success(jsonString)
                         }
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "parse_receipt_lines" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val linesJson = call.argument<String>("lines")
+                        if (linesJson == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for parse_receipt_lines", null)
+                            return@setMethodCallHandler
+                        }
+                        val pfandProductNumber = call.argument<String>("pfand_product_number")
+                        val validLettersJson = call.argument<String>("valid_letters")
+                        val letterCorrectionsJson = call.argument<String>("letter_corrections")
+                        val decimalSeparatorCharsJson = call.argument<String>("decimal_separator_chars")
+                        val json = py.getModule("json")
+                        val linesList = json.callAttr("loads", linesJson)
+                        val validLettersList = validLettersJson?.let { json.callAttr("loads", it) }
+                        val letterCorrectionsMap = letterCorrectionsJson?.let { json.callAttr("loads", it) }
+                        val decimalSeparatorCharsList = decimalSeparatorCharsJson?.let { json.callAttr("loads", it) }
+                        val pyResult = pyModule.callAttr(
+                            "parse_receipt_lines",
+                            linesList,
+                            pfandProductNumber,
+                            validLettersList,
+                            letterCorrectionsMap,
+                            decimalSeparatorCharsList
+                        )
+                        val jsonString = json.callAttr("dumps", pyResult).toString()
+                        result.success(jsonString)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "get_default_receipt_parsing_settings" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val pyResult = pyModule.callAttr("get_default_receipt_parsing_settings")
+                        val jsonString = py.getModule("json").callAttr("dumps", pyResult).toString()
+                        result.success(jsonString)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "aggregate_receipt_items" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val itemsJson = call.argument<String>("items")
+                        if (itemsJson == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for aggregate_receipt_items", null)
+                            return@setMethodCallHandler
+                        }
+                        val json = py.getModule("json")
+                        val itemsList = json.callAttr("loads", itemsJson)
+                        val pyResult = pyModule.callAttr("aggregate_receipt_items", itemsList)
+                        val jsonString = json.callAttr("dumps", pyResult).toString()
+                        result.success(jsonString)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "find_receipt_merge_candidates" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val itemsJson = call.argument<String>("items")
+                        if (itemsJson == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for find_receipt_merge_candidates", null)
+                            return@setMethodCallHandler
+                        }
+                        val minMatchingDigits = call.argument<Number>("min_matching_digits")
+                        val confusableDigitPairsJson = call.argument<String>("confusable_digit_pairs")
+                        val expectedIdLength = call.argument<Number>("expected_id_length")
+                        val json = py.getModule("json")
+                        val itemsList = json.callAttr("loads", itemsJson)
+                        val confusableDigitPairsList = confusableDigitPairsJson?.let { json.callAttr("loads", it) }
+                        val pyResult = pyModule.callAttr(
+                            "find_receipt_merge_candidates",
+                            itemsList,
+                            minMatchingDigits?.toInt(),
+                            confusableDigitPairsList,
+                            expectedIdLength?.toInt()
+                        )
+                        val jsonString = json.callAttr("dumps", pyResult).toString()
+                        result.success(jsonString)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "merge_receipt_items" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val itemsJson = call.argument<String>("items")
+                        if (itemsJson == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for merge_receipt_items", null)
+                            return@setMethodCallHandler
+                        }
+                        val json = py.getModule("json")
+                        val itemsList = json.callAttr("loads", itemsJson)
+                        val pyResult = pyModule.callAttr("merge_receipt_items", itemsList)
+                        val jsonString = json.callAttr("dumps", pyResult).toString()
+                        result.success(jsonString)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "suggest_receipt_ingredient_matches" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val itemsJson = call.argument<String>("items")
+                        val ingredientsJson = call.argument<String>("ingredients")
+                        if (itemsJson == null || ingredientsJson == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for suggest_receipt_ingredient_matches", null)
+                            return@setMethodCallHandler
+                        }
+                        val minWordMatchRatio = call.argument<Double>("min_word_match_ratio")
+                        val json = py.getModule("json")
+                        val itemsList = json.callAttr("loads", itemsJson)
+                        val ingredientsList = json.callAttr("loads", ingredientsJson)
+                        val pyResult = pyModule.callAttr(
+                            "suggest_receipt_ingredient_matches",
+                            itemsList,
+                            ingredientsList,
+                            minWordMatchRatio
+                        )
+                        val jsonString = json.callAttr("dumps", pyResult).toString()
+                        result.success(jsonString)
                     } catch (e: Exception) {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
                     }
@@ -1573,6 +1746,15 @@ class MainActivity : FlutterActivity() {
             }
             
         }
+    }
+
+    override fun onDestroy() {
+        if (::androidOcr.isInitialized) {
+            androidOcr.close()
+        }
+
+        flutterMethodChannel = null
+        super.onDestroy()
     }
 
     private fun getAndroidStorageDiagnostics(): HashMap<String, Any?> {

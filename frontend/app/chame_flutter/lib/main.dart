@@ -3,20 +3,25 @@ import 'package:chame_flutter/pages/add_product_page.dart';
 import 'package:chame_flutter/pages/add_user_page.dart';
 import 'package:chame_flutter/pages/backup_management_page.dart';
 import 'package:chame_flutter/services/auth_service.dart';
+import 'package:chame_flutter/services/auto_backup_service.dart';
+import 'package:chame_flutter/widgets/shared/user_dropdown_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'pages/ingredients_page.dart';
+import 'pages/login/login_page.dart';
 import 'pages/products_page.dart';
-import 'pages/purchase_page.dart';
+import 'pages/purchase/purchase_page.dart';
 import 'pages/toast_round_page.dart';
 import 'pages/users_page.dart';
 import 'pages/bank_page.dart';
 import 'data/py_bride.dart';
 import 'pages/restock_ingredients_page.dart';
 import 'pages/return_pfand.dart';
+import 'pages/receipt_scan/receipt_scan_page.dart';
+import 'pages/receipt_parsing_settings_page.dart';
 
 // Global method channel for reverse bridge calls
 const MethodChannel _reverseBridgeChannel = MethodChannel('samples.flutter.dev/chame/python');
@@ -392,7 +397,7 @@ class AuthGate extends StatelessWidget {
     }
 
     // once initialized, choose Login or Home
-    return auth.isLoggedIn ? HomePage() : LoginScreen();
+    return auth.isLoggedIn ? HomePage() : const LoginScreen();
   }
 }
 
@@ -418,6 +423,8 @@ class ChameApp extends StatelessWidget {
             '/add_product': (_) => AddProductPage(),
             '/add_user': (_) => AddUserPage(),
             '/restock_ingredients': (_) => RestockIngredientsPage(),
+            '/receipt_scan': (_) => const ReceiptScanPage(),
+            '/receipt_parsing_settings': (_) => const ReceiptParsingSettingsPage(),
             '/settings': (_) => SettingsPage(),
             '/backup_management': (_) => BackupManagementPage(),
             '/return_pfand': (_) => ReturnPfandPage(),
@@ -429,8 +436,26 @@ class ChameApp extends StatelessWidget {
   }
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  @override
+  void initState() {
+    super.initState();
+    // Opportunistic check: creates a rotating automatic backup if one is
+    // due (per the interval/retention configured on the Backup Management
+    // page). No-op if disabled or not due yet; failures are swallowed so
+    // they never block normal app usage.
+    final auth = Provider.of<AuthService>(context, listen: false);
+    if (auth.hasAdminRights) {
+      AutoBackupService().maybeRunAutomaticBackup();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -477,6 +502,11 @@ class HomePage extends StatelessWidget {
                           onPressed: () => Navigator.pushNamed(context, '/restock_ingredients'),
                           child: const Text('Restock Ingredients'),
                         ),
+                      if (auth.hasAdminRights)
+                        ElevatedButton(
+                          onPressed: () => Navigator.pushNamed(context, '/receipt_scan'),
+                          child: const Text('Scan Receipt'),
+                        ),
                       ElevatedButton(
                         onPressed: () => Navigator.pushNamed(context, '/settings'),
                         child: const Text('Settings'),
@@ -503,275 +533,6 @@ class HomePage extends StatelessWidget {
   }
 }
 
-class LoginScreen extends StatefulWidget {
-  @override
-  _LoginScreenState createState() => _LoginScreenState();
-}
-
-class _LoginScreenState extends State<LoginScreen> {
-  final _userCtrl = TextEditingController(text: 'admin');
-  final _passCtrl = TextEditingController();
-  bool _loading = false, _error = false;
-  List<Map<String, dynamic>> _availableUsers = [];
-  int? _selectedUserId;
-  bool _usersLoaded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadAvailableUsers();
-  }
-
-  Future<void> _loadAvailableUsers() async {
-    try {
-      setState(() => _loading = true);
-      
-      // Use Future.microtask to avoid blocking UI
-      await Future.microtask(() async {
-        // Get all users from backend
-        final users = await PyBridge().getAllUsers();
-        
-        // Filter to only admin and wirt users and allow duplicates by name
-        final filteredUsers = users.where((user) => 
-          user['role'] == 'admin' || user['role'] == 'wirt'
-        ).toList();
-        
-        if (mounted) {
-          setState(() {
-            _availableUsers = filteredUsers;
-            _usersLoaded = true;
-            _loading = false;
-            
-            // Auto-select first user if available
-            if (_availableUsers.isNotEmpty) {
-              _selectedUserId = _availableUsers[0]['user_id'];
-            }
-          });
-        }
-      });
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _error = true;
-          _usersLoaded = true;
-        });
-      //print('Error loading users: $e');
-        
-        // Fallback: show error but allow typing username
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not load users. You can still try manual login.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    }
-  }
-
-  String _getUserDisplayName(Map<String, dynamic> user) {
-    return '${user['name']} (${user['role']})';
-  }
-
-  bool get _useManualLogin => _availableUsers.isEmpty || _selectedUserId == null;
-
-  @override
-  void dispose() {
-    _userCtrl.dispose();
-    _passCtrl.dispose();
-    super.dispose();
-  }
-
-  void _submit() async {
-    final manualUsername = _userCtrl.text.trim();
-    if (_useManualLogin && manualUsername.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please enter a username')),
-      );
-      return;
-    }
-
-    if (_selectedUserId == null && _availableUsers.isNotEmpty && manualUsername.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please select a user')),
-      );
-      return;
-    }
-
-    setState(() { _loading = true; _error = false; });
-    final auth = Provider.of<AuthService>(context, listen: false);
-    
-    try {
-      // Use Future.microtask to avoid blocking UI thread
-      await Future.microtask(() async {
-        String username;
-        
-        if (!_useManualLogin && _selectedUserId != null) {
-          // Use selected user from dropdown
-          final selectedUser = _availableUsers.firstWhere(
-            (user) => user['user_id'] == _selectedUserId
-          );
-          username = selectedUser['name'];
-        } else {
-          username = manualUsername;
-        }
-        
-        // Allow empty password
-        final password = _passCtrl.text;
-        
-        final success = await auth.login(username, password);
-        
-        if (mounted) {
-          setState(() { _loading = false; _error = !success; });
-          
-          if (!success) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Login failed for $username')),
-            );
-          }
-        }
-      });
-    } catch (e) {
-      if (mounted) {
-        setState(() { _loading = false; _error = true; });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext ctx) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // User selection dropdown
-                if (_usersLoaded && _availableUsers.isNotEmpty) ...[
-                  const Text(
-                    'Select User:',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<int>(
-                        value: _selectedUserId,
-                        isExpanded: true,
-                        hint: const Text('Choose a user...'),
-                        items: _availableUsers.map((user) {
-                          return DropdownMenuItem<int>(
-                            value: user['user_id'],
-                            child: Text(_getUserDisplayName(user)),
-                          );
-                        }).toList(),
-                        onChanged: (int? newValue) {
-                          setState(() {
-                            _selectedUserId = newValue;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _selectedUserId = null;
-                        if (_userCtrl.text.trim().isEmpty) {
-                          _userCtrl.text = 'admin';
-                        }
-                      });
-                    },
-                    icon: const Icon(Icons.person_outline),
-                    label: const Text('Use Manual Login Instead'),
-                  ),
-                  const SizedBox(height: 8),
-                ] else if (_usersLoaded && _availableUsers.isEmpty) ...[
-                  const Icon(Icons.warning, color: Colors.orange, size: 48),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'No admin or wirt users found.\nTry manual login with the default admin account.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.orange),
-                  ),
-                  const SizedBox(height: 16),
-                ] else if (!_usersLoaded) ...[
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
-                  const Text('Loading users...'),
-                  const SizedBox(height: 16),
-                ],
-
-                if (_useManualLogin) ...[
-                  TextField(
-                    controller: _userCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Username',
-                      hintText: 'Enter username',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                
-                // Password field
-                TextField(
-                  controller: _passCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Password (optional)',
-                    hintText: 'Leave empty for default password',
-                  ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 20),
-                
-                // Error message
-                if (_error) 
-                  const Text(
-                    'Login failed',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                
-                // Login button
-                ElevatedButton(
-                  onPressed: (_loading || !_usersLoaded)
-                    ? null 
-                    : _submit,
-                  child: _loading 
-                    ? const CircularProgressIndicator() 
-                    : const Text('Log In'),
-                ),
-                
-                // Refresh button if user loading failed
-                if (_usersLoaded && _availableUsers.isEmpty) ...[
-                  const SizedBox(height: 16),
-                  TextButton.icon(
-                    onPressed: _loadAvailableUsers,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Retry Loading Users'),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -790,7 +551,7 @@ class SettingsPage extends StatelessWidget {
                 onPressed: () => showModalBottomSheet(
                   context: context,
                   isScrollControlled: true, // <-- Key for keyboard safety!
-                  builder: (ctx) => ChangePasswordSheet(),
+                  builder: (ctx) => const ChangePasswordSheet(),
                   shape: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                   ),
@@ -850,6 +611,8 @@ class SettingsPage extends StatelessWidget {
 }
 
 class ChangePasswordSheet extends StatefulWidget {
+  const ChangePasswordSheet({super.key});
+
   @override
   State<ChangePasswordSheet> createState() => _ChangePasswordSheetState();
 }
@@ -861,6 +624,17 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
   bool _loading = false;
   String? _error;
 
+  late Future<List<Map<String, dynamic>>> _usersFuture;
+  int? _selectedUserId;
+
+  @override
+  void initState() {
+    super.initState();
+    final auth = Provider.of<AuthService>(context, listen: false);
+    _selectedUserId = auth.currentUserId;
+    _usersFuture = PyBridge().getAllUsers().then(auth.filterVisibleUsers);
+  }
+
   void _changePassword() async {
     setState(() { _loading = true; _error = null; });
     if (_newPassCtrl.text != _confirmPassCtrl.text) {
@@ -871,7 +645,11 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
     try {
       // Use Future.microtask to avoid blocking UI thread
       await Future.microtask(() async {
-        final result = await auth.changePassword(_oldPassCtrl.text, _newPassCtrl.text);
+        final result = await auth.changePassword(
+          _oldPassCtrl.text,
+          _newPassCtrl.text,
+          targetUserId: _selectedUserId,
+        );
         
         if (mounted) {
           setState(() { _loading = false; });
@@ -909,6 +687,30 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
             const Text('Change Password',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: _usersFuture,
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.only(bottom: 16),
+                    child: LinearProgressIndicator(),
+                  );
+                }
+                final users = snap.data ?? const <Map<String, dynamic>>[];
+                if (users.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: UserDropdownSelector(
+                    users: users,
+                    selectedUserId: _selectedUserId,
+                    label: 'User',
+                    onChanged: (user) => setState(() {
+                      _selectedUserId = user?['user_id'] as int?;
+                    }),
+                  ),
+                );
+              },
+            ),
             TextField(
               controller: _oldPassCtrl,
               decoration: const InputDecoration(labelText: 'Current Password'),

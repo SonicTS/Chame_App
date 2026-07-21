@@ -1206,7 +1206,7 @@ class Database:
                 session.close()
 
     def get_bank_transaction(self, session=None) -> 'List[BankTransaction]':
-        """Get filtered transactions."""
+        """Get filtered transactions, most recent first."""
         close_session = False
         if session is None:
             session = self.get_session()
@@ -1214,7 +1214,7 @@ class Database:
         try:
             transactions = session.query(BankTransaction).options(
                 joinedload(BankTransaction.salesman)
-            ).all()
+            ).order_by(BankTransaction.transaction_id.desc()).all()
             return transactions
         except Exception as e:
             raise RuntimeError(f"get_bank_transaction failed: {e}") from e

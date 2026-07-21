@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/py_bride.dart';
+import '../services/auto_backup_service.dart';
 
 class BackupManagementPage extends StatefulWidget {
   @override
@@ -14,10 +15,69 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
   bool _loadingDiagnostics = false;
   String? _error;
 
+  final AutoBackupService _autoBackupService = AutoBackupService();
+  AutoBackupSettings _autoBackupSettings = AutoBackupSettings.defaults;
+  bool _loadingAutoBackupSettings = true;
+  bool _savingAutoBackupSettings = false;
+  final _intervalDaysController = TextEditingController();
+  final _keepCountController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     _loadBackups();
+    _loadAutoBackupSettings();
+  }
+
+  @override
+  void dispose() {
+    _intervalDaysController.dispose();
+    _keepCountController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAutoBackupSettings() async {
+    final settings = await _autoBackupService.loadSettings();
+    if (!mounted) return;
+    setState(() {
+      _autoBackupSettings = settings;
+      _intervalDaysController.text = settings.intervalDays.toString();
+      _keepCountController.text = settings.keepCount.toString();
+      _loadingAutoBackupSettings = false;
+    });
+  }
+
+  Future<void> _saveAutoBackupSettings({bool? enabled}) async {
+    final intervalDays = int.tryParse(_intervalDaysController.text.trim());
+    final keepCount = int.tryParse(_keepCountController.text.trim());
+    final willBeEnabled = enabled ?? _autoBackupSettings.enabled;
+
+    if (willBeEnabled &&
+        (intervalDays == null || intervalDays < 1 || keepCount == null || keepCount < 1)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please enter valid positive numbers for both fields.')),
+      );
+      return;
+    }
+
+    setState(() => _savingAutoBackupSettings = true);
+    final newSettings = _autoBackupSettings.copyWith(
+      enabled: enabled,
+      intervalDays: intervalDays,
+      keepCount: keepCount,
+    );
+    await _autoBackupService.saveSettings(newSettings);
+    if (!mounted) return;
+    setState(() {
+      _autoBackupSettings = newSettings;
+      _savingAutoBackupSettings = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Automatic backup settings saved.'),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   Future<void> _loadBackups() async {
@@ -1395,6 +1455,85 @@ class _BackupManagementPageState extends State<BackupManagementPage> {
                 ),
               ],
             ),
+          ),
+          Divider(height: 1),
+          // Automatic backup settings
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: _loadingAutoBackupSettings
+                ? Center(child: CircularProgressIndicator())
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Automatic Backups',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          Switch(
+                            value: _autoBackupSettings.enabled,
+                            onChanged: _savingAutoBackupSettings
+                                ? null
+                                : (value) => _saveAutoBackupSettings(enabled: value),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        'Automatically creates a backup every N days and keeps '
+                        'only the M most recent automatic backups.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                      SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _intervalDaysController,
+                              enabled: !_savingAutoBackupSettings,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                labelText: 'Every (days)',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: _keepCountController,
+                              enabled: !_savingAutoBackupSettings,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                labelText: 'Keep (backups)',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: _savingAutoBackupSettings
+                                ? null
+                                : () => _saveAutoBackupSettings(),
+                            child: _savingAutoBackupSettings
+                                ? SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : Text('Save'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
           ),
           Divider(height: 1),
           

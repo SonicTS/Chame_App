@@ -6,6 +6,12 @@ from chame_app.simple_migrations import SimpleMigrations
 import logging
 from typing import Any, Dict, Iterable, List, Optional, Set
 from chame_app.database import get_database_storage_diagnostics
+from services.receipt_parser import parse_receipt_lines as _parse_receipt_lines
+from services.receipt_parser import aggregate_items as _aggregate_receipt_items
+from services.receipt_parser import get_default_parsing_settings as _get_default_receipt_parsing_settings
+from services.receipt_parser import find_fuzzy_merge_candidates as _find_fuzzy_merge_candidates
+from services.receipt_parser import merge_items as _merge_receipt_items
+from services.receipt_parser import suggest_ingredient_matches as _suggest_ingredient_matches
 
 from models.user_table import User
 import traceback
@@ -13,6 +19,7 @@ import traceback
 _database = None
 _current_viewer_id: Optional[int] = None
 _current_viewer_role: Optional[str] = None
+_ITEMS_MUST_BE_LIST_MSG = "Invalid input: items must be a list"
 
 
 class _DatabaseProxy:
@@ -241,6 +248,66 @@ def preview_product_cost(ingredient_ids, quantities):
         'total_cost': total,
         'per_ingredient': per,
     }
+
+# Receipt scanning (OCR row parsing)
+def parse_receipt_lines(
+    lines,
+    pfand_product_number=None,
+    valid_letters=None,
+    letter_corrections=None,
+    decimal_separator_chars=None,
+):
+    print("DEBUG: parse_receipt_lines called with", len(lines) if isinstance(lines, list) else lines, "lines, pfand_product_number=", pfand_product_number)
+    if lines is None or not isinstance(lines, list):
+        raise ValueError("Invalid input: lines must be a list of strings")
+    return _parse_receipt_lines(
+        lines,
+        pfand_product_number=pfand_product_number or None,
+        valid_letters=valid_letters or None,
+        letter_corrections=letter_corrections or None,
+        decimal_separator_chars=decimal_separator_chars or None,
+    )
+
+def aggregate_receipt_items(items):
+    print("DEBUG: aggregate_receipt_items called with", len(items) if isinstance(items, list) else items, "items")
+    if items is None or not isinstance(items, list):
+        raise ValueError(_ITEMS_MUST_BE_LIST_MSG)
+    return _aggregate_receipt_items(items)
+
+def get_default_receipt_parsing_settings():
+    return _get_default_receipt_parsing_settings()
+
+def find_receipt_merge_candidates(
+    items,
+    min_matching_digits=None,
+    confusable_digit_pairs=None,
+    expected_id_length=None,
+):
+    print("DEBUG: find_receipt_merge_candidates called with", len(items) if isinstance(items, list) else items, "items")
+    if items is None or not isinstance(items, list):
+        raise ValueError(_ITEMS_MUST_BE_LIST_MSG)
+    return _find_fuzzy_merge_candidates(
+        items,
+        min_matching_digits=min_matching_digits,
+        confusable_digit_pairs=confusable_digit_pairs,
+        expected_id_length=expected_id_length,
+    )
+
+def merge_receipt_items(items):
+    print("DEBUG: merge_receipt_items called with", len(items) if isinstance(items, list) else items, "items")
+    if items is None or not isinstance(items, list):
+        raise ValueError(_ITEMS_MUST_BE_LIST_MSG)
+    return _merge_receipt_items(items)
+
+def suggest_receipt_ingredient_matches(items, ingredients, min_word_match_ratio=None):
+    print("DEBUG: suggest_receipt_ingredient_matches called with", len(items) if isinstance(items, list) else items, "items")
+    if items is None or not isinstance(items, list):
+        raise ValueError(_ITEMS_MUST_BE_LIST_MSG)
+    if ingredients is None or not isinstance(ingredients, list):
+        raise ValueError("Invalid input: ingredients must be a list")
+    return _suggest_ingredient_matches(
+        items, ingredients, min_word_match_ratio=min_word_match_ratio
+    )
 
 # Ingredient management
 def add_ingredient(name, price_per_package, stock_quantity, number_ingredients, pfand):
