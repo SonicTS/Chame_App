@@ -836,6 +836,24 @@ class MainActivity : FlutterActivity() {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)
                     }
                 }
+                "admin_change_password" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val user_id = call.argument<Integer>("user_id")
+                        val newPassword = call.argument<String>("new_password")
+                        if (newPassword == null || user_id == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for admin_change_password", null)
+                            return@setMethodCallHandler
+                        }
+                        pyModule.callAttr("admin_change_password", user_id, newPassword)
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
                 "submit_pfand_return" -> {
                     val pyModule = py.getModule("services.admin_api")
                         ?: return@setMethodCallHandler result.error(

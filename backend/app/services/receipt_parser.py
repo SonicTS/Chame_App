@@ -83,9 +83,11 @@ class ReceiptParsingRules:
         valid letter, mapped to the letter they should be corrected to
         (e.g. {'8': 'B'} for a faded 'B', or {'4': 'A'} if 'A' gets misread
         as '4').
-      - decimal_separator_chars: characters that can appear as a price's
-        decimal separator, including OCR misreads (e.g. [',', '.', ' ']
-        when a comma sometimes gets misread as a plain space).
+      - decimal_separator_chars: strings that can appear as a price's
+        decimal separator, including OCR misreads. Usually single
+        characters (e.g. ',', '.', ' '), but can also be multi-character
+        sequences for misreads that aren't just one wrong character (e.g.
+        '. ' for a comma misread as a dot followed by a stray space).
       - pfand_product_number: the store-specific product number identifying
         a "Pfand" (bottle deposit) line, if known.
     """
@@ -111,14 +113,25 @@ class ReceiptParsingRules:
         self.pfand_product_number = pfand_product_number or None
 
         self._price_pattern = self._build_price_pattern()
-        self.item_re = self._build_item_re()
+        self._price_re = self._build_price_re()
         self.multiplier_re = self._build_multiplier_re()
 
-    def _decimal_separator_char_class(self) -> str:
-        return "".join(re.escape(c) for c in self.decimal_separator_chars)
+    def _decimal_separator_pattern(self) -> str:
+        # Each separator can be more than one character (e.g. '. ' for a
+        # comma misread as a dot plus a stray space), so this has to be an
+        # alternation of escaped literals rather than a single-char class.
+        # Longest first, so a multi-char separator isn't cut short by a
+        # shorter one that happens to be a prefix of it (e.g. '.' vs '. ').
+        separators = sorted(self.decimal_separator_chars, key=len, reverse=True)
+        return "|".join(re.escape(s) for s in separators)
 
     def _build_price_pattern(self) -> str:
-        return rf"\d{{1,4}}[{self._decimal_separator_char_class()}]\d{{2}}"
+        return rf"\d{{1,4}}(?:{self._decimal_separator_pattern()})\d{{2}}"
+
+    def _build_price_re(self) -> re.Pattern:
+        return re.compile(
+            rf"^(?P<whole>\d{{1,4}})(?:{self._decimal_separator_pattern()})(?P<cents>\d{{2}})$"
+        )
 
     def _letter_char_class(self) -> str:
         chars = set()
@@ -128,15 +141,6 @@ class ReceiptParsingRules:
         chars.update(self.letter_corrections)
         return "".join(re.escape(c) for c in sorted(chars))
 
-    def _build_item_re(self) -> re.Pattern:
-        # Product number, description, price, trailing valid/misread letter.
-        # Description is matched lazily so the price/letter anchored at the
-        # end are preferred over any numbers embedded in the text.
-        return re.compile(
-            rf"^\s*(?P<product_number>\d+)\s+(?P<description>.+?)\s+"
-            rf"(?P<price>{self._price_pattern})\s*(?P<letter>[{self._letter_char_class()}])\s*$"
-        )
-
     def _build_multiplier_re(self) -> re.Pattern:
         # "<count> x <unit price>" line preceding a multi-item purchase's item line.
         return re.compile(
@@ -144,8 +148,14 @@ class ReceiptParsingRules:
         )
 
     def parse_price(self, raw: str) -> float:
-        normalized = re.sub(f"[{self._decimal_separator_char_class()}]", ".", raw)
-        return round(float(normalized), 2)
+        # Matched (not just blindly substituted) so a multi-character
+        # separator like '. ' is replaced as a whole -- naive char-by-char
+        # substitution would turn "1. 99" into "1..99" (each of '.' and ' '
+        # replaced independently) instead of the intended "1.99".
+        match = self._price_re.match(raw.strip())
+        if not match:
+            raise ValueError(f"'{raw}' is not a valid price")
+        return round(float(f"{match.group('whole')}.{match.group('cents')}"), 2)
 
     def normalize_letter(self, raw: str) -> str:
         """Corrects a misread character (e.g. '8') to its intended letter
@@ -157,6 +167,80 @@ class ReceiptParsingRules:
         if upper in self.letter_corrections:
             return self.letter_corrections[upper]
         return upper
+
+    def match_item_line(self, text: str) -> Dict[str, Any]:
+        """Parses a single item line in four steps, most rigid first, so a
+        failure can say exactly which part of the line looked wrong instead
+        of just "the pattern didn't match":
+          1. VAT letter -- a single trailing valid/misread character.
+          2. Price -- a price-shaped token immediately before the letter.
+          3. Product number -- a run of digits at the very start of the line.
+          4. Description -- whatever text is left in between.
+
+        Returns either a successful match:
+            {"success": True, "product_number", "description", "price", "letter"}
+        or a failure report for debugging:
+            {"success": False, "step": "letter"|"price"|"product_number"|"description",
+             "reason": "..."}
+        """
+        stripped = text.strip()
+        print(f"DEBUG: match_item_line trying line={stripped!r}")
+
+        # Step 1: VAT letter.
+        letter_match = re.search(rf"[{self._letter_char_class()}]\s*$", stripped)
+        if not letter_match:
+            reason = (
+                f"No valid VAT letter ({', '.join(self.valid_letters)}, or a "
+                f"known misread {list(self.letter_corrections.keys())}) found "
+                "at the end of the line"
+            )
+            print(f"DEBUG: match_item_line step=letter FAILED: {reason}")
+            return {"success": False, "step": "letter", "reason": reason}
+        letter_raw = stripped[letter_match.start():letter_match.end()].strip()
+        remainder = stripped[:letter_match.start()].rstrip()
+        print(f"DEBUG: match_item_line step=letter OK: letter_raw={letter_raw!r} remainder={remainder!r}")
+
+        # Step 2: price, immediately before the letter.
+        price_match = re.search(rf"{self._price_pattern}\s*$", remainder)
+        if not price_match:
+            reason = (
+                f"No price found immediately before the letter {letter_raw!r} "
+                f"(expected digits separated by one of {self.decimal_separator_chars!r})"
+            )
+            print(f"DEBUG: match_item_line step=price FAILED: {reason}")
+            return {"success": False, "step": "price", "reason": reason}
+        price_raw = remainder[price_match.start():price_match.end()].strip()
+        remainder = remainder[:price_match.start()].rstrip()
+        print(f"DEBUG: match_item_line step=price OK: price_raw={price_raw!r} remainder={remainder!r}")
+
+        # Step 3: product number at the very start.
+        product_number_match = re.match(r"^(\d+)\s+", remainder)
+        if not product_number_match:
+            reason = "No product number found at the start of the line"
+            print(f"DEBUG: match_item_line step=product_number FAILED: {reason}")
+            return {"success": False, "step": "product_number", "reason": reason}
+        product_number = product_number_match.group(1)
+        description = remainder[product_number_match.end():].strip()
+        print(
+            f"DEBUG: match_item_line step=product_number OK: product_number={product_number!r} "
+            f"description={description!r}"
+        )
+
+        # Step 4: description -- whatever's left must be non-empty.
+        if not description:
+            reason = "No description text left between the product number and price"
+            print(f"DEBUG: match_item_line step=description FAILED: {reason}")
+            return {"success": False, "step": "description", "reason": reason}
+
+        result = {
+            "success": True,
+            "product_number": product_number,
+            "description": description,
+            "price": self.parse_price(price_raw),
+            "letter": self.normalize_letter(letter_raw),
+        }
+        print(f"DEBUG: match_item_line SUCCESS: {result}")
+        return result
 
     def match_pfand_line(self, text: str) -> Optional[Dict[str, Any]]:
         """Matches text against the configured Pfand product number
@@ -238,22 +322,26 @@ def _try_match_multiplier_group(
     if not multiplier_match:
         return None
 
-    item_match = rules.item_re.match((lines[i + 1] or "").strip())
-    if not item_match:
+    item_match = rules.match_item_line((lines[i + 1] or "").strip())
+    if not item_match["success"]:
+        print(
+            f"DEBUG: _try_match_multiplier_group: line[{i}] looked like a multiplier "
+            f"header but line[{i + 1}] failed at step={item_match['step']}: {item_match['reason']}"
+        )
         return None
 
     count = int(multiplier_match.group("count"))
     unit_price = rules.parse_price(multiplier_match.group("unit_price"))
-    price = rules.parse_price(item_match.group("price"))
+    price = item_match["price"]
     expected = round(count * unit_price, 2)
     verified = abs(expected - price) <= _PRICE_TOLERANCE
 
     group: Dict[str, Any] = {
         "count": count,
-        "product_number": item_match.group("product_number"),
-        "description": item_match.group("description").strip(),
+        "product_number": item_match["product_number"],
+        "description": item_match["description"],
         "price": price,
-        "letter": rules.normalize_letter(item_match.group("letter")),
+        "letter": item_match["letter"],
         "line_numbers": [i, i + 1],
         "verified": verified,
     }
@@ -568,6 +656,10 @@ def _best_description_match_ratio(description: str, ingredient_name: str) -> flo
     for description_word in description_words:
         for ingredient_word in ingredient_words:
             ratio = _word_match_ratio(description_word, ingredient_word)
+            print(
+                f"DEBUG: _best_description_match_ratio called with description='{description_word}', "
+                f"ingredient_word='{ingredient_word}', ratio={ratio}"
+            )
             if ratio > best:
                 best = ratio
     return best
@@ -737,14 +829,14 @@ def parse_receipt_lines(
             i = multiplier_group["line_numbers"][-1] + 1
             continue
 
-        item_match = rules.item_re.match(text)
-        if item_match:
+        item_match = rules.match_item_line(text)
+        if item_match["success"]:
             group = {
                 "count": 1,
-                "product_number": item_match.group("product_number"),
-                "description": item_match.group("description").strip(),
-                "price": rules.parse_price(item_match.group("price")),
-                "letter": rules.normalize_letter(item_match.group("letter")),
+                "product_number": item_match["product_number"],
+                "description": item_match["description"],
+                "price": item_match["price"],
+                "letter": item_match["letter"],
                 "line_numbers": [i],
                 "verified": True,
             }
@@ -753,10 +845,14 @@ def parse_receipt_lines(
             i = group["line_numbers"][-1] + 1
             continue
 
+        print(
+            f"DEBUG: parse_receipt_lines: line[{i}]={text!r} unmatched at "
+            f"step={item_match['step']}: {item_match['reason']}"
+        )
         unmatched.append({
             "line_numbers": [i],
             "text": lines[i],
-            "reason": "Line did not match the expected item pattern",
+            "reason": f"[{item_match['step']}] {item_match['reason']}",
         })
         i += 1
 

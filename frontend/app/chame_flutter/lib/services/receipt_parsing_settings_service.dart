@@ -32,9 +32,9 @@ class ReceiptParsingSettings {
 
   static const defaults = ReceiptParsingSettings(
     pfandProductNumber: '',
-    validLetters: ['A', 'B'],
+    validLetters: ['A', 'B', 'C', 'D', 'E'],
     letterCorrections: {'8': 'B'},
-    decimalSeparatorChars: [',', '.', ' '],
+    decimalSeparatorChars: [',', '.', ' ', ', ', '. '],
     minMatchingDigits: 3,
     confusableDigitPairs: [
       ['3', '8'],

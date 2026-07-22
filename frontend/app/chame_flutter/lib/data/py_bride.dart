@@ -40,6 +40,24 @@ class PyBridge {
     }
   }
 
+  /// Admin-only: sets user_id's password directly, without requiring their
+  /// old password. The backend independently verifies the acting viewer
+  /// actually has admin rights before applying this.
+  Future<void> adminChangePassword({
+    required String user_id,
+    required String newPassword,
+  }) async {
+    try {
+      await _chan.invokeMethod('admin_change_password', {
+        'user_id': int.parse(user_id),
+        'new_password': newPassword,
+      });
+    } catch (e, stack) {
+      print('Error in adminChangePassword: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      rethrow;
+    }
+  }
+
   Future<Map<String, dynamic>?> login({
     required String username,
     required String password,

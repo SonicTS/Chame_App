@@ -130,6 +130,7 @@ class _ReceiptParsingSettingsPageState
   Future<String?> _promptSingleCharacter({
     required String title,
     required String label,
+    int? maxLength = 1,
   }) async {
     final controller = TextEditingController();
     final result = await showDialog<String>(
@@ -138,7 +139,7 @@ class _ReceiptParsingSettingsPageState
         title: Text(title),
         content: TextField(
           controller: controller,
-          maxLength: 1,
+          maxLength: maxLength,
           decoration: InputDecoration(labelText: label),
           autofocus: true,
         ),
@@ -218,13 +219,17 @@ class _ReceiptParsingSettingsPageState
   }
 
   Future<void> _addDecimalSeparatorChar() async {
-    final char = await _promptSingleCharacter(
-      title: 'Add Decimal Separator Character',
-      label: "e.g. ';' or a space",
+    // Not restricted to a single character: some misreads aren't just one
+    // wrong character but a short sequence (e.g. '. ' for a comma misread
+    // as a dot followed by a stray space).
+    final chars = await _promptSingleCharacter(
+      title: 'Add Decimal Separator',
+      label: "e.g. ';', a space, or '. ' (dot + space)",
+      maxLength: null,
     );
-    if (char == null) return;
-    if (_decimalSeparatorChars.contains(char)) return;
-    setState(() => _decimalSeparatorChars.add(char));
+    if (chars == null) return;
+    if (_decimalSeparatorChars.contains(chars)) return;
+    setState(() => _decimalSeparatorChars.add(chars));
   }
 
   Future<void> _addConfusableDigitPair() async {
@@ -276,7 +281,9 @@ class _ReceiptParsingSettingsPageState
     setState(() => _confusableDigitPairs.add([first, second]));
   }
 
-  String _displayChar(String c) => c == ' ' ? '(space)' : c;
+  // Makes whitespace visible in a chip (e.g. so '. ' -- dot + space -- isn't
+  // shown indistinguishably from a plain '.').
+  String _displayChar(String c) => c.replaceAll(' ', '\u2423');
 
   @override
   Widget build(BuildContext context) {
@@ -376,14 +383,15 @@ class _ReceiptParsingSettingsPageState
                     const SizedBox(height: 24),
 
                     const Text(
-                      'Price Decimal Separator Characters',
+                      'Price Decimal Separators',
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      "Characters that can separate a price's whole and "
-                      "decimal digits, including OCR misreads (e.g. a comma "
-                      "misread as a plain space).",
+                      "Characters or short sequences that can separate a "
+                      "price's whole and decimal digits, including OCR "
+                      "misreads (e.g. a comma misread as a plain space, or "
+                      "'. ' for a comma misread as a dot plus a stray space).",
                       style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                     const SizedBox(height: 8),

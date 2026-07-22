@@ -642,15 +642,21 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
       return;
     }
     final auth = Provider.of<AuthService>(context, listen: false);
+    final targetUserId = _selectedUserId;
+    final isAdminResetForOtherUser = auth.hasAdminRights &&
+        targetUserId != null &&
+        targetUserId != auth.currentUserId;
     try {
       // Use Future.microtask to avoid blocking UI thread
       await Future.microtask(() async {
-        final result = await auth.changePassword(
-          _oldPassCtrl.text,
-          _newPassCtrl.text,
-          targetUserId: _selectedUserId,
-        );
-        
+        final result = isAdminResetForOtherUser
+            ? await auth.adminResetPassword(targetUserId, _newPassCtrl.text)
+            : await auth.changePassword(
+                _oldPassCtrl.text,
+                _newPassCtrl.text,
+                targetUserId: targetUserId,
+              );
+
         if (mounted) {
           setState(() { _loading = false; });
           if (result == true) {
@@ -672,6 +678,10 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthService>(context, listen: false);
+    final isAdminResetForOtherUser = auth.hasAdminRights &&
+        _selectedUserId != null &&
+        _selectedUserId != auth.currentUserId;
     return Padding(
       // This ensures the sheet goes above the keyboard!
       padding: EdgeInsets.only(
@@ -711,11 +721,21 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
                 );
               },
             ),
-            TextField(
-              controller: _oldPassCtrl,
-              decoration: const InputDecoration(labelText: 'Current Password'),
-              obscureText: true,
-            ),
+            if (isAdminResetForOtherUser)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'As an admin, you can reset this user\'s password without '
+                  'knowing their current one.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              )
+            else
+              TextField(
+                controller: _oldPassCtrl,
+                decoration: const InputDecoration(labelText: 'Current Password'),
+                obscureText: true,
+              ),
             TextField(
               controller: _newPassCtrl,
               decoration: const InputDecoration(labelText: 'New Password'),

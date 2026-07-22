@@ -164,6 +164,32 @@ class Database:
                 if close_session:
                     session.close()
             raise RuntimeError(f"change_password failed for User={user_name}: {e}") from e
+
+    def admin_set_password(self, user_id: int, new_password: str, session=None):
+        """Sets user_id's password directly, without verifying an old
+        password. Callers must independently verify the acting viewer has
+        admin rights before calling this (see admin_api.admin_change_password).
+        """
+        close_session = False
+        user_name = "404"
+        try:
+            if session is None:
+                session = self.get_session()
+                close_session = True
+            user = self.get_user_by_id(user_id, session)
+            if not user:
+                raise ValueError(f"{USER_NOT_FOUND_MSG} (user_id={user_id})")
+            user.password_hash = user.hash_password(new_password)
+            if close_session:
+                session.commit()
+                session.refresh(user)
+                session.close()
+        except Exception as e:
+            if session:
+                session.rollback()
+                if close_session:
+                    session.close()
+            raise RuntimeError(f"admin_set_password failed for User={user_name}: {e}") from e
         
     def change_user_role(self, user_id: int, new_role: str, session=None):
         close_session = False

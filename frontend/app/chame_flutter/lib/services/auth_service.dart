@@ -155,6 +155,27 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  /// Admin-only: resets [targetUserId]'s password directly, without needing
+  /// their old password. Only actually succeeds if the currently logged-in
+  /// user has admin rights -- the backend independently re-checks this too,
+  /// this local check just avoids an unnecessary round-trip/nicer error.
+  Future<bool> adminResetPassword(int targetUserId, String newPassword) async {
+    if (!hasAdminRights) {
+      print('Cannot reset password: current user is not an admin');
+      return false;
+    }
+    try {
+      await PyBridge().adminChangePassword(user_id: targetUserId.toString(), newPassword: newPassword);
+      return true;
+    } catch (e) {
+      print('Exception while resetting password: $e');
+      if (e is PlatformException && e.message != null) {
+        throw Exception(e.message);
+      }
+      throw Exception('Failed to reset password');
+    }
+  }
+
   Future<void> logout() async {
     try {
       await PyBridge().logout();

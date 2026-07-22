@@ -159,6 +159,18 @@ def change_password(user_id, old_password, new_password):
     return database.change_password(user_id, old_password, new_password)
 
 
+def admin_change_password(user_id, new_password):
+    """Admin-only: sets user_id's password directly, without requiring
+    their old password. Only allowed when the currently logged-in viewer
+    (see login()/_set_current_viewer) has the 'admin' role.
+    """
+    if (_current_viewer_role or "").lower() != "admin":
+        raise PermissionError("Only admins can reset another user's password")
+    if not user_id or not new_password:
+        raise ValueError("Invalid input")
+    return database.admin_set_password(user_id, new_password)
+
+
 
 # User management
 def add_user(name, balance, role, salesman_id, password=""):

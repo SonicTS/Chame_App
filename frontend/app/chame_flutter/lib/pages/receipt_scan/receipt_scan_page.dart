@@ -268,9 +268,15 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
   }
 
   Future<void> _editGroup(int index) async {
-    final controller = TextEditingController(
-      text: displayTextFor(groups[index], rowTexts),
-    );
+    final initialText = displayTextFor(groups[index], rowTexts);
+    final controller = TextEditingController(text: initialText)
+      // Explicitly collapse the selection to the end of the text. Left
+      // unset, the controller's initial selection is invalid (offset -1),
+      // which some Android keyboards (e.g. Gboard) misinterpret once the
+      // field is focused: instead of a later tap just placing the caret,
+      // they extend a selection from that stale anchor (effectively the
+      // end of the text) to wherever was tapped.
+      ..selection = TextSelection.collapsed(offset: initialText.length);
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -387,6 +393,19 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
         replacement.add(group);
       }
       if (replacement.isEmpty) return;
+
+      // Items are appended before unmatched entries above regardless of
+      // which original lines they actually came from -- e.g. if line 0
+      // failed to parse but lines 1-2 formed a valid item, the item would
+      // otherwise end up listed before line 0's still-unmatched entry.
+      // Sorting by each group's first (smallest) original line number here
+      // keeps the list -- and anything adjacent-merged from it afterwards
+      // -- in the receipt's actual line order.
+      replacement.sort((a, b) {
+        final aLine = (a["line_numbers"] as List).first as int;
+        final bLine = (b["line_numbers"] as List).first as int;
+        return aLine.compareTo(bLine);
+      });
 
       _pushHistory();
       setState(() {

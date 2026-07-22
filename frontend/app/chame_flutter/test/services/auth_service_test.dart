@@ -128,6 +128,37 @@ void main() {
     });
   });
 
+  group('adminResetPassword', () {
+    test('admin can reset another user\'s password without the old one', () async {
+      bridge
+        ..onReturn('login', {'user_id': 1, 'role': 'admin'})
+        ..onReturn('admin_change_password', null);
+
+      final auth = await freshAuthService();
+      await auth.login('admin', 'secret');
+
+      final result = await auth.adminResetPassword(42, 'new-pass');
+
+      expect(result, isTrue);
+      final call = bridge.calls.firstWhere((c) => c.method == 'admin_change_password');
+      expect(call.arguments['user_id'], 42);
+      expect(call.arguments['new_password'], 'new-pass');
+      expect(call.arguments.containsKey('old_password'), isFalse);
+    });
+
+    test('non-admins cannot reset another user\'s password', () async {
+      bridge.onReturn('login', {'user_id': 1, 'role': 'user'});
+
+      final auth = await freshAuthService();
+      await auth.login('user', 'secret');
+
+      final result = await auth.adminResetPassword(42, 'new-pass');
+
+      expect(result, isFalse);
+      expect(bridge.calls.any((c) => c.method == 'admin_change_password'), isFalse);
+    });
+  });
+
   group('god user visibility', () {
     final usersWithGod = [
       {'user_id': 1, 'name': 'admin', 'role': 'admin'},
