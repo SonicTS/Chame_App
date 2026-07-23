@@ -143,6 +143,13 @@ class AuthService extends ChangeNotifier {
       print('Cannot change password: user is not logged in');
       return false; // User is not logged in
     }
+    // Enforce client-side role rules to avoid accidental misuse:
+    if (hasAdminRights) {
+      throw Exception('Admins must use adminResetPassword and must not submit their current password');
+    }
+    if (role == 'wirt' && userId != currentUserId) {
+      throw Exception('Wirt users may only change their own password');
+    }
     try {
       await PyBridge().changePassword(user_id: userId.toString(), oldPassword: oldPassword, newPassword: newPassword);
       return true;

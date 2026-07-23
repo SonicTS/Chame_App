@@ -108,6 +108,7 @@ class _AddUserPageState extends State<AddUserPage> {
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthService>(context);
+    final isAdmin = auth.hasAdminRights;
     
     // Check if user has permission to add users
     if (!auth.canManageUsers) {
@@ -204,10 +205,10 @@ class _AddUserPageState extends State<AddUserPage> {
                             border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.security),
                           ),
-                          items: const [
-                            DropdownMenuItem(value: 'user', child: Text('User')),
-                            DropdownMenuItem(value: 'wirt', child: Text('Wirt')),
-                            DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                          items: [
+                            const DropdownMenuItem(value: 'user', child: Text('User')),
+                            const DropdownMenuItem(value: 'wirt', child: Text('Wirt')),
+                            if (isAdmin) const DropdownMenuItem(value: 'admin', child: Text('Admin')),
                           ],
                           onChanged: (val) => setState(() => _role = val!),
                           validator: (value) {

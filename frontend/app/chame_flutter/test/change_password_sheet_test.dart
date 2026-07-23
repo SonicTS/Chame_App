@@ -55,27 +55,32 @@ void main() {
   });
 
   testWidgets('changing your own password still requires the old password', (tester) async {
+    // Admins must never submit their current password; they must use
+    // admin_change_password even when changing their own password.
     bridge
       ..onReturn('get_all_users', [
         {'user_id': 1, 'name': 'admin', 'role': 'admin'},
         {'user_id': 2, 'name': 'wirt_bob', 'role': 'wirt'},
       ])
-      ..onReturn('change_password', null);
+      ..onReturn('admin_change_password', null);
 
     await tester.pumpWidget(buildSheet());
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.widgetWithText(TextField, 'Current Password'), 'old-pass');
+    // Admin should not see the "Current Password" field for any action
+    expect(find.widgetWithText(TextField, 'Current Password'), findsNothing);
+
     await tester.enterText(find.widgetWithText(TextField, 'New Password'), 'new-pass');
     await tester.enterText(find.widgetWithText(TextField, 'Confirm New Password'), 'new-pass');
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Change'));
     await tester.pumpAndSettle();
 
-    final call = bridge.calls.firstWhere((c) => c.method == 'change_password');
+    final call = bridge.calls.firstWhere((c) => c.method == 'admin_change_password');
     expect(call.arguments['user_id'], 1);
-    expect(call.arguments['old_password'], 'old-pass');
+    expect(call.arguments.containsKey('old_password'), isFalse);
     expect(call.arguments['new_password'], 'new-pass');
+    expect(bridge.calls.any((c) => c.method == 'change_password'), isFalse);
   });
 
   testWidgets('admin resetting another user\'s password does not ask for the old password', (tester) async {
@@ -122,7 +127,7 @@ void main() {
     await tester.pumpWidget(buildSheet());
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.widgetWithText(TextField, 'Current Password'), 'old-pass');
+    // Admins don't see the current-password field; just fill new/confirm
     await tester.enterText(find.widgetWithText(TextField, 'New Password'), 'new-pass');
     await tester.enterText(find.widgetWithText(TextField, 'Confirm New Password'), 'something-else');
 
@@ -131,5 +136,6 @@ void main() {
 
     expect(find.text('Passwords do not match'), findsOneWidget);
     expect(bridge.calls.any((c) => c.method == 'change_password'), isFalse);
+    expect(bridge.calls.any((c) => c.method == 'admin_change_password'), isFalse);
   });
 }

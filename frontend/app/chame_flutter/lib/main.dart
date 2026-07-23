@@ -643,14 +643,12 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
     }
     final auth = Provider.of<AuthService>(context, listen: false);
     final targetUserId = _selectedUserId;
-    final isAdminResetForOtherUser = auth.hasAdminRights &&
-        targetUserId != null &&
-        targetUserId != auth.currentUserId;
+    final isAdmin = auth.hasAdminRights;
     try {
       // Use Future.microtask to avoid blocking UI thread
       await Future.microtask(() async {
-        final result = isAdminResetForOtherUser
-            ? await auth.adminResetPassword(targetUserId, _newPassCtrl.text)
+        final result = isAdmin
+            ? await auth.adminResetPassword(targetUserId ?? auth.currentUserId!, _newPassCtrl.text)
             : await auth.changePassword(
                 _oldPassCtrl.text,
                 _newPassCtrl.text,
@@ -679,9 +677,7 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthService>(context, listen: false);
-    final isAdminResetForOtherUser = auth.hasAdminRights &&
-        _selectedUserId != null &&
-        _selectedUserId != auth.currentUserId;
+    final isAdmin = auth.hasAdminRights;
     return Padding(
       // This ensures the sheet goes above the keyboard!
       padding: EdgeInsets.only(
@@ -697,36 +693,41 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
             const Text('Change Password',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            FutureBuilder<List<Map<String, dynamic>>>(
-              future: _usersFuture,
-              builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.only(bottom: 16),
-                    child: LinearProgressIndicator(),
+            if (isAdmin)
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: _usersFuture,
+                builder: (context, snap) {
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.only(bottom: 16),
+                      child: LinearProgressIndicator(),
+                    );
+                  }
+                  final users = snap.data ?? const <Map<String, dynamic>>[];
+                  if (users.isEmpty) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: UserDropdownSelector(
+                      users: users,
+                      selectedUserId: _selectedUserId,
+                      label: 'User',
+                      onChanged: (user) => setState(() {
+                        _selectedUserId = user?['user_id'] as int?;
+                      }),
+                    ),
                   );
-                }
-                final users = snap.data ?? const <Map<String, dynamic>>[];
-                if (users.isEmpty) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: UserDropdownSelector(
-                    users: users,
-                    selectedUserId: _selectedUserId,
-                    label: 'User',
-                    onChanged: (user) => setState(() {
-                      _selectedUserId = user?['user_id'] as int?;
-                    }),
-                  ),
-                );
-              },
-            ),
-            if (isAdminResetForOtherUser)
+                },
+              )
+            else
+              // Non-admins only change their own password — use a hidden
+              // placeholder to keep existing logic that reads _selectedUserId.
+              SizedBox(height: 0),
+            if (isAdmin)
               const Padding(
                 padding: EdgeInsets.only(bottom: 8),
                 child: Text(
-                  'As an admin, you can reset this user\'s password without '
-                  'knowing their current one.',
+                    'As an admin, you can reset any user\'s password without '
+                    'knowing their current one. Admins must not submit their current password.',
                   style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               )

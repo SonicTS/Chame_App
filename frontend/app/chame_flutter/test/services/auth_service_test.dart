@@ -108,16 +108,17 @@ void main() {
     });
 
     test('targets an explicit user id when provided', () async {
+      // Admins must use adminResetPassword when targeting another user
       bridge
         ..onReturn('login', {'user_id': 3, 'role': 'admin'})
-        ..onReturn('change_password', null);
+        ..onReturn('admin_change_password', null);
 
       final auth = await freshAuthService();
       await auth.login('admin', 'secret');
 
-      await auth.changePassword('old-pass', 'new-pass', targetUserId: 42);
+      await auth.adminResetPassword(42, 'new-pass');
 
-      final call = bridge.calls.firstWhere((c) => c.method == 'change_password');
+      final call = bridge.calls.firstWhere((c) => c.method == 'admin_change_password');
       expect(call.arguments['user_id'], 42);
     });
 

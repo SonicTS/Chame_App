@@ -154,8 +154,24 @@ def logout():
     return True
 
 def change_password(user_id, old_password, new_password):
+    # Enforce role-based password change semantics:
+    # - Admins must NOT use this endpoint; they must call admin_change_password.
+    # - Wirt users may only change their own password (must supply old password).
+    # - Regular users may only change their own password.
     if not user_id or not old_password or not new_password:
         raise ValueError("Invalid input")
+
+    viewer_role = (_current_viewer_role or "").lower()
+    viewer_id = _current_viewer_id
+
+    if viewer_role == "admin":
+        raise PermissionError("Admins must use admin_change_password and must not submit their current password")
+
+    # Only allow wirt or normal users to change their own password
+    if viewer_role == "wirt" or viewer_role == "user" or viewer_role == "":
+        if viewer_id is None or int(viewer_id) != int(user_id):
+            raise PermissionError("Only the owning user may change their password")
+
     return database.change_password(user_id, old_password, new_password)
 
 
@@ -186,6 +202,12 @@ def add_user(name, balance, role, salesman_id, password=""):
         raise ValueError("Wirt or admin role requires a password")
     if role.lower() not in ["user", "admin", "wirt"]:
         raise ValueError("Role must be 'user', 'admin', or 'wirt'")
+    # Enforce creator permissions: a 'wirt' may not create 'admin' users, but
+    # may create regular 'user' or 'wirt' accounts.
+    viewer_role = (_current_viewer_role or "").lower()
+    if viewer_role == 'wirt' and role.lower() == 'admin':
+        raise PermissionError("Wirt users may not create 'admin' users")
+
     return database.add_user(username=name, password=password, balance=balance, role=role.lower(), salesman_id=salesman_id)
 
 def withdraw(user_id, amount, salesman_id):
