@@ -722,21 +722,32 @@ class Database:
                 log_warn("Invalid deposit amount", {"operation": "deposit_cash", "user_id": user_id, "username": user_name, "amount": amount})
                 print("✅ [DATABASE] Invalid amount warning logged to Firebase")
                 raise ValueError("Amount must be greater than 0 ")
-            
+            # Compute previous negative balance (debt)
             old_balance = user.balance
             amount = float(amount)
-            user.balance += amount
-            bank.total_balance += amount
-            bank.customer_funds += amount
 
-            # If the user had a negative balance (debt), treat the deposit as
-            # repayment of outstanding debt first and decrease bank.debt_owed.
-            if old_balance < 0:
-                previous_debt = -old_balance
-                repayment = min(amount, previous_debt)
+            prev_negative = max(0.0, -float(old_balance or 0.0))
+            repayment = 0.0
+            remaining = amount
+
+            if prev_negative > 0:
+                repayment = min(amount, prev_negative)
+                remaining = amount - repayment
+
+            # Total bank balance increases by full deposit
+            bank.total_balance += amount
+
+            # Repayment portion is realized as business revenue (not user/customer funds)
+            if repayment > 0:
                 bank.debt_owed = float(bank.debt_owed or 0.0) - repayment
                 if bank.debt_owed < 0:
                     bank.debt_owed = 0.0
+                bank.revenue_total += repayment
+
+            # Remaining amount (if any) increases user balance and customer funds
+            if remaining > 0:
+                user.balance += remaining
+                bank.customer_funds += remaining
 
             _sync_bank_financials(bank)
             transaction = Transaction(user_id=user_id, amount=amount, type="deposit", timestamp=datetime.datetime.now().replace(second=0, microsecond=0), salesman_id=salesman_id)
