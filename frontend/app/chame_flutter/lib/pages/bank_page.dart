@@ -148,10 +148,11 @@ class _BankPageState extends State<BankPage> {
     final double breakEvenSurplus = (bank['break_even_surplus'] ?? 0).toDouble();
     final double costsTotal = (bank['costs_total'] ?? 0).toDouble();
     final double revenueTotal = (bank['revenue_total'] ?? 0).toDouble();
-    final double chartMax = [costsTotal, revenueTotal, coveredCosts + remainingCosts, coveredCosts + breakEvenSurplus]
-            .reduce((a, b) => a > b ? a : b) *
-        1.2 +
-        1;
+    final double debtOwed = (bank['debt_owed'] ?? 0).toDouble();
+    final double chartMax = [costsTotal, revenueTotal, coveredCosts + remainingCosts, coveredCosts + breakEvenSurplus, debtOwed]
+        .reduce((a, b) => a > b ? a : b) *
+      1.2 +
+      1;
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -179,6 +180,8 @@ class _BankPageState extends State<BankPage> {
                             return const Text('Costs');
                           case 1:
                             return const Text('Revenue');
+                          case 2:
+                            return const Text('Debt');
                           default:
                             return const SizedBox.shrink();
                         }
@@ -220,6 +223,19 @@ class _BankPageState extends State<BankPage> {
                       ),
                     ],
                   ),
+                  BarChartGroupData(
+                    x: 2,
+                    barRods: [
+                      BarChartRodData(
+                        toY: debtOwed,
+                        rodStackItems: [
+                          BarChartRodStackItem(0, debtOwed, Colors.deepOrange),
+                        ],
+                        width: 32,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -255,6 +271,7 @@ class _BankPageState extends State<BankPage> {
     final summaryItems = [
       _summaryTile('Total Balance', bank['total_balance'], Colors.black),
       _summaryTile('User Funds', bank['customer_funds'], Colors.blue),
+      _summaryTile('Debt Owed', bank['debt_owed'], Colors.deepOrange),
       _summaryTile('Business Balance', bank['business_balance'], Colors.deepPurple),
       _summaryTile('Break-Even Left', bank['break_even_remaining'], Colors.redAccent),
       _summaryTile('Surplus', bank['break_even_surplus'], Colors.green),
@@ -367,6 +384,8 @@ class _BankPageState extends State<BankPage> {
                                   _legendDot(Colors.redAccent, 'Still To Cover'),
                                   const SizedBox(width: 12),
                                   _legendDot(Colors.blue, 'Revenue Applied'),
+                                  const SizedBox(width: 12),
+                                  _legendDot(Colors.deepOrange, 'Debt Owed'),
                                   const SizedBox(width: 12),
                                   _legendDot(Colors.amber, 'Surplus After Break-Even'),
                                 ],

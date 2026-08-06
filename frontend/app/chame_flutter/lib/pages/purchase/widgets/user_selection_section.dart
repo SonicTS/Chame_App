@@ -10,6 +10,7 @@ class UserSelectionSection extends StatelessWidget {
   final int? selectedUserId;
   final Map<String, dynamic>? selectedUser;
   final double? pendingDeduction;
+  final bool showBalance;
   final ValueChanged<Map<String, dynamic>?> onUserChanged;
 
   const UserSelectionSection({
@@ -18,6 +19,7 @@ class UserSelectionSection extends StatelessWidget {
     required this.selectedUserId,
     required this.selectedUser,
     required this.pendingDeduction,
+    this.showBalance = true,
     required this.onUserChanged,
   });
 
@@ -32,7 +34,7 @@ class UserSelectionSection extends StatelessWidget {
           onChanged: onUserChanged,
           label: 'Select User',
         ),
-        if (selectedUser != null) ...[
+        if (selectedUser != null && showBalance) ...[
           const SizedBox(height: 12),
           UserBalanceCard(
             balance: (selectedUser!['balance'] as num?)?.toDouble() ?? 0.0,

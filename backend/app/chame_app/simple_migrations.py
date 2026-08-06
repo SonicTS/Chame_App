@@ -146,6 +146,16 @@ class SimpleMigrations:
                 -- Note: In SQLite, we can't add foreign key constraints to existing tables easily
                 -- The relationships are defined in the SQLAlchemy models instead
             """
+            ,
+            "007_add_allowed_debt_and_debt_owed": """
+                -- Add allowed_debt to users and debt_owed to bank, backfill with zeros
+                ALTER TABLE users ADD COLUMN allowed_debt FLOAT DEFAULT 0.0;
+                ALTER TABLE bank ADD COLUMN debt_owed FLOAT DEFAULT 0.0;
+
+                -- Ensure existing NULLs are set to 0 for safety
+                UPDATE users SET allowed_debt = 0 WHERE allowed_debt IS NULL;
+                UPDATE bank SET debt_owed = 0 WHERE debt_owed IS NULL;
+            """
             # Add more migrations here as needed
         }
     

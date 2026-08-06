@@ -20,6 +20,7 @@ class Bank(Base):
     
     product_value = Column(Float, default=0.0)
     ingredient_value = Column(Float, default=0.0)
+    debt_owed = Column(Float, default=0.0)  # Debt owed by customers (unrealized revenue)
 
     def get_business_balance(self) -> float:
         return float(self.total_balance or 0.0) - float(self.customer_funds or 0.0)
@@ -79,6 +80,8 @@ class Bank(Base):
             "break_even_covered_costs": break_even_covered_costs,
             "break_even_progress": break_even_progress,
             "break_even_reached": self.is_break_even_reached(),
+            "debt_owed": self.debt_owed,
+            "revenue_unrealized": float(self.debt_owed or 0.0),
         }
 
 class BankTransaction(Base):

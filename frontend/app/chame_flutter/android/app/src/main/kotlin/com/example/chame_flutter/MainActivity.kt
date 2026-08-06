@@ -165,6 +165,7 @@ class MainActivity : FlutterActivity() {
                         val role = call.argument<String>("role")
                         val salesmanId = call.argument<Number>("salesman_id")
                         var password = call.argument<String>("password")
+                        val allowedDebt = call.argument<Number>("allowed_debt")
                         if (password == null) {
                             password = "" // Set a default password if none provided
                         }
@@ -178,7 +179,8 @@ class MainActivity : FlutterActivity() {
                             balance.toDouble(),
                             role,
                             salesmanId.toInt(),
-                            password
+                            password,
+                            (allowedDebt ?: 0.0).toDouble()
                         )
                         result.success(null)
                     } catch (e: Exception) {
@@ -218,6 +220,24 @@ class MainActivity : FlutterActivity() {
                             return@setMethodCallHandler
                         }
                         pyModule.callAttr("deposit", userId.toInt(), amount.toDouble(), salesmanId.toInt())
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("PYTHON_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "set_allowed_debt" -> {
+                    val pyModule = py.getModule("services.admin_api")
+                        ?: return@setMethodCallHandler result.error(
+                            "PY_MODULE", "Module admin_api not found", null
+                        )
+                    try {
+                        val userId = call.argument<Number>("user_id")
+                        val allowedDebt = call.argument<Number>("allowed_debt")
+                        if (userId == null || allowedDebt == null) {
+                            result.error("ARGUMENT_ERROR", "Missing argument for set_allowed_debt", null)
+                            return@setMethodCallHandler
+                        }
+                        pyModule.callAttr("set_allowed_debt", userId.toInt(), allowedDebt.toDouble())
                         result.success(null)
                     } catch (e: Exception) {
                         result.error("PYTHON_ERROR", e.localizedMessage, null)

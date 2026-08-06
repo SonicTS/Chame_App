@@ -16,6 +16,7 @@ class _AddUserPageState extends State<AddUserPage> {
   final _balanceController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _allowedDebtController = TextEditingController(text: '0');
   String _role = 'user';
   bool _isSubmitting = false;
 
@@ -25,6 +26,7 @@ class _AddUserPageState extends State<AddUserPage> {
     _balanceController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _allowedDebtController.dispose();
     super.dispose();
   }
 
@@ -56,12 +58,14 @@ class _AddUserPageState extends State<AddUserPage> {
         return;
       }
       
+      final allowedDebt = double.tryParse(_allowedDebtController.text) ?? 0.0;
       final error = await PyBridge().addUser(
         name: _nameController.text.trim(),
         balance: double.parse(_balanceController.text),
         role: _role,
         password: _role == 'wirt' || _role == 'admin' ? _passwordController.text : null,
         salesmanId: currentUserId,
+        allowedDebt: allowedDebt,
       );
       
       setState(() => _isSubmitting = false);
@@ -218,6 +222,27 @@ class _AddUserPageState extends State<AddUserPage> {
                             return null;
                           },
                         ),
+                        if (isAdmin) ...[
+                          const SizedBox(height: 16),
+                          // Allowed debt field (admin-only)
+                          TextFormField(
+                            controller: _allowedDebtController,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Allowed Debt',
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.money_off),
+                              suffixText: '€',
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) return null;
+                              final v = double.tryParse(value);
+                              if (v == null) return 'Please enter a valid number';
+                              if (v < 0) return 'Allowed debt cannot be negative';
+                              return null;
+                            },
+                          ),
+                        ],
                         
                         // Password fields (only show for admin/wirt roles)
                         if (_role == 'wirt' || _role == 'admin') ...[

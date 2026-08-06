@@ -644,6 +644,7 @@ class UsersTableSection extends StatelessWidget {
                       columns: const [
                         DataColumn(label: Text('Name')),
                         DataColumn(label: Text('Balance')),
+                        DataColumn(label: Text('Allowed Debt')),
                         DataColumn(label: Text('Role')),
                         DataColumn(label: Text('Deposit')),
                         DataColumn(label: Text('Withdraw')),
@@ -659,6 +660,52 @@ class UsersTableSection extends StatelessWidget {
                         return DataRow(cells: [
                           DataCell(Text(user['name']?.toString() ?? '')),
                           DataCell(Text(formatMoney(user['balance']))),
+                          DataCell(
+                            Row(
+                              children: [
+                                Text(formatMoney(user['allowed_debt'] ?? 0.0)),
+                                if (authService.hasAdminRights) ...[
+                                  const SizedBox(width: 6),
+                                  IconButton(
+                                    icon: const Icon(Icons.edit, size: 18),
+                                    tooltip: 'Edit Allowed Debt',
+                                    onPressed: () async {
+                                      final controller = TextEditingController(text: (user['allowed_debt'] ?? 0.0).toString());
+                                      final confirmed = await showDialog<bool>(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          title: const Text('Edit Allowed Debt'),
+                                          content: TextField(
+                                            controller: controller,
+                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                            decoration: const InputDecoration(labelText: 'Allowed Debt'),
+                                          ),
+                                          actions: [
+                                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+                                          ],
+                                        ),
+                                      );
+                                      if (confirmed == true) {
+                                        final val = double.tryParse(controller.text);
+                                        if (val == null || val < 0) {
+                                          UsersTableSection._showDialog(context, 'Error', 'Please enter a valid non-negative number');
+                                          return;
+                                        }
+                                        final err = await PyBridge().setAllowedDebt(userId: userId, allowedDebt: val);
+                                        if (err != null) {
+                                          UsersTableSection._showDialog(context, 'Error', err.toString());
+                                        } else {
+                                          UsersTableSection._showDialog(context, 'Success', 'Allowed debt updated');
+                                          onReload();
+                                        }
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
                           // Role dropdown (only for admin users)
                           DataCell(
                             canEditRole

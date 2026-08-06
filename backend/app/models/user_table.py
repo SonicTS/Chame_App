@@ -46,6 +46,7 @@ class User(Base, EnhancedSoftDeleteMixin):
     user_id = Column(Integer, primary_key=True, index=True)  # Primary Key
     name = Column(String, index=True)  # Name column
     balance = Column(Float, default=0)  # User balance
+    allowed_debt = Column(Float, default=0.0)  # How much negative balance the user may incur
     password_hash = Column(String)  # Store the hashed password
     role = Column(String, default="user")  # Role (e.g., 'admin', 'wrirt')
     pwd_ctx = CryptContext(
@@ -60,9 +61,10 @@ class User(Base, EnhancedSoftDeleteMixin):
     pfand_history = relationship("PfandHistory", back_populates="user")
     sales = relationship("Sale", back_populates="consumer", foreign_keys="Sale.consumer_id")
     
-    def __init__(self, name: str, balance: float = 0.0, password_hash: str = "", role: str = "user"):
+    def __init__(self, name: str, balance: float = 0.0, password_hash: str = "", role: str = "user", allowed_debt: float = 0.0):
         self.name = name
         self.balance = balance
+        self.allowed_debt = allowed_debt
         self.password_hash = self.hash_password(password_hash)
         self.role = role
         
@@ -77,6 +79,7 @@ class User(Base, EnhancedSoftDeleteMixin):
                 "user_id": self.user_id,
                 "name": self.name,
                 "balance": self.balance,
+                "allowed_debt": self.allowed_debt,
                 "role": self.role,
                 # Add soft delete fields for restore functionality
                 "is_deleted": getattr(self, 'is_deleted', False),

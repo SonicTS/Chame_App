@@ -190,6 +190,32 @@ class Database:
                 if close_session:
                     session.close()
             raise RuntimeError(f"admin_set_password failed for User={user_name}: {e}") from e
+
+    def admin_set_allowed_debt(self, user_id: int, allowed_debt: float, session=None):
+        """Sets a user's allowed_debt directly. Callers must verify admin privileges."""
+        close_session = False
+        user_name = "404"
+        try:
+            if session is None:
+                session = self.get_session()
+                close_session = True
+            user = self.get_user_by_id(user_id, session)
+            if not user:
+                raise ValueError(f"User not found (user_id={user_id})")
+            allowed_debt = float(allowed_debt or 0.0)
+            if allowed_debt < 0:
+                raise ValueError("allowed_debt cannot be negative")
+            user.allowed_debt = allowed_debt
+            if close_session:
+                session.commit()
+                session.refresh(user)
+                session.close()
+        except Exception as e:
+            if session:
+                session.rollback()
+                if close_session:
+                    session.close()
+            raise RuntimeError(f"admin_set_allowed_debt failed for User={user_name}: {e}") from e
         
     def change_user_role(self, user_id: int, new_role: str, session=None):
         close_session = False
@@ -437,7 +463,7 @@ class Database:
                     session.close()
             raise RuntimeError(f"add_product failed for Product={name}: {e}") from e
 
-    def add_user(self, username: str, password: str, salesman_id: int, role: str = "user", balance: float = 0.0, session=None):
+    def add_user(self, username: str, password: str, salesman_id: int, role: str = "user", balance: float = 0.0, allowed_debt: float = 0.0, session=None):
         print("🔥 [DATABASE] Logging user creation to Firebase...")
         log_info("User creation initiated", {"operation": "add_user", "username": username, "role": role, "balance": balance})
         print("✅ [DATABASE] User creation initiation logged to Firebase")
@@ -453,7 +479,8 @@ class Database:
                 print("✅ [DATABASE] Reserved username warning logged to Firebase")
                 raise ValueError("Username 'bank' is reserved and cannot be used")
             balance = float(balance)
-            user = User(name=username, balance=balance, password_hash=password, role=role.lower())
+            allowed_debt = float(allowed_debt or 0.0)
+            user = User(name=username, balance=balance, password_hash=password, role=role.lower(), allowed_debt=allowed_debt)
             bank = self.get_bank(session)
             bank.total_balance += balance
             bank.customer_funds += balance
@@ -612,9 +639,11 @@ class Database:
             rounding_difference = product.get_rounding_difference_total(quantity)
             payer = self.get_user_by_id(payer_id, session=session)
             payer_name = payer.name
-            if payer.balance < total_cost:
+            # Allow users to go into debt up to their allowed_debt amount
+            allowed = float(getattr(payer, 'allowed_debt', 0.0) or 0.0)
+            if (payer.balance + allowed) < total_cost:
                 print("⚠️ [DATABASE] Logging insufficient balance to Firebase...")
-                log_warn("Insufficient balance for purchase", {"operation": "make_purchase", "consumer_id": consumer_id, "product": product_name, "payer": payer_name, "required": total_cost, "balance": payer.balance})
+                log_warn("Insufficient balance for purchase", {"operation": "make_purchase", "consumer_id": consumer_id, "product": product_name, "payer": payer_name, "required": total_cost, "balance": payer.balance, "allowed_debt": allowed})
                 print("✅ [DATABASE] Insufficient balance warning logged to Firebase")
                 raise ValueError(f"Insufficient balance: {payer.balance}")
             purchase = Sale(consumer_id=consumer_id, donator_id=donator_id, product_id=product_id, quantity=quantity, total_price=total_cost, timestamp=datetime.datetime.now().replace(second=0, microsecond=0), toast_round_id=toast_round_id, salesman_id=salesman_id)
@@ -625,9 +654,17 @@ class Database:
                 else:
                     pfand_history = PfandHistory(user_id=consumer_id, product_id=product_id, counter=quantity)
                     session.add(pfand_history)
+            # If allowed_debt covers the shortfall, user balance will go negative
+            # Compute incremental debt change based on negative balance before/after purchase
+            prev_negative = max(0.0, -float(payer.balance or 0.0))
             payer.balance -= total_cost
             bank.customer_funds -= total_cost
             bank.revenue_total += base_total_cost
+            new_negative = max(0.0, -float(payer.balance or 0.0))
+            incremental_debt = new_negative - prev_negative
+            if incremental_debt > 0:
+                # Record only the incremental increase in customer debt
+                bank.debt_owed = float(bank.debt_owed or 0.0) + incremental_debt
             if rounding_difference > 0:
                 god_user = User.active_only(session.query(User)).filter(User.role == "god").first()
                 if not god_user:
@@ -687,9 +724,20 @@ class Database:
                 raise ValueError("Amount must be greater than 0 ")
             
             old_balance = user.balance
+            amount = float(amount)
             user.balance += amount
             bank.total_balance += amount
             bank.customer_funds += amount
+
+            # If the user had a negative balance (debt), treat the deposit as
+            # repayment of outstanding debt first and decrease bank.debt_owed.
+            if old_balance < 0:
+                previous_debt = -old_balance
+                repayment = min(amount, previous_debt)
+                bank.debt_owed = float(bank.debt_owed or 0.0) - repayment
+                if bank.debt_owed < 0:
+                    bank.debt_owed = 0.0
+
             _sync_bank_financials(bank)
             transaction = Transaction(user_id=user_id, amount=amount, type="deposit", timestamp=datetime.datetime.now().replace(second=0, microsecond=0), salesman_id=salesman_id)
             session.add(transaction)

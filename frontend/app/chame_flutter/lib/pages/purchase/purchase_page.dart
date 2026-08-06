@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 
 import 'purchase_pricing.dart';
 import 'widgets/user_selection_section.dart';
+import 'package:chame_flutter/widgets/shared/user_dropdown_selector.dart';
+import 'package:chame_flutter/widgets/shared/user_balance_card.dart';
 import 'widgets/product_selection_widget.dart';
 import 'widgets/action_buttons_widget.dart';
 import 'widgets/shopping_cart_widget.dart';
@@ -27,6 +29,9 @@ class _PurchasePageState extends State<PurchasePage> {
   int _quantity = 1;
   bool _isSubmitting = false;
   String _salesConfig = 'all';
+  bool _includeDonator = false;
+  int? _donatorId;
+  Map<String, dynamic>? _donator;
   
   // Shopping cart functionality
   List<Map<String, dynamic>> _shoppingCart = [];
@@ -72,24 +77,33 @@ class _PurchasePageState extends State<PurchasePage> {
     
     try {
       final auth = Provider.of<AuthService>(context, listen: false);
-      final salesData = await PyBridge().getSalesPaginated(
-        page: _currentPage, 
-        pageSize: _pageSize
-      );
-      final filteredSales = auth.filterVisibleRecords(
-        (salesData['sales'] as List<dynamic>? ?? const <dynamic>[])
-            .cast<Map<String, dynamic>>(),
-      );
-      
+      // Fetch the full sales list and apply visibility filtering so we can
+      // build a client-side paginated list that matches the filtered set.
+      final allSales = await PyBridge().getAllSales();
+      final visible = auth.filterVisibleRecords(allSales.cast<Map<String, dynamic>>());
+
+      // Apply top-level salesConfig filter (category) before paginating
+      final afterConfig = _salesConfig == 'all'
+          ? visible
+          : visible.where((s) => s['product']?['category'] == _salesConfig).toList();
+
+      final totalVisible = afterConfig.length;
+      final computedPages = (totalVisible + _pageSize - 1) ~/ _pageSize;
+      final page = _currentPage.clamp(1, computedPages == 0 ? 1 : computedPages);
+      final start = (page - 1) * _pageSize;
+      final end = (start + _pageSize) > totalVisible ? totalVisible : (start + _pageSize);
+      final pageSlice = start < end ? afterConfig.sublist(start, end) : <Map<String, dynamic>>[];
+
       setState(() {
         _paginatedSalesData = {
-          ...salesData,
-          'sales': filteredSales,
-          'total_count': filteredSales.length,
-          'total_pages': 1,
+          'sales': pageSlice,
+          'total_count': totalVisible,
+          'page': page,
+          'page_size': _pageSize,
+          'total_pages': computedPages,
         };
-        _totalSales = filteredSales.length;
-        _totalPages = 1;
+        _totalSales = totalVisible;
+        _totalPages = computedPages;
         _isLoadingSales = false;
       });
     } catch (e) {
@@ -152,6 +166,25 @@ class _PurchasePageState extends State<PurchasePage> {
         }
       } catch (e) {
         // Handle error gracefully - user data will be updated when UI rebuilds
+      }
+    }
+  }
+
+  Future<void> _updateDonatorData() async {
+    if (_donatorId != null) {
+      try {
+        final users = await _usersFuture;
+        final updated = users.firstWhere(
+          (u) => u['user_id'] == _donatorId,
+          orElse: () => <String, dynamic>{},
+        );
+        if (updated.isNotEmpty && mounted) {
+          setState(() {
+            _donator = updated;
+          });
+        }
+      } catch (e) {
+        // ignore
       }
     }
   }
@@ -224,11 +257,32 @@ class _PurchasePageState extends State<PurchasePage> {
       return;
     }
 
+    // Determine the actual payer (donator when included) and keep it in
+    // outer scope so it's available for the confirmation and summary below.
+    final Map<String, dynamic>? payer = _includeDonator && _donator != null ? _donator : _selectedUser;
     if (_selectedUser != null) {
-      final userBalance = (_selectedUser!['balance'] as num?)?.toDouble() ?? 0.0;
-      if (userBalance < _totalCost) {
-        _showDialog('Error', 'Insufficient balance. User balance: €${userBalance.toStringAsFixed(2)}, Total cost: €${_totalCost.toStringAsFixed(2)}');
+      final payerBalance = (payer?['balance'] as num?)?.toDouble() ?? 0.0;
+      final payerAllowedDebt = (payer?['allowed_debt'] as num?)?.toDouble() ?? 0.0;
+      if (payerBalance + payerAllowedDebt < _totalCost) {
+        final name = _includeDonator ? (payer?['name'] ?? 'Donator') : (payer?['name'] ?? 'User');
+        _showDialog('Error', 'Insufficient balance. $name balance: €${payerBalance.toStringAsFixed(2)}, allowed debt: €${payerAllowedDebt.toStringAsFixed(2)}, Total cost: €${_totalCost.toStringAsFixed(2)}');
         return;
+      }
+      // If purchase will put the payer into debt, confirm with the user
+      if (payerBalance < _totalCost) {
+        final debtAmount = (_totalCost - payerBalance);
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Confirm Debt'),
+            content: Text('This purchase will put ${payer?['name'] ?? 'the user'} into debt by €${debtAmount.toStringAsFixed(2)}. Proceed?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Proceed')),
+            ],
+          ),
+        );
+        if (confirmed != true) return;
       }
     }
 
@@ -236,6 +290,7 @@ class _PurchasePageState extends State<PurchasePage> {
     
     final itemList = _shoppingCart.map((item) => {
       'consumer_id': _selectedUserId!,
+      if (_includeDonator && _donatorId != null) 'donator_id': _donatorId,
       'product_id': item['product']['product_id'] as int,
       'quantity': item['quantity'] as int,
     }).toList();
@@ -246,7 +301,7 @@ class _PurchasePageState extends State<PurchasePage> {
     if (error != null) {
       _showDialog('Error', error);
     } else {
-      final oldBalance = (_selectedUser?['balance'] as num?)?.toDouble() ?? 0.0;
+      final oldBalance = (payer?['balance'] as num?)?.toDouble() ?? 0.0;
       final newBalance = oldBalance - _totalCost;
       
       _showDialog('Success', 
@@ -263,7 +318,9 @@ class _PurchasePageState extends State<PurchasePage> {
         _quantity = 1;
       });
       // Refresh all data after successful purchase - most importantly user balance
-      _fetchAll(); 
+      _fetchAll();
+      // Also refresh donator data immediately so their balance card updates
+      _updateDonatorData();
     }
   }
 
@@ -328,6 +385,23 @@ class _PurchasePageState extends State<PurchasePage> {
                         return const Center(child: CircularProgressIndicator());
                       }
                       final products = prodSnap.data ?? [];
+                      // Compute a preview pending deduction:
+                      // - If cart has items, show cart total
+                      // - Otherwise, if a product is selected, preview that product*quantity
+                      double? pendingDeductionPreview;
+                      if (_shoppingCart.isNotEmpty) {
+                        pendingDeductionPreview = _totalCost;
+                      } else if (_selectedProductId != null) {
+                        final sel = products.firstWhere((p) => p['product_id'] == _selectedProductId, orElse: () => <String, dynamic>{});
+                        if (sel.isNotEmpty) {
+                          pendingDeductionPreview = getCheckoutTotal(sel, _quantity);
+                        } else {
+                          pendingDeductionPreview = null;
+                        }
+                      } else {
+                        pendingDeductionPreview = null;
+                      }
+
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -335,12 +409,53 @@ class _PurchasePageState extends State<PurchasePage> {
                             users: users,
                             selectedUserId: _selectedUserId,
                             selectedUser: _selectedUser,
-                            pendingDeduction: _shoppingCart.isEmpty ? null : _totalCost,
+                            pendingDeduction: pendingDeductionPreview,
+                            showBalance: !_includeDonator,
                             onUserChanged: (val) => setState(() {
                               _selectedUserId = val?['user_id'] as int?;
                               _selectedUser = val;
                             }),
                           ),
+                          const SizedBox(height: 8),
+                          // Optional donator checkbox + selector
+                          CheckboxListTile(
+                            value: _includeDonator,
+                            onChanged: (v) {
+                              setState(() {
+                                _includeDonator = v ?? false;
+                                if (!_includeDonator) {
+                                  _donatorId = null;
+                                  _donator = null;
+                                }
+                              });
+                            },
+                            title: const Text('Include Donator (payer) for this purchase'),
+                            controlAffinity: ListTileControlAffinity.leading,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                          if (_includeDonator) ...[
+                            const SizedBox(height: 8),
+                            UserDropdownSelector(
+                              users: users,
+                              selectedUserId: _donatorId,
+                              onChanged: (val) {
+                                setState(() {
+                                  _donatorId = val?['user_id'] as int?;
+                                  _donator = val;
+                                });
+                                _updateDonatorData();
+                              },
+                              label: 'Select Donator',
+                            ),
+                            if (_donator != null) ...[
+                              const SizedBox(height: 12),
+                              // Preview the selected donator's balance and pending deduction
+                              UserBalanceCard(
+                                balance: (_donator!['balance'] as num?)?.toDouble() ?? 0.0,
+                                pendingDeduction: pendingDeductionPreview,
+                              ),
+                            ],
+                          ],
                           const SizedBox(height: 16),
                           ProductSelectionWidget(
                             products: products,
@@ -379,7 +494,9 @@ class _PurchasePageState extends State<PurchasePage> {
                             salesConfig: _salesConfig,
                             onConfigChanged: (val) {
                               setState(() => _salesConfig = val);
-                              // No need to reload data since filtering is done client-side
+                              // Rebuild client-side pagination for the new config
+                              _currentPage = 1;
+                              _loadPaginatedSales();
                             },
                           ),
                           const SizedBox(height: 12),

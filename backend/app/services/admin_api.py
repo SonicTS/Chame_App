@@ -189,7 +189,7 @@ def admin_change_password(user_id, new_password):
 
 
 # User management
-def add_user(name, balance, role, salesman_id, password=""):
+def add_user(name, balance, role, salesman_id, password="", allowed_debt=0.0):
     print("DEBUG: add_user called with:", name, balance, role, salesman_id, password)
     if not name or balance is None or role is None or salesman_id is None:
         raise ValueError("Invalid input")
@@ -208,7 +208,29 @@ def add_user(name, balance, role, salesman_id, password=""):
     if viewer_role == 'wirt' and role.lower() == 'admin':
         raise PermissionError("Wirt users may not create 'admin' users")
 
-    return database.add_user(username=name, password=password, balance=balance, role=role.lower(), salesman_id=salesman_id)
+    # Only admins may set a non-zero allowed_debt
+    try:
+        allowed_debt_val = float(allowed_debt or 0.0)
+    except Exception:
+        allowed_debt_val = 0.0
+    if allowed_debt_val != 0.0 and viewer_role != 'admin':
+        raise PermissionError("Only admins may assign allowed debt to users")
+
+    return database.add_user(username=name, password=password, balance=balance, role=role.lower(), salesman_id=salesman_id, allowed_debt=allowed_debt_val)
+
+
+def set_allowed_debt(user_id, allowed_debt):
+    """Admin-only API to set a user's allowed_debt."""
+    viewer_role = (_current_viewer_role or "").lower()
+    if viewer_role != 'admin':
+        raise PermissionError("Only admins may modify allowed debt")
+    if not user_id:
+        raise ValueError("Invalid user_id")
+    try:
+        allowed = float(allowed_debt or 0.0)
+    except Exception:
+        raise ValueError("Invalid allowed_debt value")
+    return database.admin_set_allowed_debt(user_id=int(user_id), allowed_debt=allowed)
 
 def withdraw(user_id, amount, salesman_id):
     if not user_id or not amount or salesman_id is None:

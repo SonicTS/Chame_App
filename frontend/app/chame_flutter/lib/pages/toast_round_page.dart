@@ -27,6 +27,7 @@ class _ToastRoundPageState extends State<ToastRoundPage> {
   bool _isSubmitting = false;
   int? _globalUserId;
   int? _globalProductId;
+  int? _globalDonatorId;
   bool _showDonatorColumn = false;
 
   // Scroll controllers for coordinated scrolling
@@ -108,6 +109,17 @@ class _ToastRoundPageState extends State<ToastRoundPage> {
     });
   }
 
+  void _applyGlobalDonatorSelection(int? donatorId) {
+    setState(() {
+      _globalDonatorId = donatorId;
+      for (var i = 0; i < 6; i++) {
+        if (!_isOccupiedSlot(_selectedProductIds[i])) {
+          _selectedDonatorIds[i] = donatorId;
+        }
+      }
+    });
+  }
+
   void _handleProductChange(int index, int? newPid, List<Map<String, dynamic>> products) {
     setState(() {
       _selectedProductIds[index] = newPid;
@@ -158,7 +170,7 @@ class _ToastRoundPageState extends State<ToastRoundPage> {
     for (var i = 0; i < 6; i++) {
       final pid = _selectedProductIds[i];
       final consumer = _selectedUserIds[i];
-      final donator = _selectedDonatorIds[i];
+      final donator = _selectedDonatorIds[i] ?? _globalDonatorId;
       if (pid != null && pid != _OCCUPIED && consumer != null) {
         uidOut.add(consumer);
         pidOut.add(pid);
@@ -261,6 +273,16 @@ class _ToastRoundPageState extends State<ToastRoundPage> {
                                     products: products,
                                     selectedId: _globalProductId,
                                     onChanged: (id) => _applyGlobalProductSelection(id, products),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                SizedBox(
+                                  width: 180,
+                                  child: _dropdownUser(
+                                    label: 'Global Donator',
+                                    users: users,
+                                    selectedId: _globalDonatorId,
+                                    onChanged: (id) => _applyGlobalDonatorSelection(id),
                                   ),
                                 ),
                               ],

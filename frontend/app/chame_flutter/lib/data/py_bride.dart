@@ -119,6 +119,7 @@ class PyBridge {
     required String role,
     required String? password,
     required int salesmanId,
+    required double? allowedDebt,
   }) async {
     try {
       await _chan.invokeMethod('add_user', {
@@ -127,6 +128,19 @@ class PyBridge {
         'role': role,
         'password': password,
         'salesman_id': salesmanId,
+        'allowed_debt': allowedDebt ?? 0.0,
+      });
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> setAllowedDebt({required int userId, required double allowedDebt}) async {
+    try {
+      await _chan.invokeMethod('set_allowed_debt', {
+        'user_id': userId,
+        'allowed_debt': allowedDebt,
       });
       return null;
     } catch (e) {

@@ -36,12 +36,25 @@ class SalesTableWidget extends StatefulWidget {
 class _SalesTableWidgetState extends State<SalesTableWidget> {
   final ScrollController _horizontalScrollController = ScrollController();
   final ScrollController _verticalScrollController = ScrollController();
+  final Map<String, TextEditingController> _controllers = {};
 
   @override
   void dispose() {
     _horizontalScrollController.dispose();
     _verticalScrollController.dispose();
+    for (final c in _controllers.values) {
+      c.dispose();
+    }
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize controllers for column filters
+    for (final key in ['id', 'consumer', 'donator', 'salesman', 'product', 'quantity', 'price', 'date']) {
+      _controllers[key] = TextEditingController();
+    }
   }
 
   String _formatTimestamp(dynamic ts) {
@@ -70,9 +83,12 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
     final allSales = (salesData['sales'] as List<dynamic>?)
         ?.cast<Map<String, dynamic>>() ?? [];
     
-    final filteredSales = widget.salesConfig == 'all'
-        ? allSales
-        : allSales.where((s) => s['product']?['category'] == widget.salesConfig).toList();
+    final filteredByConfig = widget.salesConfig == 'all'
+      ? allSales
+      : allSales.where((s) => s['product']?['category'] == widget.salesConfig).toList();
+
+    // Apply per-column text filters (client-side)
+    final filteredSales = _applyColumnFilters(filteredByConfig);
     
     if (filteredSales.isEmpty) {
       return const Center(
@@ -85,6 +101,32 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
     
     return Column(
       children: [
+        // Column filter inputs (compact)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildFilterField('ID', 'id', width: 80),
+                const SizedBox(width: 8),
+                _buildFilterField('Consumer', 'consumer', width: 120),
+                const SizedBox(width: 8),
+                _buildFilterField('Donator', 'donator', width: 120),
+                const SizedBox(width: 8),
+                _buildFilterField('Salesman', 'salesman', width: 120),
+                const SizedBox(width: 8),
+                _buildFilterField('Product', 'product', width: 140),
+                const SizedBox(width: 8),
+                _buildFilterField('Qty', 'quantity', width: 60),
+                const SizedBox(width: 8),
+                _buildFilterField('Price', 'price', width: 80),
+                const SizedBox(width: 8),
+                _buildFilterField('Date', 'date', width: 120),
+              ],
+            ),
+          ),
+        ),
         // Pagination info and controls
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -196,6 +238,8 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
   }
 
   Widget _buildDataTable(List<Map<String, dynamic>> sales) {
+    // local copy filtered by column inputs
+    final displayed = _applyColumnFilters(sales);
     return DataTable(
       columnSpacing: 12,
       horizontalMargin: 12,
@@ -211,7 +255,78 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
         DataColumn(label: Text('Price', style: TextStyle(fontWeight: FontWeight.bold))),
         DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
       ],
-      rows: sales.map((sale) => _buildDataRow(sale)).toList(),
+      rows: displayed.map((sale) => _buildDataRow(sale)).toList(),
+    );
+  }
+
+  List<Map<String, dynamic>> _applyColumnFilters(List<Map<String, dynamic>> sales) {
+    var result = sales;
+    _controllers.forEach((key, controller) {
+      final value = controller.text.trim();
+      if (value.isEmpty) return;
+
+      final lower = value.toLowerCase();
+      result = result.where((sale) {
+        try {
+          switch (key) {
+            case 'id':
+              return (sale['sale_id']?.toString() ?? '').toLowerCase().contains(lower);
+            case 'consumer':
+              final c = sale['consumer'];
+              final name = c is Map ? (c['name']?.toString() ?? '') : (c?.toString() ?? '');
+              return name.toLowerCase().contains(lower);
+            case 'donator':
+              final d = sale['donator'];
+              final name = d is Map ? (d['name']?.toString() ?? '') : (d?.toString() ?? '');
+              return name.toLowerCase().contains(lower);
+            case 'salesman':
+              final s = sale['salesman'];
+              final name = s is Map ? (s['name']?.toString() ?? '') : (s?.toString() ?? '');
+              return name.toLowerCase().contains(lower);
+            case 'product':
+              final p = sale['product'];
+              final name = p is Map ? (p['name']?.toString() ?? '') : (p?.toString() ?? '');
+              return name.toLowerCase().contains(lower);
+            case 'quantity':
+              return (sale['quantity']?.toString() ?? '').toLowerCase().contains(lower);
+            case 'price':
+              return (sale['total_price']?.toString() ?? '').toLowerCase().contains(lower);
+            case 'date':
+              final date = _formatTimestamp(sale['timestamp']).toLowerCase();
+              return date.contains(lower);
+            default:
+              return true;
+          }
+        } catch (e) {
+          return false;
+        }
+      }).toList();
+    });
+
+    return result;
+  }
+
+  Widget _buildFilterField(String label, String key, {double width = 120}) {
+    final controller = _controllers[key]!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        SizedBox(
+          width: width,
+          child: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+              border: OutlineInputBorder(),
+              hintText: 'filter',
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ),
+      ],
     );
   }
 
