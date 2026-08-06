@@ -750,7 +750,18 @@ class Database:
                 bank.customer_funds += remaining
 
             _sync_bank_financials(bank)
-            transaction = Transaction(user_id=user_id, amount=amount, type="deposit", timestamp=datetime.datetime.now().replace(second=0, microsecond=0), salesman_id=salesman_id)
+            # Build descriptive transaction comment explaining repayment vs credit split
+            comment_parts = []
+            if repayment > 0:
+                comment_parts.append(f"repayment: €{repayment:.2f}")
+            if remaining > 0:
+                comment_parts.append(f"credited: €{remaining:.2f} to user balance")
+            if not comment_parts:
+                comment = f"deposit: €{amount:.2f}"
+            else:
+                comment = "Deposit - " + ", ".join(comment_parts)
+
+            transaction = Transaction(user_id=user_id, amount=amount, type="deposit", timestamp=datetime.datetime.now().replace(second=0, microsecond=0), salesman_id=salesman_id, comment=comment)
             session.add(transaction)
             if close_session:
                 session.commit()
