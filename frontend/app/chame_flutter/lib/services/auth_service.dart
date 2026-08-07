@@ -97,7 +97,8 @@ class AuthService extends ChangeNotifier {
 
   Future<void> _loadFromStorage() async {
     _token = await _storage.read(key: 'user_id');
-    _role  = await _storage.read(key: 'user_role');
+    final storedRole = await _storage.read(key: 'user_role');
+    _role = storedRole?.toString().toLowerCase();
     _initialized = true;
     notifyListeners();
   }
@@ -116,7 +117,7 @@ class AuthService extends ChangeNotifier {
         return false;
       }
       _token = fetched['user_id'].toString();          // e.g. JWT
-      _role  = fetched['role'];           // e.g. "admin" or "user"
+      _role  = fetched['role']?.toString().toLowerCase();           // e.g. "admin" or "user"
       _rememberGodUserIds([fetched]);
       await _storage.write(key: 'user_id', value: _token);
       await _storage.write(key: 'user_role',    value: _role);

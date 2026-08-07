@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 /// Paginated, horizontally + vertically scrollable sales history table.
 class SalesTableWidget extends StatefulWidget {
   final Map<String, dynamic>? paginatedSalesData;
-  final String salesConfig;
   final ScrollController mainController;
   final bool isLoading;
   final int currentPage;
@@ -13,11 +12,11 @@ class SalesTableWidget extends StatefulWidget {
   final VoidCallback onPreviousPage;
   final VoidCallback onFirstPage;
   final VoidCallback onLastPage;
+  final ValueChanged<Map<String, String>> onFiltersChanged;
 
   const SalesTableWidget({
     super.key,
     required this.paginatedSalesData,
-    required this.salesConfig,
     required this.mainController,
     required this.isLoading,
     required this.currentPage,
@@ -27,6 +26,7 @@ class SalesTableWidget extends StatefulWidget {
     required this.onPreviousPage,
     required this.onFirstPage,
     required this.onLastPage,
+    required this.onFiltersChanged,
   });
 
   @override
@@ -52,7 +52,16 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
   void initState() {
     super.initState();
     // Initialize controllers for column filters
-    for (final key in ['id', 'consumer', 'donator', 'salesman', 'product', 'quantity', 'price', 'date']) {
+    for (final key in [
+      'id',
+      'consumer',
+      'donator',
+      'salesman',
+      'product',
+      'quantity',
+      'price',
+      'date',
+    ]) {
       _controllers[key] = TextEditingController();
     }
   }
@@ -69,7 +78,7 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
     if (widget.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-    
+
     final salesData = widget.paginatedSalesData;
     if (salesData == null) {
       return const Center(
@@ -79,26 +88,11 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
         ),
       );
     }
-    
-    final allSales = (salesData['sales'] as List<dynamic>?)
-        ?.cast<Map<String, dynamic>>() ?? [];
-    
-    final filteredByConfig = widget.salesConfig == 'all'
-      ? allSales
-      : allSales.where((s) => s['product']?['category'] == widget.salesConfig).toList();
 
-    // Apply per-column text filters (client-side)
-    final filteredSales = _applyColumnFilters(filteredByConfig);
-    
-    if (filteredSales.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(20.0),
-          child: Text('No sales found for the selected category.'),
-        ),
-      );
-    }
-    
+    final allSales =
+        (salesData['sales'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ??
+        [];
+
     return Column(
       children: [
         // Column filter inputs (compact)
@@ -146,8 +140,11 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
                 children: [
                   Flexible(
                     child: Text(
-                      'Showing ${filteredSales.length} of ${widget.totalSales} sales',
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      'Showing ${allSales.length} of ${widget.totalSales} sales',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -165,30 +162,50 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
                   const SizedBox(width: 8),
                   IconButton(
                     icon: const Icon(Icons.first_page),
-                    onPressed: widget.currentPage > 1 ? widget.onFirstPage : null,
+                    onPressed: widget.currentPage > 1
+                        ? widget.onFirstPage
+                        : null,
                     iconSize: 18,
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    constraints: const BoxConstraints(
+                      minWidth: 28,
+                      minHeight: 28,
+                    ),
                     padding: const EdgeInsets.all(2),
                   ),
                   IconButton(
                     icon: const Icon(Icons.chevron_left),
-                    onPressed: widget.currentPage > 1 ? widget.onPreviousPage : null,
+                    onPressed: widget.currentPage > 1
+                        ? widget.onPreviousPage
+                        : null,
                     iconSize: 18,
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    constraints: const BoxConstraints(
+                      minWidth: 28,
+                      minHeight: 28,
+                    ),
                     padding: const EdgeInsets.all(2),
                   ),
                   IconButton(
                     icon: const Icon(Icons.chevron_right),
-                    onPressed: widget.currentPage < widget.totalPages ? widget.onNextPage : null,
+                    onPressed: widget.currentPage < widget.totalPages
+                        ? widget.onNextPage
+                        : null,
                     iconSize: 18,
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    constraints: const BoxConstraints(
+                      minWidth: 28,
+                      minHeight: 28,
+                    ),
                     padding: const EdgeInsets.all(2),
                   ),
                   IconButton(
                     icon: const Icon(Icons.last_page),
-                    onPressed: widget.currentPage < widget.totalPages ? widget.onLastPage : null,
+                    onPressed: widget.currentPage < widget.totalPages
+                        ? widget.onLastPage
+                        : null,
                     iconSize: 18,
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    constraints: const BoxConstraints(
+                      minWidth: 28,
+                      minHeight: 28,
+                    ),
                     padding: const EdgeInsets.all(2),
                   ),
                 ],
@@ -225,7 +242,7 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
                       physics: CoordinatedScrollPhysics(
                         mainController: widget.mainController,
                       ),
-                      child: _buildDataTable(filteredSales),
+                      child: _buildDataTable(allSales),
                     ),
                   ),
                 ),
@@ -238,80 +255,61 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
   }
 
   Widget _buildDataTable(List<Map<String, dynamic>> sales) {
-    // local copy filtered by column inputs
-    final displayed = _applyColumnFilters(sales);
     return DataTable(
       columnSpacing: 12,
       horizontalMargin: 12,
       dataRowMinHeight: 48,
       headingRowHeight: 48,
       columns: const [
-        DataColumn(label: Text('ID', style: TextStyle(fontWeight: FontWeight.bold))),
-        DataColumn(label: Text('Consumer', style: TextStyle(fontWeight: FontWeight.bold))),
-        DataColumn(label: Text('Donator', style: TextStyle(fontWeight: FontWeight.bold))),
-        DataColumn(label: Text('Salesman', style: TextStyle(fontWeight: FontWeight.bold))),
-        DataColumn(label: Text('Product', style: TextStyle(fontWeight: FontWeight.bold))),
-        DataColumn(label: Text('Qty', style: TextStyle(fontWeight: FontWeight.bold))),
-        DataColumn(label: Text('Price', style: TextStyle(fontWeight: FontWeight.bold))),
-        DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
+        DataColumn(
+          label: Text('ID', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+        DataColumn(
+          label: Text(
+            'Consumer',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        DataColumn(
+          label: Text('Donator', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+        DataColumn(
+          label: Text(
+            'Salesman',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        DataColumn(
+          label: Text('Product', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+        DataColumn(
+          label: Text('Qty', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+        DataColumn(
+          label: Text('Price', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+        DataColumn(
+          label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
       ],
-      rows: displayed.map((sale) => _buildDataRow(sale)).toList(),
+      rows: sales.map((sale) => _buildDataRow(sale)).toList(),
     );
   }
 
-  List<Map<String, dynamic>> _applyColumnFilters(List<Map<String, dynamic>> sales) {
-    var result = sales;
-    _controllers.forEach((key, controller) {
-      final value = controller.text.trim();
-      if (value.isEmpty) return;
-
-      final lower = value.toLowerCase();
-      result = result.where((sale) {
-        try {
-          switch (key) {
-            case 'id':
-              return (sale['sale_id']?.toString() ?? '').toLowerCase().contains(lower);
-            case 'consumer':
-              final c = sale['consumer'];
-              final name = c is Map ? (c['name']?.toString() ?? '') : (c?.toString() ?? '');
-              return name.toLowerCase().contains(lower);
-            case 'donator':
-              final d = sale['donator'];
-              final name = d is Map ? (d['name']?.toString() ?? '') : (d?.toString() ?? '');
-              return name.toLowerCase().contains(lower);
-            case 'salesman':
-              final s = sale['salesman'];
-              final name = s is Map ? (s['name']?.toString() ?? '') : (s?.toString() ?? '');
-              return name.toLowerCase().contains(lower);
-            case 'product':
-              final p = sale['product'];
-              final name = p is Map ? (p['name']?.toString() ?? '') : (p?.toString() ?? '');
-              return name.toLowerCase().contains(lower);
-            case 'quantity':
-              return (sale['quantity']?.toString() ?? '').toLowerCase().contains(lower);
-            case 'price':
-              return (sale['total_price']?.toString() ?? '').toLowerCase().contains(lower);
-            case 'date':
-              final date = _formatTimestamp(sale['timestamp']).toLowerCase();
-              return date.contains(lower);
-            default:
-              return true;
-          }
-        } catch (e) {
-          return false;
-        }
-      }).toList();
-    });
-
-    return result;
-  }
+  Map<String, String> get _activeFilters => {
+    for (final entry in _controllers.entries)
+      entry.key: entry.value.text.trim(),
+  };
 
   Widget _buildFilterField(String label, String key, {double width = 120}) {
     final controller = _controllers[key]!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 4),
         SizedBox(
           width: width,
@@ -323,7 +321,7 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
               border: OutlineInputBorder(),
               hintText: 'filter',
             ),
-            onChanged: (_) => setState(() {}),
+            onChanged: (_) => widget.onFiltersChanged(_activeFilters),
           ),
         ),
       ],
@@ -335,21 +333,21 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
     String donator = '';
     String salesman = '';
     String product = '';
-    
+
     try {
       final consumerField = sale['consumer'];
       final donatorField = sale['donator'];
       final salesmanField = sale['salesman'];
       final productField = sale['product'];
-      
+
       consumer = consumerField is Map && consumerField['name'] != null
           ? consumerField['name'].toString()
           : consumerField?.toString() ?? '';
       donator = donatorField == null
           ? ''
           : (donatorField is Map && donatorField['name'] != null
-              ? donatorField['name'].toString()
-              : donatorField.toString());
+                ? donatorField['name'].toString()
+                : donatorField.toString());
       salesman = salesmanField is Map && salesmanField['name'] != null
           ? salesmanField['name'].toString()
           : salesmanField?.toString() ?? '';
@@ -362,7 +360,7 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
       salesman = sale['salesman']?.toString() ?? '';
       product = sale['product']?.toString() ?? '';
     }
-    
+
     String formattedDate = '';
     try {
       final timestamp = sale['timestamp'];
@@ -382,18 +380,83 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
     } catch (e) {
       formattedDate = _formatTimestamp(sale['timestamp']);
     }
-    
+
     return DataRow(
       key: ValueKey(sale['sale_id']),
       cells: [
-        DataCell(Text(sale['sale_id']?.toString() ?? '', style: const TextStyle(fontSize: 12))),
-        DataCell(SizedBox(width: 80, child: Text(consumer, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis, maxLines: 2))),
-        DataCell(SizedBox(width: 80, child: Text(donator, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis, maxLines: 2))),
-        DataCell(SizedBox(width: 80, child: Text(salesman, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis, maxLines: 2))),
-        DataCell(SizedBox(width: 100, child: Text(product, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis, maxLines: 2))),
-        DataCell(Text(sale['quantity']?.toString() ?? '', style: const TextStyle(fontSize: 12))),
-        DataCell(Text('€${sale['total_price']?.toString() ?? ''}', style: const TextStyle(fontSize: 12))),
-        DataCell(SizedBox(width: 80, child: Text(formattedDate, style: const TextStyle(fontSize: 10), maxLines: 2, overflow: TextOverflow.ellipsis))),
+        DataCell(
+          Text(
+            sale['sale_id']?.toString() ?? '',
+            style: const TextStyle(fontSize: 12),
+          ),
+        ),
+        DataCell(
+          SizedBox(
+            width: 80,
+            child: Text(
+              consumer,
+              style: const TextStyle(fontSize: 12),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            ),
+          ),
+        ),
+        DataCell(
+          SizedBox(
+            width: 80,
+            child: Text(
+              donator,
+              style: const TextStyle(fontSize: 12),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            ),
+          ),
+        ),
+        DataCell(
+          SizedBox(
+            width: 80,
+            child: Text(
+              salesman,
+              style: const TextStyle(fontSize: 12),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            ),
+          ),
+        ),
+        DataCell(
+          SizedBox(
+            width: 100,
+            child: Text(
+              product,
+              style: const TextStyle(fontSize: 12),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            ),
+          ),
+        ),
+        DataCell(
+          Text(
+            sale['quantity']?.toString() ?? '',
+            style: const TextStyle(fontSize: 12),
+          ),
+        ),
+        DataCell(
+          Text(
+            '€${sale['total_price']?.toString() ?? ''}',
+            style: const TextStyle(fontSize: 12),
+          ),
+        ),
+        DataCell(
+          SizedBox(
+            width: 80,
+            child: Text(
+              formattedDate,
+              style: const TextStyle(fontSize: 10),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -405,11 +468,8 @@ class _SalesTableWidgetState extends State<SalesTableWidget> {
 /// "stuck" inside the table.
 class CoordinatedScrollPhysics extends ScrollPhysics {
   final ScrollController mainController;
-  
-  const CoordinatedScrollPhysics({
-    required this.mainController,
-    super.parent,
-  });
+
+  const CoordinatedScrollPhysics({required this.mainController, super.parent});
 
   @override
   CoordinatedScrollPhysics applyTo(ScrollPhysics? ancestor) {
@@ -428,7 +488,7 @@ class CoordinatedScrollPhysics extends ScrollPhysics {
         double newPosition = mainController.position.pixels - offset;
         newPosition = newPosition.clamp(
           0.0,
-          mainController.position.maxScrollExtent
+          mainController.position.maxScrollExtent,
         );
         mainController.jumpTo(newPosition);
         return 0; // Don't scroll the sales table
@@ -441,7 +501,7 @@ class CoordinatedScrollPhysics extends ScrollPhysics {
         double newPosition = mainController.position.pixels - offset;
         newPosition = newPosition.clamp(
           0.0,
-          mainController.position.maxScrollExtent
+          mainController.position.maxScrollExtent,
         );
         mainController.jumpTo(newPosition);
         return 0; // Don't scroll the sales table

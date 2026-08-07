@@ -452,7 +452,16 @@ class MainActivity : FlutterActivity() {
                     try {
                         val page = call.argument<Int>("page") ?: 1
                         val pageSize = call.argument<Int>("page_size") ?: 100
-                        val pyResult = pyModule.callAttr("get_sales_paginated", page, pageSize)
+                        val category = call.argument<String>("category") ?: "all"
+                        val idFilter = call.argument<String>("id_filter") ?: ""
+                        val consumerFilter = call.argument<String>("consumer_filter") ?: ""
+                        val donatorFilter = call.argument<String>("donator_filter") ?: ""
+                        val salesmanFilter = call.argument<String>("salesman_filter") ?: ""
+                        val productFilter = call.argument<String>("product_filter") ?: ""
+                        val quantityFilter = call.argument<String>("quantity_filter") ?: ""
+                        val priceFilter = call.argument<String>("price_filter") ?: ""
+                        val dateFilter = call.argument<String>("date_filter") ?: ""
+                        val pyResult = pyModule.callAttr("get_sales_paginated", page, pageSize, category, idFilter, consumerFilter, donatorFilter, salesmanFilter, productFilter, quantityFilter, priceFilter, dateFilter)
                         if (pyResult == null) {
                             result.success("null")
                         } else {

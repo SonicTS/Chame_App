@@ -6,6 +6,7 @@ import 'package:chame_flutter/utils/formatters.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import 'package:collection/collection.dart';
 import 'package:provider/provider.dart';
+import 'dart:math' as math;
 
 class UsersPage extends StatefulWidget {
   const UsersPage({super.key});
@@ -25,7 +26,8 @@ class _UsersPageState extends State<UsersPage> {
   String _userTableNameFilter = '';
   // Add scroll controllers for users and transactions tables
   final ScrollController _mainScrollController = ScrollController();
-  final ScrollController _transactionsTableScrollController = ScrollController();
+  final ScrollController _transactionsTableScrollController =
+      ScrollController();
   final ScrollController _usersTableHorizontalController = ScrollController();
   final ScrollController _usersTableVerticalController = ScrollController();
 
@@ -41,7 +43,9 @@ class _UsersPageState extends State<UsersPage> {
     final auth = Provider.of<AuthService>(context, listen: false);
     setState(() {
       _usersFuture = PyBridge().getAllUsers().then(auth.filterVisibleUsers);
-      _transactionsFuture = PyBridge().getFilteredTransaction(userId: _txUserFilter, txType: _txTypeFilter).then(auth.filterVisibleRecords);
+      _transactionsFuture = PyBridge()
+          .getFilteredTransaction(userId: _txUserFilter, txType: _txTypeFilter)
+          .then(auth.filterVisibleRecords);
     });
   }
 
@@ -52,12 +56,16 @@ class _UsersPageState extends State<UsersPage> {
       _showDialog('Error', 'Unable to identify current user');
       return;
     }
-    
+
     final controller = _depositControllers[userId]!;
     final amount = double.tryParse(controller.text);
     if (amount == null || amount <= 0) return;
     setState(() => _isSubmitting = true);
-    final error = await PyBridge().deposit(userId: userId, amount: amount, salesmanId: salesmanId);
+    final error = await PyBridge().deposit(
+      userId: userId,
+      amount: amount,
+      salesmanId: salesmanId,
+    );
     setState(() => _isSubmitting = false);
     if (error != null) {
       _showDialog('Error', error);
@@ -75,12 +83,16 @@ class _UsersPageState extends State<UsersPage> {
       _showDialog('Error', 'Unable to identify current user');
       return;
     }
-    
+
     final controller = _withdrawControllers[userId]!;
     final amount = double.tryParse(controller.text);
     if (amount == null || amount <= 0) return;
     setState(() => _isSubmitting = true);
-    final error = await PyBridge().withdraw(userId: userId, amount: amount, salesmanId: salesmanId);
+    final error = await PyBridge().withdraw(
+      userId: userId,
+      amount: amount,
+      salesmanId: salesmanId,
+    );
     setState(() => _isSubmitting = false);
     if (error != null) {
       _showDialog('Error', error);
@@ -95,11 +107,14 @@ class _UsersPageState extends State<UsersPage> {
   void _showRestoreUsersDialog(BuildContext context) async {
     try {
       final deletedUsers = await PyBridge().getDeletedUsers();
-      
+
       if (!context.mounted) return;
-      
+
       if (deletedUsers.isEmpty) {
-        _showDialog('No Deleted Users', 'There are no deleted users to restore.');
+        _showDialog(
+          'No Deleted Users',
+          'There are no deleted users to restore.',
+        );
         return;
       }
 
@@ -121,9 +136,15 @@ class _UsersPageState extends State<UsersPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Role: ${user['role']?.toString() ?? 'N/A'}'),
-                        Text('Balance: ${formatMoney(user['balance'], fallback: 'N/A')}'),
-                        Text('Deleted: ${user['deleted_at']?.toString().split('T')[0] ?? 'N/A'}'),
-                        Text('By: ${user['deleted_by']?.toString() ?? 'Unknown'}'),
+                        Text(
+                          'Balance: ${formatMoney(user['balance'], fallback: 'N/A')}',
+                        ),
+                        Text(
+                          'Deleted: ${user['deleted_at']?.toString().split('T')[0] ?? 'N/A'}',
+                        ),
+                        Text(
+                          'By: ${user['deleted_by']?.toString() ?? 'Unknown'}',
+                        ),
                       ],
                     ),
                     trailing: ElevatedButton(
@@ -158,13 +179,17 @@ class _UsersPageState extends State<UsersPage> {
   }
 
   // Perform user restoration
-  Future<void> _performUserRestore(BuildContext context, int userId, String userName) async {
+  Future<void> _performUserRestore(
+    BuildContext context,
+    int userId,
+    String userName,
+  ) async {
     try {
       final error = await PyBridge().restoreUser(userId: userId);
-      
+
       if (error != null) {
         // Check if this is a dependency-related error and show appropriate message
-        if (error.toLowerCase().contains('cannot be restored') || 
+        if (error.toLowerCase().contains('cannot be restored') ||
             error.toLowerCase().contains('dependency') ||
             error.toLowerCase().contains('required')) {
           _showDialog('Cannot Restore User', error);
@@ -186,7 +211,12 @@ class _UsersPageState extends State<UsersPage> {
       builder: (ctx) => AlertDialog(
         title: Text(title),
         content: Text(content),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
@@ -237,13 +267,21 @@ class _UsersPageState extends State<UsersPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Expanded(
-                          child: Text('Users', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                          child: Text(
+                            'Users',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                         Row(
                           children: [
                             ElevatedButton.icon(
                               onPressed: () {
-                                Navigator.of(context).pushNamed('/add_user').then((_) {
+                                Navigator.of(
+                                  context,
+                                ).pushNamed('/add_user').then((_) {
                                   // Reload users when coming back from add user page
                                   _reload();
                                 });
@@ -253,19 +291,29 @@ class _UsersPageState extends State<UsersPage> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.green,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
                               ),
                             ),
                             if (auth.hasAdminRights) ...[
                               const SizedBox(width: 8),
                               ElevatedButton(
-                                onPressed: () => _showRestoreUsersDialog(context),
+                                onPressed: () =>
+                                    _showRestoreUsersDialog(context),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.orange,
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
                                 ),
-                                child: const Text('Restore', style: TextStyle(fontSize: 12)),
+                                child: const Text(
+                                  'Restore',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                               ),
                             ],
                           ],
@@ -289,14 +337,16 @@ class _UsersPageState extends State<UsersPage> {
                   onReload: _reload,
                 ),
                 const SizedBox(height: 24),
-                
+
                 TextField(
                   decoration: const InputDecoration(
                     labelText: 'Filter users by name',
                     prefixIcon: Icon(Icons.search),
                     isDense: true,
                   ),
-                  onChanged: (v) => setState(() => _userTableNameFilter = v.trim().toLowerCase()),
+                  onChanged: (v) => setState(
+                    () => _userTableNameFilter = v.trim().toLowerCase(),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 SingleChildScrollView(
@@ -313,25 +363,44 @@ class _UsersPageState extends State<UsersPage> {
                             width: 220,
                             child: DropdownSearch<Map<String, dynamic>>(
                               items: (String? filter, _) {
-                                final filtered = filter == null || filter.isEmpty
+                                final filtered =
+                                    filter == null || filter.isEmpty
                                     ? txUsers
-                                    : txUsers.where((u) => (u['name'] ?? '').toLowerCase().contains(filter.toLowerCase())).toList();
+                                    : txUsers
+                                          .where(
+                                            (u) => (u['name'] ?? '')
+                                                .toLowerCase()
+                                                .contains(filter.toLowerCase()),
+                                          )
+                                          .toList();
                                 return Future.value(filtered);
                               },
-                              selectedItem: txUsers.firstWhereOrNull((u) => u['user_id'].toString() == _txUserFilter),
+                              selectedItem: txUsers.firstWhereOrNull(
+                                (u) => u['user_id'].toString() == _txUserFilter,
+                              ),
                               itemAsString: (u) => u['name'] ?? '',
-                              compareFn: (a, b) => a['user_id'].toString() == b['user_id'].toString(),
+                              compareFn: (a, b) =>
+                                  a['user_id'].toString() ==
+                                  b['user_id'].toString(),
                               onChanged: (val) {
                                 setState(() {
-                                  _txUserFilter = val?['user_id'].toString() ?? 'all';
-                                  _transactionsFuture = PyBridge().getFilteredTransaction(userId: _txUserFilter, txType: _txTypeFilter).then(auth.filterVisibleRecords);
+                                  _txUserFilter =
+                                      val?['user_id'].toString() ?? 'all';
+                                  _transactionsFuture = PyBridge()
+                                      .getFilteredTransaction(
+                                        userId: _txUserFilter,
+                                        txType: _txTypeFilter,
+                                      )
+                                      .then(auth.filterVisibleRecords);
                                 });
                               },
                               popupProps: const PopupProps.menu(
                                 showSearchBox: true,
                               ),
                               decoratorProps: const DropDownDecoratorProps(
-                                decoration: InputDecoration(labelText: 'Filter by User'),
+                                decoration: InputDecoration(
+                                  labelText: 'Filter by User',
+                                ),
                               ),
                             ),
                           );
@@ -344,13 +413,24 @@ class _UsersPageState extends State<UsersPage> {
                         value: _txTypeFilter,
                         items: const [
                           DropdownMenuItem(value: 'all', child: Text('All')),
-                          DropdownMenuItem(value: 'deposit', child: Text('Deposit')),
-                          DropdownMenuItem(value: 'withdraw', child: Text('Withdraw')),
+                          DropdownMenuItem(
+                            value: 'deposit',
+                            child: Text('Deposit'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'withdraw',
+                            child: Text('Withdraw'),
+                          ),
                         ],
                         onChanged: (val) {
                           setState(() {
                             _txTypeFilter = val!;
-                            _transactionsFuture = PyBridge().getFilteredTransaction(userId: _txUserFilter, txType: _txTypeFilter).then(auth.filterVisibleRecords);
+                            _transactionsFuture = PyBridge()
+                                .getFilteredTransaction(
+                                  userId: _txUserFilter,
+                                  txType: _txTypeFilter,
+                                )
+                                .then(auth.filterVisibleRecords);
                           });
                         },
                       ),
@@ -358,7 +438,10 @@ class _UsersPageState extends State<UsersPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Text('Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                const Text(
+                  'Transactions',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
                 // 2. TRANSACTIONS SECTION
                 TransactionsSection(
                   transactionsFuture: _transactionsFuture,
@@ -415,18 +498,30 @@ class UsersTableSection extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: Text(title),
         content: Text(content),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
 
   // Show role change confirmation dialog
-  void _showRoleChangeConfirmation(BuildContext context, int userId, String userName, String newRole) {
+  void _showRoleChangeConfirmation(
+    BuildContext context,
+    int userId,
+    String userName,
+    String newRole,
+  ) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Confirm Role Change'),
-        content: Text('Are you sure you want to change the role of "$userName" to "$newRole"?'),
+        content: Text(
+          'Are you sure you want to change the role of "$userName" to "$newRole"?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -445,9 +540,16 @@ class UsersTableSection extends StatelessWidget {
   }
 
   // Change user role
-  Future<void> _changeUserRole(BuildContext context, int userId, String newRole) async {
+  Future<void> _changeUserRole(
+    BuildContext context,
+    int userId,
+    String newRole,
+  ) async {
     try {
-      final error = await PyBridge().changeUserRole(userId: userId, newRole: newRole);
+      final error = await PyBridge().changeUserRole(
+        userId: userId,
+        newRole: newRole,
+      );
       if (error != null) {
         _showDialog(context, 'Error', error);
       } else {
@@ -460,20 +562,30 @@ class UsersTableSection extends StatelessWidget {
   }
 
   // Show simple deletion dialog for users
-  void _showDeletionDialog(BuildContext context, int userId, String userName, double balance) async {
+  void _showDeletionDialog(
+    BuildContext context,
+    int userId,
+    String userName,
+    double balance,
+  ) async {
     if (balance > 0) {
       // Show withdrawal dialog before closing account
-      final shouldProceed = await _showAccountClosureDialog(context, userId, userName, balance);
+      final shouldProceed = await _showAccountClosureDialog(
+        context,
+        userId,
+        userName,
+        balance,
+      );
       return;
     }
-    
+
     final result = await showSimpleDeletionDialog(
       context: context,
       entityType: 'user',
       entityId: userId,
       entityName: userName,
     );
-    
+
     if (result == true) {
       // Deletion was successful, reload the users
       onReload();
@@ -481,121 +593,187 @@ class UsersTableSection extends StatelessWidget {
   }
 
   // Show account closure dialog with withdrawal option
-  Future<bool> _showAccountClosureDialog(BuildContext context, int userId, String userName, double balance) async {
+  Future<bool> _showAccountClosureDialog(
+    BuildContext context,
+    int userId,
+    String userName,
+    double balance,
+  ) async {
     final TextEditingController withdrawController = TextEditingController();
     bool isProcessing = false;
-    
+
     return await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Text('Close Account: $userName'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Current Balance: \$${balance.toStringAsFixed(2)}'),
-              const SizedBox(height: 16),
-              const Text('The user still has money left. Specify how much you want to withdraw. The rest is being donated to the bank'),
-              const SizedBox(height: 16),
-              TextField(
-                controller: withdrawController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  labelText: 'Withdrawal Amount',
-                  hintText: 'Enter amount to withdraw',
-                  prefixText: '\$',
-                  border: const OutlineInputBorder(),
-                  helperText: 'Maximum: \$${balance.toStringAsFixed(2)}',
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        withdrawController.text = balance.toStringAsFixed(2);
-                      },
-                      child: const Text('Withdraw All'),
+          context: context,
+          builder: (ctx) => StatefulBuilder(
+            builder: (dialogContext, setState) {
+              final mediaQuery = MediaQuery.of(dialogContext);
+              final availableHeight =
+                  mediaQuery.size.height - mediaQuery.viewInsets.bottom;
+              return AlertDialog(
+                title: Text('Close Account: $userName'),
+                content: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: math.min(mediaQuery.size.width * 0.95, 700.0),
+                    maxHeight: math.max(120.0, availableHeight * 0.4),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Current Balance: \$${balance.toStringAsFixed(2)}',
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'The user still has money left. Specify how much you want to withdraw. The rest is being donated to the bank',
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: withdrawController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: 'Withdrawal Amount',
+                            hintText: 'Enter amount to withdraw',
+                            prefixText: '\$',
+                            border: const OutlineInputBorder(),
+                            helperText:
+                                'Maximum: \$${balance.toStringAsFixed(2)}',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              withdrawController.text = balance.toStringAsFixed(
+                                2,
+                              );
+                            },
+                            child: const Text('Withdraw All'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: isProcessing
+                        ? null
+                        : () => Navigator.of(dialogContext).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    onPressed: isProcessing
+                        ? null
+                        : () async {
+                            final withdrawAmount = double.tryParse(
+                              withdrawController.text,
+                            );
+                            if (withdrawAmount == null || withdrawAmount < 0) {
+                              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Please enter a valid withdrawal amount',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            if (withdrawAmount > balance) {
+                              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Withdrawal amount cannot exceed current balance',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+
+                            setState(() => isProcessing = true);
+
+                            try {
+                              // Get current user as salesman
+                              final auth = Provider.of<AuthService>(
+                                dialogContext,
+                                listen: false,
+                              );
+                              final salesmanId = auth.currentUserId;
+                              if (salesmanId == null) {
+                                ScaffoldMessenger.of(
+                                  dialogContext,
+                                ).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Unable to identify current user',
+                                    ),
+                                  ),
+                                );
+                                setState(() => isProcessing = false);
+                                return;
+                              }
+
+                              // Call the close user account function
+                              final error = await PyBridge().closeUserAccount(
+                                userId: userId,
+                                withdrawalAmount: withdrawAmount,
+                                salesmanId: salesmanId,
+                              );
+
+                              if (error != null) {
+                                ScaffoldMessenger.of(
+                                  dialogContext,
+                                ).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Failed to close account: $error',
+                                    ),
+                                  ),
+                                );
+                                setState(() => isProcessing = false);
+                              } else {
+                                Navigator.of(dialogContext).pop(true);
+                                _showDialog(
+                                  context,
+                                  'Success',
+                                  'User account closed successfully! Withdrawal of \$${withdrawAmount.toStringAsFixed(2)} processed.',
+                                );
+                                onReload();
+                              }
+                            } catch (e) {
+                              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                SnackBar(content: Text('Error: $e')),
+                              );
+                              setState(() => isProcessing = false);
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                    ),
+                    child: isProcessing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Close Account',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                  ),
                 ],
-              ),
-            ],
+              );
+            },
           ),
-          actions: [
-            TextButton(
-              onPressed: isProcessing ? null : () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: isProcessing ? null : () async {
-                final withdrawAmount = double.tryParse(withdrawController.text);
-                if (withdrawAmount == null || withdrawAmount < 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter a valid withdrawal amount')),
-                  );
-                  return;
-                }
-                if (withdrawAmount > balance) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Withdrawal amount cannot exceed current balance')),
-                  );
-                  return;
-                }
-                
-                setState(() => isProcessing = true);
-                
-                try {
-                  // Get current user as salesman
-                  final auth = Provider.of<AuthService>(context, listen: false);
-                  final salesmanId = auth.currentUserId;
-                  if (salesmanId == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Unable to identify current user')),
-                    );
-                    setState(() => isProcessing = false);
-                    return;
-                  }
-                  
-                  // Call the close user account function
-                  final error = await PyBridge().closeUserAccount(
-                    userId: userId,
-                    withdrawalAmount: withdrawAmount,
-                    salesmanId: salesmanId,
-                  );
-                  
-                  if (error != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to close account: $error')),
-                    );
-                    setState(() => isProcessing = false);
-                  } else {
-                    Navigator.pop(ctx, true);
-                    _showDialog(context, 'Success', 'User account closed successfully! Withdrawal of \$${withdrawAmount.toStringAsFixed(2)} processed.');
-                    onReload();
-                  }
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
-                  setState(() => isProcessing = false);
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: isProcessing 
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                : const Text('Close Account', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      ),
-    ) ?? false;
+        ) ??
+        false;
   }
 
   @override
@@ -615,13 +793,19 @@ class UsersTableSection extends StatelessWidget {
           final users = snapshot.data ?? [];
           final filteredUsers = userTableNameFilter.isEmpty
               ? users
-              : users.where((u) => (u['name'] ?? '').toLowerCase().contains(userTableNameFilter)).toList();
+              : users
+                    .where(
+                      (u) => (u['name'] ?? '').toLowerCase().contains(
+                        userTableNameFilter,
+                      ),
+                    )
+                    .toList();
 
           // Only build scrollable content if we have data
           if (filteredUsers.isEmpty) {
             return const Center(child: Text('No users found.'));
           }
-          
+
           return Scrollbar(
             thumbVisibility: true,
             controller: horizontalScrollController,
@@ -629,8 +813,8 @@ class UsersTableSection extends StatelessWidget {
               controller: horizontalScrollController,
               scrollDirection: Axis.horizontal,
               child: SizedBox(
-                // Increased width to accommodate new columns
-                width: 1000,
+                // Make width at least the screen width but allow a larger minimum
+                width: math.max(MediaQuery.of(context).size.width, 1500),
                 child: Scrollbar(
                   thumbVisibility: true,
                   controller: verticalScrollController,
@@ -654,124 +838,231 @@ class UsersTableSection extends StatelessWidget {
                         final userId = user['user_id'] as int;
                         final userRole = user['role']?.toString() ?? 'user';
                         const editableRoles = {'user', 'admin', 'wirt'};
-                        final canEditRole = authService.hasAdminRights && editableRoles.contains(userRole);
-                        depositControllers.putIfAbsent(userId, () => TextEditingController());
-                        withdrawControllers.putIfAbsent(userId, () => TextEditingController());
-                        return DataRow(cells: [
-                          DataCell(Text(user['name']?.toString() ?? '')),
-                          DataCell(Text(formatMoney(user['balance']))),
-                          DataCell(
-                            Row(
-                              children: [
-                                Text(formatMoney(user['allowed_debt'] ?? 0.0)),
-                                if (authService.hasAdminRights) ...[
-                                  const SizedBox(width: 6),
-                                  IconButton(
-                                    icon: const Icon(Icons.edit, size: 18),
-                                    tooltip: 'Edit Allowed Debt',
-                                    onPressed: () async {
-                                      final controller = TextEditingController(text: (user['allowed_debt'] ?? 0.0).toString());
-                                      final confirmed = await showDialog<bool>(
-                                        context: context,
-                                        builder: (ctx) => AlertDialog(
-                                          title: const Text('Edit Allowed Debt'),
-                                          content: TextField(
-                                            controller: controller,
-                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                            decoration: const InputDecoration(labelText: 'Allowed Debt'),
+                        final canEditRole =
+                            authService.hasAdminRights &&
+                            editableRoles.contains(userRole);
+                        depositControllers.putIfAbsent(
+                          userId,
+                          () => TextEditingController(),
+                        );
+                        withdrawControllers.putIfAbsent(
+                          userId,
+                          () => TextEditingController(),
+                        );
+                        return DataRow(
+                          cells: [
+                            DataCell(Text(user['name']?.toString() ?? '')),
+                            DataCell(Text(formatMoney(user['balance']))),
+                            DataCell(
+                              Row(
+                                children: [
+                                  Text(
+                                    formatMoney(user['allowed_debt'] ?? 0.0),
+                                  ),
+                                  if (authService.hasAdminRights) ...[
+                                    const SizedBox(width: 6),
+                                    IconButton(
+                                      icon: const Icon(Icons.edit, size: 18),
+                                      tooltip: 'Edit Allowed Debt',
+                                      onPressed: () async {
+                                        final controller =
+                                            TextEditingController(
+                                              text:
+                                                  (user['allowed_debt'] ?? 0.0)
+                                                      .toString(),
+                                            );
+                                        final confirmed = await showDialog<bool>(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            title: const Text(
+                                              'Edit Allowed Debt',
+                                            ),
+                                            content: TextField(
+                                              controller: controller,
+                                              keyboardType:
+                                                  const TextInputType.numberWithOptions(
+                                                    decimal: true,
+                                                  ),
+                                              decoration: const InputDecoration(
+                                                labelText: 'Allowed Debt',
+                                              ),
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(ctx, false),
+                                                child: const Text('Cancel'),
+                                              ),
+                                              ElevatedButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(ctx, true),
+                                                child: const Text('Save'),
+                                              ),
+                                            ],
                                           ),
-                                          actions: [
-                                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                                            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
-                                          ],
+                                        );
+                                        if (confirmed == true) {
+                                          final val = double.tryParse(
+                                            controller.text,
+                                          );
+                                          if (val == null || val < 0) {
+                                            UsersTableSection._showDialog(
+                                              context,
+                                              'Error',
+                                              'Please enter a valid non-negative number',
+                                            );
+                                            return;
+                                          }
+                                          final err = await PyBridge()
+                                              .setAllowedDebt(
+                                                userId: userId,
+                                                allowedDebt: val,
+                                              );
+                                          if (err != null) {
+                                            UsersTableSection._showDialog(
+                                              context,
+                                              'Error',
+                                              err.toString(),
+                                            );
+                                          } else {
+                                            UsersTableSection._showDialog(
+                                              context,
+                                              'Success',
+                                              'Allowed debt updated',
+                                            );
+                                            onReload();
+                                          }
+                                        }
+                                      },
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            // Role dropdown (only for admin users)
+                            DataCell(
+                              canEditRole
+                                  ? DropdownButton<String>(
+                                      value: userRole,
+                                      isDense: true,
+                                      items: const [
+                                        DropdownMenuItem(
+                                          value: 'user',
+                                          child: Text('User'),
                                         ),
-                                      );
-                                      if (confirmed == true) {
-                                        final val = double.tryParse(controller.text);
-                                        if (val == null || val < 0) {
-                                          UsersTableSection._showDialog(context, 'Error', 'Please enter a valid non-negative number');
-                                          return;
+                                        DropdownMenuItem(
+                                          value: 'admin',
+                                          child: Text('Admin'),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: 'wirt',
+                                          child: Text('Wirt'),
+                                        ),
+                                      ],
+                                      onChanged: (newRole) {
+                                        if (newRole != null &&
+                                            newRole != userRole) {
+                                          _showRoleChangeConfirmation(
+                                            context,
+                                            userId,
+                                            user['name']?.toString() ?? '',
+                                            newRole,
+                                          );
                                         }
-                                        final err = await PyBridge().setAllowedDebt(userId: userId, allowedDebt: val);
-                                        if (err != null) {
-                                          UsersTableSection._showDialog(context, 'Error', err.toString());
-                                        } else {
-                                          UsersTableSection._showDialog(context, 'Success', 'Allowed debt updated');
-                                          onReload();
-                                        }
-                                      }
-                                    },
+                                      },
+                                    )
+                                  : Text(userRole),
+                            ),
+                            DataCell(
+                              Row(
+                                children: [
+                                  SizedBox(
+                                    width: 70,
+                                    child: TextField(
+                                      controller: depositControllers[userId],
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                            decimal: true,
+                                          ),
+                                      decoration: const InputDecoration(
+                                        hintText: 'Amount',
+                                        isDense: true,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  ElevatedButton(
+                                    onPressed: isSubmitting
+                                        ? null
+                                        : () => onDeposit(userId),
+                                    child: const Text('Deposit'),
                                   ),
                                 ],
-                              ],
+                              ),
                             ),
-                          ),
-                          // Role dropdown (only for admin users)
-                          DataCell(
-                            canEditRole
-                              ? DropdownButton<String>(
-                                  value: userRole,
-                                  isDense: true,
-                                  items: const [
-                                    DropdownMenuItem(value: 'user', child: Text('User')),
-                                    DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                                    DropdownMenuItem(value: 'wirt', child: Text('Wirt')),
-                                  ],
-                                  onChanged: (newRole) {
-                                    if (newRole != null && newRole != userRole) {
-                                      _showRoleChangeConfirmation(context, userId, user['name']?.toString() ?? '', newRole);
-                                    }
-                                  },
-                                )
-                              : Text(userRole)
-                          ),
-                          DataCell(Row(
-                            children: [
-                              SizedBox(
-                                width: 70,
-                                child: TextField(
-                                  controller: depositControllers[userId],
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  decoration: const InputDecoration(hintText: 'Amount', isDense: true),
-                                ),
+                            DataCell(
+                              Row(
+                                children: [
+                                  SizedBox(
+                                    width: 70,
+                                    child: TextField(
+                                      controller: withdrawControllers[userId],
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                            decimal: true,
+                                          ),
+                                      decoration: const InputDecoration(
+                                        hintText: 'Amount',
+                                        isDense: true,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  ElevatedButton(
+                                    onPressed: isSubmitting
+                                        ? null
+                                        : () => onWithdraw(userId),
+                                    child: const Text('Withdraw'),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 4),
-                              ElevatedButton(
-                                onPressed: isSubmitting ? null : () => onDeposit(userId),
-                                child: const Text('Deposit'),
-                              ),
-                            ],
-                          )),
-                          DataCell(Row(
-                            children: [
-                              SizedBox(
-                                width: 70,
-                                child: TextField(
-                                  controller: withdrawControllers[userId],
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  decoration: const InputDecoration(hintText: 'Amount', isDense: true),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              ElevatedButton(
-                                onPressed: isSubmitting ? null : () => onWithdraw(userId),
-                                child: const Text('Withdraw'),
-                              ),
-                            ],
-                          )),
-                          // Actions column (only for admin users)
-                          DataCell(
-                            authService.hasAdminRights
-                              ? IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
-                                  tooltip: 'Delete User',
-                                  onPressed: isSubmitting 
-                                    ? null 
-                                    : () => _showDeletionDialog(context, userId, user['name']?.toString() ?? '', (user['balance'] is num) ? (user['balance'] as num).toDouble() : 0.0),
-                                )
-                              : const SizedBox.shrink()
-                          ),
-                        ]);
+                            ),
+                            // Actions column (only for admin users)
+                            DataCell(
+                              authService.hasAdminRights
+                                  ? ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 6,
+                                        ),
+                                      ),
+                                      icon: const Icon(
+                                        Icons.delete_forever,
+                                        size: 18,
+                                      ),
+                                      label: const Text(
+                                        'Delete',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                      onPressed: isSubmitting
+                                          ? null
+                                          : () => _showDeletionDialog(
+                                              context,
+                                              userId,
+                                              user['name']?.toString() ?? '',
+                                              (user['balance'] is num)
+                                                  ? (user['balance'] as num)
+                                                        .toDouble()
+                                                  : 0.0,
+                                            ),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                          ],
+                        );
                       }).toList(),
                     ),
                   ),
@@ -784,7 +1075,6 @@ class UsersTableSection extends StatelessWidget {
     );
   }
 }
-
 
 // ------------------- TRANSACTIONS SECTION WIDGET -------------------
 
@@ -829,7 +1119,9 @@ class TransactionsSection extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               child: ConstrainedBox(
                 // Set a minimum width so it scrolls if needed
-                constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width),
+                constraints: BoxConstraints(
+                  minWidth: MediaQuery.of(context).size.width,
+                ),
                 child: SingleChildScrollView(
                   scrollDirection: Axis.vertical,
                   physics: _CoordinatedScrollPhysics(
@@ -848,48 +1140,55 @@ class TransactionsSection extends StatelessWidget {
                       // Extract salesman name
                       String salesman = '';
                       final salesmanField = tx['salesman'];
-                      if (salesmanField is Map && salesmanField['name'] != null) {
+                      if (salesmanField is Map &&
+                          salesmanField['name'] != null) {
                         salesman = salesmanField['name'].toString();
                       } else if (salesmanField != null) {
                         salesman = salesmanField.toString();
                       }
-                      
-                      return DataRow(cells: [
-                        DataCell(Text(tx['user']?['name'].toString() ?? '')),
-                        DataCell(Text(tx['type']?.toString() ?? '')),
-                        DataCell(Text(formatMoney(tx['amount']))),
-                        DataCell(
-                          InkWell(
-                            onTap: () {
-                              showDialog(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  title: const Text('Comment'),
-                                  content: SingleChildScrollView(
-                                    child: Text(tx['comment']?.toString() ?? ''),
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.of(ctx).pop(),
-                                      child: const Text('Close'),
+
+                      return DataRow(
+                        cells: [
+                          DataCell(Text(tx['user']?['name'].toString() ?? '')),
+                          DataCell(Text(tx['type']?.toString() ?? '')),
+                          DataCell(Text(formatMoney(tx['amount']))),
+                          DataCell(
+                            InkWell(
+                              onTap: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Comment'),
+                                    content: SingleChildScrollView(
+                                      child: Text(
+                                        tx['comment']?.toString() ?? '',
+                                      ),
                                     ),
-                                  ],
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.of(ctx).pop(),
+                                        child: const Text('Close'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                              child: SizedBox(
+                                width:
+                                    120, // Control width of the comment column
+                                child: Text(
+                                  tx['comment']?.toString() ?? '',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              );
-                            },
-                            child: SizedBox(
-                              width: 120, // Control width of the comment column
-                              child: Text(
-                                tx['comment']?.toString() ?? '',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ),
-                        ),
-                        DataCell(Text(salesman)),
-                        DataCell(Text(formatTimestamp(tx['timestamp']))),
-                      ]);
+                          DataCell(Text(salesman)),
+                          DataCell(Text(formatTimestamp(tx['timestamp']))),
+                        ],
+                      );
                     }).toList(),
                   ),
                 ),
@@ -904,11 +1203,8 @@ class TransactionsSection extends StatelessWidget {
 
 class _CoordinatedScrollPhysics extends ScrollPhysics {
   final ScrollController mainController;
-  
-  const _CoordinatedScrollPhysics({
-    required this.mainController,
-    super.parent,
-  });
+
+  const _CoordinatedScrollPhysics({required this.mainController, super.parent});
 
   @override
   _CoordinatedScrollPhysics applyTo(ScrollPhysics? ancestor) {
@@ -927,7 +1223,7 @@ class _CoordinatedScrollPhysics extends ScrollPhysics {
         double newPosition = mainController.position.pixels - offset;
         newPosition = newPosition.clamp(
           0.0,
-          mainController.position.maxScrollExtent
+          mainController.position.maxScrollExtent,
         );
         mainController.jumpTo(newPosition);
         return 0; // Don't scroll the table
@@ -940,7 +1236,7 @@ class _CoordinatedScrollPhysics extends ScrollPhysics {
         double newPosition = mainController.position.pixels - offset;
         newPosition = newPosition.clamp(
           0.0,
-          mainController.position.maxScrollExtent
+          mainController.position.maxScrollExtent,
         );
         mainController.jumpTo(newPosition);
         return 0; // Don't scroll the table

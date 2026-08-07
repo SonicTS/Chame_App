@@ -32,7 +32,7 @@ class _PurchasePageState extends State<PurchasePage> {
   bool _includeDonator = false;
   int? _donatorId;
   Map<String, dynamic>? _donator;
-  
+
   // Shopping cart functionality
   List<Map<String, dynamic>> _shoppingCart = [];
   double _totalCost = 0.0;
@@ -47,6 +47,7 @@ class _PurchasePageState extends State<PurchasePage> {
   int _totalSales = 0;
   bool _isLoadingSales = false;
   Map<String, dynamic>? _paginatedSalesData;
+  Map<String, String> _salesFilters = {};
 
   @override
   void initState() {
@@ -60,53 +61,39 @@ class _PurchasePageState extends State<PurchasePage> {
       _usersFuture = PyBridge().getAllUsers().then(auth.filterVisibleUsers);
       _productsFuture = PyBridge().getAllRawProducts();
     });
-    
+
     // Load paginated sales
     _loadPaginatedSales();
-    
+
     // Update the selected user data to reflect current balance
     _updateSelectedUserData();
   }
 
   Future<void> _loadPaginatedSales() async {
     if (_isLoadingSales) return;
-    
+
     setState(() {
       _isLoadingSales = true;
     });
-    
+
     try {
-      final auth = Provider.of<AuthService>(context, listen: false);
-      // Fetch the full sales list and apply visibility filtering so we can
-      // build a client-side paginated list that matches the filtered set.
-      final allSales = await PyBridge().getAllSales();
-      final visible = auth.filterVisibleRecords(allSales.cast<Map<String, dynamic>>());
+      final pageData = await PyBridge().getSalesPaginated(
+        page: _currentPage,
+        pageSize: _pageSize,
+        category: _salesConfig,
+        filters: _salesFilters,
+      );
 
-      // Apply top-level salesConfig filter (category) before paginating
-      final afterConfig = _salesConfig == 'all'
-          ? visible
-          : visible.where((s) => s['product']?['category'] == _salesConfig).toList();
-
-      final totalVisible = afterConfig.length;
-      final computedPages = (totalVisible + _pageSize - 1) ~/ _pageSize;
-      final page = _currentPage.clamp(1, computedPages == 0 ? 1 : computedPages);
-      final start = (page - 1) * _pageSize;
-      final end = (start + _pageSize) > totalVisible ? totalVisible : (start + _pageSize);
-      final pageSlice = start < end ? afterConfig.sublist(start, end) : <Map<String, dynamic>>[];
-
+      if (!mounted) return;
       setState(() {
-        _paginatedSalesData = {
-          'sales': pageSlice,
-          'total_count': totalVisible,
-          'page': page,
-          'page_size': _pageSize,
-          'total_pages': computedPages,
-        };
-        _totalSales = totalVisible;
-        _totalPages = computedPages;
+        _paginatedSalesData = pageData;
+        _currentPage = (pageData['page'] as num?)?.toInt() ?? _currentPage;
+        _totalSales = (pageData['total_count'] as num?)?.toInt() ?? 0;
+        _totalPages = (pageData['total_pages'] as num?)?.toInt() ?? 0;
         _isLoadingSales = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoadingSales = false;
       });
@@ -150,6 +137,14 @@ class _PurchasePageState extends State<PurchasePage> {
     }
   }
 
+  void _updateSalesFilters(Map<String, String> filters) {
+    setState(() {
+      _salesFilters = filters;
+      _currentPage = 1;
+    });
+    _loadPaginatedSales();
+  }
+
   Future<void> _updateSelectedUserData() async {
     if (_selectedUserId != null) {
       try {
@@ -158,7 +153,7 @@ class _PurchasePageState extends State<PurchasePage> {
           (user) => user['user_id'] == _selectedUserId,
           orElse: () => <String, dynamic>{},
         );
-        
+
         if (updatedUser.isNotEmpty && mounted) {
           setState(() {
             _selectedUser = updatedUser;
@@ -191,21 +186,18 @@ class _PurchasePageState extends State<PurchasePage> {
 
   void _addToCart(Map<String, dynamic> product, int quantity) {
     if (quantity < 1) return;
-    
+
     setState(() {
       final existingIndex = _shoppingCart.indexWhere(
-        (item) => item['product']['product_id'] == product['product_id']
+        (item) => item['product']['product_id'] == product['product_id'],
       );
-      
+
       if (existingIndex >= 0) {
         _shoppingCart[existingIndex]['quantity'] += quantity;
       } else {
-        _shoppingCart.add({
-          'product': product,
-          'quantity': quantity,
-        });
+        _shoppingCart.add({'product': product, 'quantity': quantity});
       }
-      
+
       _updateTotalCost();
     });
   }
@@ -222,7 +214,7 @@ class _PurchasePageState extends State<PurchasePage> {
       _removeFromCart(index);
       return;
     }
-    
+
     setState(() {
       _shoppingCart[index]['quantity'] = newQuantity;
       _updateTotalCost();
@@ -259,13 +251,21 @@ class _PurchasePageState extends State<PurchasePage> {
 
     // Determine the actual payer (donator when included) and keep it in
     // outer scope so it's available for the confirmation and summary below.
-    final Map<String, dynamic>? payer = _includeDonator && _donator != null ? _donator : _selectedUser;
+    final Map<String, dynamic>? payer = _includeDonator && _donator != null
+        ? _donator
+        : _selectedUser;
     if (_selectedUser != null) {
       final payerBalance = (payer?['balance'] as num?)?.toDouble() ?? 0.0;
-      final payerAllowedDebt = (payer?['allowed_debt'] as num?)?.toDouble() ?? 0.0;
+      final payerAllowedDebt =
+          (payer?['allowed_debt'] as num?)?.toDouble() ?? 0.0;
       if (payerBalance + payerAllowedDebt < _totalCost) {
-        final name = _includeDonator ? (payer?['name'] ?? 'Donator') : (payer?['name'] ?? 'User');
-        _showDialog('Error', 'Insufficient balance. $name balance: €${payerBalance.toStringAsFixed(2)}, allowed debt: €${payerAllowedDebt.toStringAsFixed(2)}, Total cost: €${_totalCost.toStringAsFixed(2)}');
+        final name = _includeDonator
+            ? (payer?['name'] ?? 'Donator')
+            : (payer?['name'] ?? 'User');
+        _showDialog(
+          'Error',
+          'Insufficient balance. $name balance: €${payerBalance.toStringAsFixed(2)}, allowed debt: €${payerAllowedDebt.toStringAsFixed(2)}, Total cost: €${_totalCost.toStringAsFixed(2)}',
+        );
         return;
       }
       // If purchase will put the payer into debt, confirm with the user
@@ -275,10 +275,18 @@ class _PurchasePageState extends State<PurchasePage> {
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Confirm Debt'),
-            content: Text('This purchase will put ${payer?['name'] ?? 'the user'} into debt by €${debtAmount.toStringAsFixed(2)}. Proceed?'),
+            content: Text(
+              'This purchase will put ${payer?['name'] ?? 'the user'} into debt by €${debtAmount.toStringAsFixed(2)}. Proceed?',
+            ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Proceed')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Proceed'),
+              ),
             ],
           ),
         );
@@ -287,30 +295,38 @@ class _PurchasePageState extends State<PurchasePage> {
     }
 
     setState(() => _isSubmitting = true);
-    
-    final itemList = _shoppingCart.map((item) => {
-      'consumer_id': _selectedUserId!,
-      if (_includeDonator && _donatorId != null) 'donator_id': _donatorId,
-      'product_id': item['product']['product_id'] as int,
-      'quantity': item['quantity'] as int,
-    }).toList();
 
-    final error = await PyBridge().makeMultiplePurchases(itemList: itemList, salesmanId: salesmanId);
+    final itemList = _shoppingCart
+        .map(
+          (item) => {
+            'consumer_id': _selectedUserId!,
+            if (_includeDonator && _donatorId != null) 'donator_id': _donatorId,
+            'product_id': item['product']['product_id'] as int,
+            'quantity': item['quantity'] as int,
+          },
+        )
+        .toList();
+
+    final error = await PyBridge().makeMultiplePurchases(
+      itemList: itemList,
+      salesmanId: salesmanId,
+    );
     setState(() => _isSubmitting = false);
-    
+
     if (error != null) {
       _showDialog('Error', error);
     } else {
       final oldBalance = (payer?['balance'] as num?)?.toDouble() ?? 0.0;
       final newBalance = oldBalance - _totalCost;
-      
-      _showDialog('Success', 
+
+      _showDialog(
+        'Success',
         'Purchase successful!\n'
-        'Total: €${_totalCost.toStringAsFixed(2)}\n'
-        'Previous balance: €${oldBalance.toStringAsFixed(2)}\n'
-        'New balance: €${newBalance.toStringAsFixed(2)}'
+            'Total: €${_totalCost.toStringAsFixed(2)}\n'
+            'Previous balance: €${oldBalance.toStringAsFixed(2)}\n'
+            'New balance: €${newBalance.toStringAsFixed(2)}',
       );
-      
+
       _clearCart();
       // Reset form for next purchase
       setState(() {
@@ -325,22 +341,27 @@ class _PurchasePageState extends State<PurchasePage> {
   }
 
   Future<void> _submit() async {
-    if (_selectedUserId == null || _selectedProductId == null || _quantity < 1) {
-      _showDialog('Error', 'Please select user, product, and enter a valid quantity.');
+    if (_selectedUserId == null ||
+        _selectedProductId == null ||
+        _quantity < 1) {
+      _showDialog(
+        'Error',
+        'Please select user, product, and enter a valid quantity.',
+      );
       return;
     }
-    
+
     final productsFuture = await _productsFuture;
     final product = productsFuture.firstWhere(
       (p) => p['product_id'] == _selectedProductId,
       orElse: () => <String, dynamic>{},
     );
-    
+
     if (product.isEmpty) {
       _showDialog('Error', 'Product not found.');
       return;
     }
-    
+
     _clearCart();
     _addToCart(product, _quantity);
     await _submitMultiplePurchases();
@@ -352,7 +373,12 @@ class _PurchasePageState extends State<PurchasePage> {
       builder: (ctx) => AlertDialog(
         title: Text(title),
         content: Text(content),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
@@ -369,7 +395,10 @@ class _PurchasePageState extends State<PurchasePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Purchase Form', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+              const Text(
+                'Purchase Form',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+              ),
               const SizedBox(height: 16),
               FutureBuilder<List<Map<String, dynamic>>>(
                 future: _usersFuture,
@@ -392,9 +421,15 @@ class _PurchasePageState extends State<PurchasePage> {
                       if (_shoppingCart.isNotEmpty) {
                         pendingDeductionPreview = _totalCost;
                       } else if (_selectedProductId != null) {
-                        final sel = products.firstWhere((p) => p['product_id'] == _selectedProductId, orElse: () => <String, dynamic>{});
+                        final sel = products.firstWhere(
+                          (p) => p['product_id'] == _selectedProductId,
+                          orElse: () => <String, dynamic>{},
+                        );
                         if (sel.isNotEmpty) {
-                          pendingDeductionPreview = getCheckoutTotal(sel, _quantity);
+                          pendingDeductionPreview = getCheckoutTotal(
+                            sel,
+                            _quantity,
+                          );
                         } else {
                           pendingDeductionPreview = null;
                         }
@@ -429,7 +464,9 @@ class _PurchasePageState extends State<PurchasePage> {
                                 }
                               });
                             },
-                            title: const Text('Include Donator (payer) for this purchase'),
+                            title: const Text(
+                              'Include Donator (payer) for this purchase',
+                            ),
                             controlAffinity: ListTileControlAffinity.leading,
                             contentPadding: EdgeInsets.zero,
                           ),
@@ -451,7 +488,10 @@ class _PurchasePageState extends State<PurchasePage> {
                               const SizedBox(height: 12),
                               // Preview the selected donator's balance and pending deduction
                               UserBalanceCard(
-                                balance: (_donator!['balance'] as num?)?.toDouble() ?? 0.0,
+                                balance:
+                                    (_donator!['balance'] as num?)
+                                        ?.toDouble() ??
+                                    0.0,
                                 pendingDeduction: pendingDeductionPreview,
                               ),
                             ],
@@ -461,13 +501,18 @@ class _PurchasePageState extends State<PurchasePage> {
                             products: products,
                             selectedProductId: _selectedProductId,
                             quantity: _quantity,
-                            onProductChanged: (val) => setState(() => _selectedProductId = val?['product_id'] as int?),
-                            onQuantityChanged: (val) => setState(() => _quantity = val),
+                            onProductChanged: (val) => setState(
+                              () => _selectedProductId =
+                                  val?['product_id'] as int?,
+                            ),
+                            onQuantityChanged: (val) =>
+                                setState(() => _quantity = val),
                           ),
                           const SizedBox(height: 16),
                           ActionButtonsWidget(
                             isSubmitting: _isSubmitting,
-                            canAddToCart: _selectedProductId != null && _quantity >= 1,
+                            canAddToCart:
+                                _selectedProductId != null && _quantity >= 1,
                             onAddToCart: () async {
                               final product = products.firstWhere(
                                 (p) => p['product_id'] == _selectedProductId,
@@ -493,20 +538,27 @@ class _PurchasePageState extends State<PurchasePage> {
                           SalesConfigWidget(
                             salesConfig: _salesConfig,
                             onConfigChanged: (val) {
-                              setState(() => _salesConfig = val);
-                              // Rebuild client-side pagination for the new config
-                              _currentPage = 1;
+                              setState(() {
+                                _salesConfig = val;
+                                _currentPage = 1;
+                              });
                               _loadPaginatedSales();
                             },
                           ),
                           const SizedBox(height: 12),
-                          const Text('Sales', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                          const Text(
+                            'Sales',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
                           const SizedBox(height: 12),
                           SizedBox(
-                            height: 400, // Fixed height for the table with pagination
+                            height:
+                                400, // Fixed height for the table with pagination
                             child: SalesTableWidget(
                               paginatedSalesData: _paginatedSalesData,
-                              salesConfig: _salesConfig,
                               mainController: _mainScrollController,
                               isLoading: _isLoadingSales,
                               currentPage: _currentPage,
@@ -516,6 +568,7 @@ class _PurchasePageState extends State<PurchasePage> {
                               onPreviousPage: _goToPreviousPage,
                               onFirstPage: _goToFirstPage,
                               onLastPage: _goToLastPage,
+                              onFiltersChanged: _updateSalesFilters,
                             ),
                           ),
                         ],

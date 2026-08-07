@@ -17,8 +17,10 @@ class PyBridge {
       final List<dynamic> decoded = jsonDecode(result as String);
       return decoded.cast<Map<String, dynamic>>();
     } catch (e, stack) {
-      print('Error in getIngredients: '
-          '\x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in getIngredients: '
+        '\x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -53,7 +55,9 @@ class PyBridge {
         'new_password': newPassword,
       });
     } catch (e, stack) {
-      print('Error in adminChangePassword: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in adminChangePassword: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -87,8 +91,6 @@ class PyBridge {
     }
   }
 
-
-
   Future<String?> addIngredient({
     required String name,
     required double price,
@@ -96,7 +98,9 @@ class PyBridge {
     required double pfand,
     required int stock,
   }) async {
-    print('Adding ingredient: name=$name, price=$price, numberIngredients=$numberIngredients, pfand=$pfand, stock=$stock');
+    print(
+      'Adding ingredient: name=$name, price=$price, numberIngredients=$numberIngredients, pfand=$pfand, stock=$stock',
+    );
     try {
       await _chan.invokeMethod('add_ingredient', {
         'name': name,
@@ -136,7 +140,10 @@ class PyBridge {
     }
   }
 
-  Future<String?> setAllowedDebt({required int userId, required double allowedDebt}) async {
+  Future<String?> setAllowedDebt({
+    required int userId,
+    required double allowedDebt,
+  }) async {
     try {
       await _chan.invokeMethod('set_allowed_debt', {
         'user_id': userId,
@@ -232,10 +239,13 @@ class PyBridge {
       if (result == null || result == 'null') {
         return {'total_cost': 0.0, 'per_ingredient': []};
       }
-      if (result is String) return jsonDecode(result as String) as Map<String, dynamic>;
+      if (result is String)
+        return jsonDecode(result as String) as Map<String, dynamic>;
       return Map<String, dynamic>.from(result as Map);
     } catch (e, stack) {
-      print('Error in previewProductCost: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in previewProductCost: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -336,7 +346,9 @@ class PyBridge {
       final List<dynamic> decoded = jsonDecode(result as String);
       return decoded.cast<Map<String, dynamic>>();
     } catch (e, stack) {
-      print('Error in getEditableBankFields: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in getEditableBankFields: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -402,11 +414,25 @@ class PyBridge {
     }
   }
 
-  Future<Map<String, dynamic>> getSalesPaginated({int page = 1, int pageSize = 100}) async {
+  Future<Map<String, dynamic>> getSalesPaginated({
+    int page = 1,
+    int pageSize = 100,
+    String category = 'all',
+    Map<String, String> filters = const {},
+  }) async {
     try {
       final result = await _chan.invokeMethod('get_sales_paginated', {
         'page': page,
         'page_size': pageSize,
+        'category': category,
+        'id_filter': filters['id'] ?? '',
+        'consumer_filter': filters['consumer'] ?? '',
+        'donator_filter': filters['donator'] ?? '',
+        'salesman_filter': filters['salesman'] ?? '',
+        'product_filter': filters['product'] ?? '',
+        'quantity_filter': filters['quantity'] ?? '',
+        'price_filter': filters['price'] ?? '',
+        'date_filter': filters['date'] ?? '',
       });
       if (result == null || result == 'null') {
         return {
@@ -420,7 +446,9 @@ class PyBridge {
       final Map<String, dynamic> decoded = jsonDecode(result as String);
       return decoded;
     } catch (e, stack) {
-      print('Error in getSalesPaginated: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in getSalesPaginated: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -434,7 +462,9 @@ class PyBridge {
       final List<dynamic> decoded = jsonDecode(result as String);
       return decoded.cast<Map<String, dynamic>>();
     } catch (e, stack) {
-      print('Error in getAllToastProducts: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in getAllToastProducts: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -448,7 +478,9 @@ class PyBridge {
       final List<dynamic> decoded = jsonDecode(result as String);
       return decoded.cast<Map<String, dynamic>>();
     } catch (e, stack) {
-      print('Error in getAllRawProducts: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in getAllRawProducts: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -462,7 +494,9 @@ class PyBridge {
       final List<dynamic> decoded = jsonDecode(result as String);
       return decoded.cast<Map<String, dynamic>>();
     } catch (e, stack) {
-      print('Error in getAllToastRounds: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in getAllToastRounds: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -482,7 +516,9 @@ class PyBridge {
       final List<dynamic> decoded = jsonDecode(result as String);
       return decoded.cast<Map<String, dynamic>>();
     } catch (e, stack) {
-      print('Error in getFilteredTransaction: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in getFilteredTransaction: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -507,12 +543,17 @@ class PyBridge {
       final List<dynamic> decoded = jsonDecode(result as String);
       return decoded.cast<Map<String, dynamic>>();
     } catch (e, stack) {
-      print('Error in getBankTransaction: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in getBankTransaction: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
 
-  Future<String?> restockIngredients(List<Map<String, dynamic>> restocks, int salesmanId) async {
+  Future<String?> restockIngredients(
+    List<Map<String, dynamic>> restocks,
+    int salesmanId,
+  ) async {
     // restocks: [{ 'name': ..., 'restock': ... }, ...]
     try {
       await _chan.invokeMethod('restock_ingredients', {
@@ -527,14 +568,17 @@ class PyBridge {
 
   Future<Map<String, dynamic>> getDefaultReceiptParsingSettings() async {
     try {
-      final result =
-          await _chan.invokeMethod('get_default_receipt_parsing_settings');
+      final result = await _chan.invokeMethod(
+        'get_default_receipt_parsing_settings',
+      );
       if (result == null || result == 'null') {
         return <String, dynamic>{};
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in getDefaultReceiptParsingSettings: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in getDefaultReceiptParsingSettings: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -562,7 +606,9 @@ class PyBridge {
       final List<dynamic> decoded = jsonDecode(result as String);
       return decoded.cast<Map<String, dynamic>>();
     } catch (e, stack) {
-      print('Error in findReceiptMergeCandidates: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in findReceiptMergeCandidates: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -577,11 +623,15 @@ class PyBridge {
         'items': jsonEncode(items),
       });
       if (result == null || result == 'null') {
-        throw Exception('Failed to merge receipt items: No response from backend');
+        throw Exception(
+          'Failed to merge receipt items: No response from backend',
+        );
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in mergeReceiptItems: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in mergeReceiptItems: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -596,20 +646,24 @@ class PyBridge {
     double? minWordMatchRatio,
   }) async {
     try {
-      final result = await _chan.invokeMethod('suggest_receipt_ingredient_matches', {
-        'items': jsonEncode(items),
-        'ingredients': jsonEncode(ingredients),
-        'min_word_match_ratio': minWordMatchRatio,
-      });
+      final result = await _chan
+          .invokeMethod('suggest_receipt_ingredient_matches', {
+            'items': jsonEncode(items),
+            'ingredients': jsonEncode(ingredients),
+            'min_word_match_ratio': minWordMatchRatio,
+          });
       if (result == null || result == 'null') {
         return <String, int?>{};
       }
-      final Map<String, dynamic> decoded = jsonDecode(result as String) as Map<String, dynamic>;
+      final Map<String, dynamic> decoded =
+          jsonDecode(result as String) as Map<String, dynamic>;
       final Map<String, dynamic> suggestions =
           decoded['suggestions'] as Map<String, dynamic>? ?? {};
       return suggestions.map((key, value) => MapEntry(key, value as int?));
     } catch (e, stack) {
-      print('Error in suggestReceiptIngredientMatches: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in suggestReceiptIngredientMatches: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -633,11 +687,17 @@ class PyBridge {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getStockHistory({int? ingredientId}) async {
+  Future<List<Map<String, dynamic>>> getStockHistory({
+    int? ingredientId,
+  }) async {
     try {
-      final String method = ingredientId != null ? 'get_stock_history' : 'get_all_stock_history';
-      final Map<String, dynamic> arguments = ingredientId != null ? {'ingredient_id': ingredientId} : {};
-      
+      final String method = ingredientId != null
+          ? 'get_stock_history'
+          : 'get_all_stock_history';
+      final Map<String, dynamic> arguments = ingredientId != null
+          ? {'ingredient_id': ingredientId}
+          : {};
+
       final result = await _chan.invokeMethod(method, arguments);
       if (result == null || result == 'null') {
         return <Map<String, dynamic>>[];
@@ -708,27 +768,39 @@ class PyBridge {
     try {
       final result = await _chan.invokeMethod('get_storage_diagnostics');
       if (result == null || result == 'null') {
-        throw Exception('Failed to load storage diagnostics: No response from backend');
+        throw Exception(
+          'Failed to load storage diagnostics: No response from backend',
+        );
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in getStorageDiagnostics: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in getStorageDiagnostics: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
 
   Future<Map<String, dynamic>> getAndroidStorageDiagnostics() async {
     try {
-      final result = await _chan.invokeMethod('get_android_storage_diagnostics');
+      final result = await _chan.invokeMethod(
+        'get_android_storage_diagnostics',
+      );
       if (result == null) {
-        throw Exception('Failed to load Android storage diagnostics: No response from platform');
+        throw Exception(
+          'Failed to load Android storage diagnostics: No response from platform',
+        );
       }
       if (result is Map) {
         return Map<String, dynamic>.from(result);
       }
-      throw Exception('Unexpected Android storage diagnostics response type: ${result.runtimeType}');
+      throw Exception(
+        'Unexpected Android storage diagnostics response type: ${result.runtimeType}',
+      );
     } catch (e, stack) {
-      print('Error in getAndroidStorageDiagnostics: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in getAndroidStorageDiagnostics: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -798,7 +870,9 @@ class PyBridge {
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in exportBackupToPublic: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in exportBackupToPublic: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -818,7 +892,9 @@ class PyBridge {
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in uploadBackupToServer: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in uploadBackupToServer: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -876,7 +952,9 @@ class PyBridge {
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in downloadBackupFromServer: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in downloadBackupFromServer: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -894,7 +972,9 @@ class PyBridge {
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in importBackupFromShare: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in importBackupFromShare: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -905,7 +985,9 @@ class PyBridge {
       final result = await _chan.invokeMethod('pick_file_for_import');
       return result as String?;
     } catch (e, stack) {
-      print('Error in pickFileForImport: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in pickFileForImport: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -919,11 +1001,17 @@ class PyBridge {
         'server_config': jsonEncode(serverConfig),
       });
       if (result == null || result == 'null') {
-        return {'success': false, 'message': 'No response from backend', 'files': []};
+        return {
+          'success': false,
+          'message': 'No response from backend',
+          'files': [],
+        };
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in listServerBackups: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in listServerBackups: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       return {'success': false, 'message': e.toString(), 'files': []};
     }
   }
@@ -940,11 +1028,15 @@ class PyBridge {
         'entity_id': entityId,
       });
       if (result == null || result == 'null') {
-        throw Exception('Failed to check deletion dependencies: No response from backend');
+        throw Exception(
+          'Failed to check deletion dependencies: No response from backend',
+        );
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in checkDeletionDependencies: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in checkDeletionDependencies: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -969,7 +1061,9 @@ class PyBridge {
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in enhancedDeleteUser: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in enhancedDeleteUser: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       return {'success': false, 'message': e.toString()};
     }
   }
@@ -992,7 +1086,9 @@ class PyBridge {
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in enhancedDeleteProduct: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in enhancedDeleteProduct: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       return {'success': false, 'message': e.toString()};
     }
   }
@@ -1015,7 +1111,9 @@ class PyBridge {
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in enhancedDeleteIngredient: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in enhancedDeleteIngredient: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       return {'success': false, 'message': e.toString()};
     }
   }
@@ -1034,7 +1132,9 @@ class PyBridge {
       }
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in getDeletionImpactAnalysis: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in getDeletionImpactAnalysis: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -1045,12 +1145,16 @@ class PyBridge {
     try {
       final result = await _chan.invokeMethod('get_deleted_products');
       if (result == null || result == 'null') {
-        throw Exception('Failed to get deleted products: No response from backend');
+        throw Exception(
+          'Failed to get deleted products: No response from backend',
+        );
       }
       final List<dynamic> data = jsonDecode(result as String) as List<dynamic>;
       return data.map((item) => item as Map<String, dynamic>).toList();
     } catch (e, stack) {
-      print('Error in getDeletedProducts: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in getDeletedProducts: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -1059,12 +1163,16 @@ class PyBridge {
     try {
       final result = await _chan.invokeMethod('get_deleted_ingredients');
       if (result == null || result == 'null') {
-        throw Exception('Failed to get deleted ingredients: No response from backend');
+        throw Exception(
+          'Failed to get deleted ingredients: No response from backend',
+        );
       }
       final List<dynamic> data = jsonDecode(result as String) as List<dynamic>;
       return data.map((item) => item as Map<String, dynamic>).toList();
     } catch (e, stack) {
-      print('Error in getDeletedIngredients: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in getDeletedIngredients: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
@@ -1073,7 +1181,9 @@ class PyBridge {
     try {
       final result = await _chan.invokeMethod('get_deleted_users');
       if (result == null || result == 'null') {
-        throw Exception('Failed to get deleted users: No response from backend');
+        throw Exception(
+          'Failed to get deleted users: No response from backend',
+        );
       }
       final List<dynamic> data = jsonDecode(result as String) as List<dynamic>;
       return data.map((item) => item as Map<String, dynamic>).toList();
@@ -1108,7 +1218,9 @@ class PyBridge {
       }
       return result as String;
     } catch (e, stack) {
-      print('Error in restoreIngredient: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in restoreIngredient: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       return 'Error restoring ingredient: $e';
     }
   }
@@ -1151,25 +1263,19 @@ class PyBridge {
   }
 
   // ========== SAFE DELETION METHODS ==========
-  
+
   Future<Map<String, dynamic>> safeDeleteUser({
     required int userId,
     bool force = false,
   }) async {
-    return await enhancedDeleteUser(
-      userId: userId,
-      hardDelete: force,
-    );
+    return await enhancedDeleteUser(userId: userId, hardDelete: force);
   }
 
   Future<Map<String, dynamic>> safeDeleteProduct({
     required int productId,
     bool force = false,
   }) async {
-    return await enhancedDeleteProduct(
-      productId: productId,
-      hardDelete: force,
-    );
+    return await enhancedDeleteProduct(productId: productId, hardDelete: force);
   }
 
   Future<Map<String, dynamic>> safeDeleteIngredient({
@@ -1183,7 +1289,7 @@ class PyBridge {
   }
 
   // ========== NEW SIMPLIFIED DELETION SYSTEM ==========
-  
+
   /// Analyze what would happen when deleting an entity
   /// Returns information about whether hard or soft deletion will be used
   Future<Map<String, dynamic>> analyzeDeletionImpact({
@@ -1195,18 +1301,20 @@ class PyBridge {
         'entity_type': entityType,
         'entity_id': entityId,
       });
-      
+
       if (result == null || result == 'null') {
         throw Exception('No response from backend');
       }
-      
+
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
-      print('Error in analyzeDeletionImpact: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in analyzeDeletionImpact: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }
-  
+
   /// Execute deletion with simplified logic
   /// Automatically chooses hard vs soft deletion based on dependencies
   Future<Map<String, dynamic>> executeDeletion({
@@ -1220,11 +1328,11 @@ class PyBridge {
         'entity_id': entityId,
         'deleted_by': deletedBy,
       });
-      
+
       if (result == null || result == 'null') {
         throw Exception('No response from backend');
       }
-      
+
       return jsonDecode(result as String) as Map<String, dynamic>;
     } catch (e, stack) {
       print('Error in executeDeletion: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
@@ -1236,7 +1344,9 @@ class PyBridge {
     try {
       await _chan.invokeMethod('test_firebase_logging');
     } catch (e, stack) {
-      print('Error in testFirebaseLogging: \x1b[31m$e\nStacktrace: $stack\x1b[0m');
+      print(
+        'Error in testFirebaseLogging: \x1b[31m$e\nStacktrace: $stack\x1b[0m',
+      );
       rethrow;
     }
   }

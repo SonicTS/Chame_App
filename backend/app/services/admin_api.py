@@ -502,7 +502,7 @@ def get_all_ingredients():
 def get_all_sales():
     return _filter_visible_records([sale.to_dict(True, True, True) for sale in database.get_all_sales()])
 
-def get_sales_paginated(page=1, page_size=100):
+def get_sales_paginated(page=1, page_size=100, category="all", id_filter="", consumer_filter="", donator_filter="", salesman_filter="", product_filter="", quantity_filter="", price_filter="", date_filter=""):
     """Get paginated sales data.
     
     Args:
@@ -512,14 +512,29 @@ def get_sales_paginated(page=1, page_size=100):
     Returns:
         dict: Contains 'sales', 'total_count', 'page', 'page_size', 'total_pages'
     """
-    sales, total_count = database.get_sales_paginated(page=page, page_size=page_size)
-    filtered_sales = _filter_visible_records([sale.to_dict(True, True, True) for sale in sales])
-    filtered_total_count = len(filtered_sales)
-    total_pages = (filtered_total_count + page_size - 1) // page_size if filtered_total_count else 0
+    filters = {
+        "id": id_filter,
+        "consumer": consumer_filter,
+        "donator": donator_filter,
+        "salesman": salesman_filter,
+        "product": product_filter,
+        "quantity": quantity_filter,
+        "price": price_filter,
+        "date": date_filter,
+    }
+    excluded_user_ids = None if _viewer_can_see_god() else _get_god_user_ids()
+    sales, total_count = database.get_sales_paginated(
+        page=page,
+        page_size=page_size,
+        category=category,
+        filters=filters,
+        excluded_user_ids=excluded_user_ids,
+    )
+    total_pages = (total_count + page_size - 1) // page_size if total_count else 0
     
     return {
-        'sales': filtered_sales,
-        'total_count': filtered_total_count,
+        'sales': [sale.to_dict(True, True, True) for sale in sales],
+        'total_count': total_count,
         'page': page,
         'page_size': page_size,
         'total_pages': total_pages

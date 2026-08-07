@@ -13,8 +13,8 @@ from models.toast_round import ToastRound
 from models.user_table import User
 from models.transaction_table import Transaction
 from models.bank_table import Bank, BankTransaction
-from sqlalchemy.orm import joinedload
-from sqlalchemy import text
+from sqlalchemy.orm import aliased, joinedload
+from sqlalchemy import String, cast, func, or_, text
 from utils.firebase_logger import log_info, log_warn, log_error, log_debug
 
 # Debug flag - set to True to enable local debug prints
@@ -1216,7 +1216,7 @@ class Database:
             if close_session:
                 session.close()
     
-    def get_sales_paginated(self, page=1, page_size=100, session=None) -> 'tuple[List[Sale], int]':
+    def get_sales_paginated(self, page=1, page_size=100, category="all", filters=None, excluded_user_ids=None, session=None) -> 'tuple[List[Sale], int]':
         """Get paginated sales with eager loading of user, product, toast_round, and product ingredients.
         
         Args:
@@ -1232,14 +1232,45 @@ class Database:
             session = self.get_session()
             close_session = True
         try:
-            # Get total count first
-            total_count = session.query(Sale).count()
-            
-            # Calculate offset
+            page = max(1, int(page))
+            page_size = max(1, int(page_size))
+            filters = {key: str(value).strip().lower() for key, value in (filters or {}).items() if value is not None and str(value).strip()}
+
+            consumer = aliased(User)
+            donator = aliased(User)
+            salesman = aliased(User)
+            query = session.query(Sale).outerjoin(consumer, Sale.consumer_id == consumer.user_id).outerjoin(
+                donator, Sale.donator_id == donator.user_id
+            ).outerjoin(salesman, Sale.salesman_id == salesman.user_id).join(Product, Sale.product_id == Product.product_id)
+
+            if category != "all":
+                query = query.filter(Product.category == category)
+
+            if excluded_user_ids:
+                query = query.filter(
+                    ~Sale.consumer_id.in_(excluded_user_ids),
+                    or_(Sale.donator_id.is_(None), ~Sale.donator_id.in_(excluded_user_ids)),
+                    ~Sale.salesman_id.in_(excluded_user_ids),
+                )
+
+            column_filters = {
+                "id": cast(Sale.sale_id, String),
+                "consumer": consumer.name,
+                "donator": donator.name,
+                "salesman": salesman.name,
+                "product": Product.name,
+                "quantity": cast(Sale.quantity, String),
+                "price": cast(Sale.total_price, String),
+                "date": Sale.timestamp,
+            }
+            for key, value in filters.items():
+                column = column_filters.get(key)
+                if column is not None:
+                    query = query.filter(func.lower(column).like(f"%{value}%"))
+
+            total_count = query.count()
             offset = (page - 1) * page_size
-            
-            # Get paginated sales ordered by sale_id descending (most recent first)
-            sales = session.query(Sale).options(
+            sales = query.options(
                 joinedload(Sale.consumer),
                 joinedload(Sale.donator),
                 joinedload(Sale.salesman),
